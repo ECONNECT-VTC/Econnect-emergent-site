@@ -1,0 +1,40 @@
+/* Leaflet fix for dark theme */
+.leaflet-container {
+  background: #0A0A0A;
+  border-radius: 0.75rem;
+}
+
+.leaflet-control-attribution {
+  background: rgba(10, 10, 10, 0.8) !important;
+  color: #A1A1AA !important;
+}
+
+.leaflet-control-attribution a {
+  color: #D4AF37 !important;
+}
+
+.leaflet-control-zoom a {
+  background: #141414 !important;
+  color: #FAFAFA !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: #1E1E1E !important;
+  color: #D4AF37 !important;
+}
+
+/* Service card image zoom */
+.service-card-img {
+  transition: transform 0.5s ease-out;
+}
+
+.service-card:hover .service-card-img {
+  transform: scale(1.1);
+}
+
+/* Stagger animation delays */
+.stagger-1 { animation-delay: 0.1s; }
+.stagger-2 { animation-delay: 0.2s; }
+.stagger-3 { animation-delay: 0.3s; }
+.stagger-4 { animation-delay: 0.4s; }
