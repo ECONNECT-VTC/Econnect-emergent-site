@@ -41,13 +41,9 @@ const NewBooking = () => {
 
   const fetchCategories = async () => {
     try {
-<<<<<<< HEAD
       const response = await axios.get(`${API_URL}/api/vehicle-categories`, {
         withCredentials: true
       });
-=======
-      const response = await axios.get(`${API_URL}/api/vehicle-categories`);
->>>>>>> 46c0b6c5fecca96064513f746ebe00c4a385805d
       setCategories(response.data);
     } catch (error) { console.error('Error:', error); }
   };
@@ -58,13 +54,9 @@ const NewBooking = () => {
     setEstimatingPrice(true);
     try {
       const response = await axios.post(
-<<<<<<< HEAD
         `${API_URL}/api/estimate-price?distance_km=${parseFloat(distance)}&duration_minutes=${parseFloat(duration) || 0}`,
         {},
         { withCredentials: true }
-=======
-        `${API_URL}/api/estimate-price?distance_km=${parseFloat(distance)}&duration_minutes=${parseFloat(duration) || 0}`
->>>>>>> 46c0b6c5fecca96064513f746ebe00c4a385805d
       );
       setPriceEstimates(response.data);
     } catch (error) { 
@@ -347,8 +339,4 @@ const NewBooking = () => {
   );
 };
 
-<<<<<<< HEAD
 export default NewBooking;
-=======
-export default NewBooking;
->>>>>>> 46c0b6c5fecca96064513f746ebe00c4a385805d
