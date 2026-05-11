@@ -21,6 +21,7 @@ const AdminCommissions = () => {
   const [form, setForm] = useState(defaultForm);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -28,7 +29,7 @@ const AdminCommissions = () => {
         const response = await axios.get(`${API_URL}/api/admin/financial/commissions`, { withCredentials: true });
         setForm(response.data);
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Failed to fetch commission settings:', error);
       } finally {
         setLoading(false);
       }
@@ -63,6 +64,7 @@ const AdminCommissions = () => {
 
   const handleSave = async () => {
     setSaving(true);
+    setMessage('');
     try {
       const payload = {
         ...form,
@@ -72,10 +74,10 @@ const AdminCommissions = () => {
       };
       const response = await axios.put(`${API_URL}/api/admin/financial/commissions`, payload, { withCredentials: true });
       setForm(response.data);
-      alert('Paramètres enregistrés');
+      setMessage('Paramètres enregistrés');
     } catch (error) {
-      console.error('Error:', error);
-      alert('Erreur lors de la sauvegarde');
+      console.error('Failed to save commission settings:', error);
+      setMessage('Erreur lors de la sauvegarde');
     } finally {
       setSaving(false);
     }
@@ -89,6 +91,7 @@ const AdminCommissions = () => {
     <div className="bg-[#0A0A0A] text-white min-h-full grid lg:grid-cols-2 gap-6">
       <div className="bg-[#141414] rounded-xl border border-white/10 p-6 space-y-4">
         <h2 className="text-xl font-semibold">Paramètres de commissions</h2>
+        {message && <p className="text-sm text-[#D4AF37]">{message}</p>}
 
         <label className="block text-sm text-[#A1A1AA]">Taux de commission (%)</label>
         <input

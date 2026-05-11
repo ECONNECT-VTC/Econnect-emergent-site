@@ -12,7 +12,7 @@ const DriverEarnings = () => {
         const response = await axios.get(`${API_URL}/api/driver/earnings`, { withCredentials: true });
         setRows(response.data || []);
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Failed to fetch driver earnings:', error);
       } finally {
         setLoading(false);
       }

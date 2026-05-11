@@ -321,6 +321,7 @@ async def require_driver(request: Request) -> dict:
     return user
 
 def round_amount(value: float) -> float:
+    # Small epsilon avoids floating-point artifacts like 1.005 -> 1.00 during rounding.
     return round(value + 1e-9, 2)
 
 def get_default_commission_settings() -> dict:
@@ -449,6 +450,20 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
 async def generate_and_store_document(booking: dict, settings: dict, document_type: str) -> Tuple[bytes, dict]:
     prefix = "INV" if document_type == "invoice" else "BC"
+    existing_document = await db.invoices.find_one(
+        {"booking_id": booking["id"], "type": document_type},
+        {"_id": 0}
+    )
+
+    if existing_document:
+        existing_pdf = generate_financial_pdf(
+            booking,
+            settings,
+            document_type,
+            existing_document["invoice_number"]
+        )
+        return existing_pdf, existing_document
+
     document_number = build_document_number(prefix)
     pdf_bytes = generate_financial_pdf(booking, settings, document_type, document_number)
     breakdown = compute_financial_breakdown(
@@ -1107,6 +1122,7 @@ async def startup_event():
     await db.commission_settings.create_index("id", unique=True)
     await db.invoices.create_index("id", unique=True)
     await db.invoices.create_index("booking_id")
+    await db.invoices.create_index([("booking_id", 1), ("type", 1)], unique=True)
     
     # Seed admin user
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@econnect-vtc.com")

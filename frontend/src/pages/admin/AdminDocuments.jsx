@@ -13,7 +13,7 @@ const AdminDocuments = () => {
         const response = await axios.get(`${API_URL}/api/admin/financial/invoices`, { withCredentials: true });
         setDocuments(response.data || []);
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Failed to fetch documents:', error);
       } finally {
         setLoading(false);
       }

@@ -3,6 +3,7 @@ import axios from 'axios';
 import API_URL from '@/config';
 
 const formatAmount = (value) => `${(value || 0).toFixed(2)}€`;
+const MAX_RECENT_BOOKINGS = 10;
 
 const AdminFinancialDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -17,9 +18,9 @@ const AdminFinancialDashboard = () => {
           axios.get(`${API_URL}/api/admin/bookings?status=completed`, { withCredentials: true })
         ]);
         setStats(statsRes.data);
-        setBookings((bookingsRes.data || []).slice(0, 10));
+        setBookings((bookingsRes.data || []).slice(0, MAX_RECENT_BOOKINGS));
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Failed to fetch financial data:', error);
       } finally {
         setLoading(false);
       }
