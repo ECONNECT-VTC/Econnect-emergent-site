@@ -321,7 +321,7 @@ async def require_driver(request: Request) -> dict:
     return user
 
 def round_amount(value: float) -> float:
-    # Small epsilon avoids floating-point artifacts like 1.005 -> 1.00 during rounding.
+    # Small epsilon helps avoid floating-point artifacts so values like 1.005 round to 1.01.
     return round(value + 1e-9, 2)
 
 def get_default_commission_settings() -> dict:
