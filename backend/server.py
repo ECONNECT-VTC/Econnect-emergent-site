@@ -11,14 +11,17 @@ from bson import ObjectId
 import os
 import logging
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import uuid
 from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt
 import secrets
+from io import BytesIO
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 # test repository github 
 # MongoDB connection
@@ -189,6 +192,71 @@ class PriceEstimate(BaseModel):
     min_fare: float
     price_per_km: float
 
+# ==================== FINANCIAL MODELS ====================
+
+class CommissionSettings(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    commission_rate: float  # ex: 0.10 = 10%
+    tva_client_rate: float  # ex: 0.10 = 10%
+    tva_commission_rate: float  # ex: 0.20 = 20%
+    company_name: str = "Econnect VTC"
+    company_address: str = "À compléter"
+    company_phone: str = "À compléter"
+    company_email: str = "À compléter"
+    company_siret: str = "À compléter"
+    company_vtc_number: str = "À compléter"
+    updated_at: datetime
+
+class CommissionSettingsUpdate(BaseModel):
+    commission_rate: Optional[float] = None
+    tva_client_rate: Optional[float] = None
+    tva_commission_rate: Optional[float] = None
+    company_name: Optional[str] = None
+    company_address: Optional[str] = None
+    company_phone: Optional[str] = None
+    company_email: Optional[str] = None
+    company_siret: Optional[str] = None
+    company_vtc_number: Optional[str] = None
+
+class FinancialStats(BaseModel):
+    total_revenue_ttc: float
+    total_revenue_ht: float
+    total_tva_client: float
+    total_commission_ttc: float
+    total_commission_ht: float
+    total_tva_commission: float
+    total_driver_earnings: float
+    commission_rate: float
+    completed_bookings_count: int
+
+class DriverEarning(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    booking_id: str
+    pickup_address: str
+    dropoff_address: str
+    pickup_date: str
+    pickup_time: str
+    price_ttc: float
+    commission_ttc: float
+    driver_earning: float
+    status: str
+    created_at: datetime
+
+class InvoiceMetadata(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    invoice_number: str
+    booking_id: str
+    client_name: str
+    client_email: str
+    amount_ttc: float
+    amount_ht: float
+    tva_amount: float
+    tva_rate: float
+    type: str  # "invoice" or "order"
+    created_at: datetime
+
 # ==================== AUTH HELPERS ====================
 
 def hash_password(password: str) -> str:
@@ -251,6 +319,160 @@ async def require_driver(request: Request) -> dict:
     if user.get("role") != "driver":
         raise HTTPException(status_code=403, detail="Accès chauffeur requis")
     return user
+
+def round_amount(value: float) -> float:
+    return round(value + 1e-9, 2)
+
+def get_default_commission_settings() -> dict:
+    return {
+        "id": str(uuid.uuid4()),
+        "commission_rate": 0.10,
+        "tva_client_rate": 0.10,
+        "tva_commission_rate": 0.20,
+        "company_name": "Econnect VTC",
+        "company_address": "À compléter",
+        "company_phone": "À compléter",
+        "company_email": "À compléter",
+        "company_siret": "À compléter",
+        "company_vtc_number": "À compléter",
+        "updated_at": datetime.now(timezone.utc)
+    }
+
+async def get_commission_settings() -> dict:
+    settings = await db.commission_settings.find_one({}, {"_id": 0})
+    if settings:
+        return settings
+    defaults = get_default_commission_settings()
+    await db.commission_settings.insert_one(defaults)
+    return defaults
+
+def compute_financial_breakdown(price_ttc: float, commission_rate: float, tva_client_rate: float, tva_commission_rate: float) -> dict:
+    safe_price_ttc = float(price_ttc or 0)
+    commission_ttc = safe_price_ttc * commission_rate
+    driver_earning = safe_price_ttc - commission_ttc
+
+    price_ht = safe_price_ttc / (1 + tva_client_rate) if (1 + tva_client_rate) > 0 else safe_price_ttc
+    tva_client = safe_price_ttc - price_ht
+
+    commission_ht = commission_ttc / (1 + tva_commission_rate) if (1 + tva_commission_rate) > 0 else commission_ttc
+    tva_commission = commission_ttc - commission_ht
+
+    return {
+        "price_ttc": round_amount(safe_price_ttc),
+        "price_ht": round_amount(price_ht),
+        "tva_client": round_amount(tva_client),
+        "commission_ttc": round_amount(commission_ttc),
+        "commission_ht": round_amount(commission_ht),
+        "tva_commission": round_amount(tva_commission),
+        "driver_earning": round_amount(driver_earning),
+    }
+
+def build_document_number(prefix: str) -> str:
+    return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{str(uuid.uuid4())[:6].upper()}"
+
+def generate_financial_pdf(booking: dict, settings: dict, document_type: str, document_number: str) -> bytes:
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    _, height = A4
+
+    if booking.get("estimated_price") is None:
+        raise HTTPException(status_code=400, detail="Montant de course indisponible")
+
+    breakdown = compute_financial_breakdown(
+        booking["estimated_price"],
+        settings["commission_rate"],
+        settings["tva_client_rate"],
+        settings["tva_commission_rate"]
+    )
+
+    title = "FACTURE CLIENT" if document_type == "invoice" else "BON DE COMMANDE"
+
+    y = height - 50
+    c.setFont("Helvetica-Bold", 18)
+    c.drawString(40, y, "Econnect VTC")
+    y -= 30
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(40, y, title)
+    y -= 20
+    c.setFont("Helvetica", 11)
+    c.drawString(40, y, f"N°: {document_number}")
+    y -= 25
+
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(40, y, "Entreprise")
+    y -= 16
+    c.setFont("Helvetica", 10)
+    c.drawString(40, y, settings["company_name"])
+    y -= 14
+    c.drawString(40, y, settings["company_address"])
+    y -= 14
+    c.drawString(40, y, f"Tél: {settings['company_phone']} | Email: {settings['company_email']}")
+    y -= 14
+    c.drawString(40, y, f"SIRET: {settings['company_siret']} | N° VTC: {settings['company_vtc_number']}")
+    y -= 25
+
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(40, y, "Client")
+    y -= 16
+    c.setFont("Helvetica", 10)
+    c.drawString(40, y, booking.get("client_name", "N/A"))
+    y -= 14
+    c.drawString(40, y, booking.get("client_email", "N/A"))
+    y -= 25
+
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(40, y, "Détails de la course")
+    y -= 16
+    c.setFont("Helvetica", 10)
+    c.drawString(40, y, f"Départ: {booking.get('pickup_address', 'N/A')}")
+    y -= 14
+    c.drawString(40, y, f"Arrivée: {booking.get('dropoff_address', 'N/A')}")
+    y -= 14
+    c.drawString(40, y, f"Date: {booking.get('pickup_date', 'N/A')} à {booking.get('pickup_time', 'N/A')}")
+    y -= 28
+
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(40, y, "Montants")
+    y -= 16
+    c.setFont("Helvetica", 11)
+    c.drawString(40, y, f"Montant HT: {breakdown['price_ht']:.2f} €")
+    y -= 16
+    c.drawString(40, y, f"TVA client ({round_amount(settings['tva_client_rate'] * 100):.0f}%): {breakdown['tva_client']:.2f} €")
+    y -= 16
+    c.drawString(40, y, f"Montant TTC: {breakdown['price_ttc']:.2f} €")
+
+    c.showPage()
+    c.save()
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
+
+async def generate_and_store_document(booking: dict, settings: dict, document_type: str) -> Tuple[bytes, dict]:
+    prefix = "INV" if document_type == "invoice" else "BC"
+    document_number = build_document_number(prefix)
+    pdf_bytes = generate_financial_pdf(booking, settings, document_type, document_number)
+    breakdown = compute_financial_breakdown(
+        booking["estimated_price"],
+        settings["commission_rate"],
+        settings["tva_client_rate"],
+        settings["tva_commission_rate"]
+    )
+
+    metadata = {
+        "id": str(uuid.uuid4()),
+        "invoice_number": document_number,
+        "booking_id": booking["id"],
+        "client_name": booking.get("client_name", "N/A"),
+        "client_email": booking.get("client_email", "N/A"),
+        "amount_ttc": breakdown["price_ttc"],
+        "amount_ht": breakdown["price_ht"],
+        "tva_amount": breakdown["tva_client"],
+        "tva_rate": settings["tva_client_rate"],
+        "type": document_type,
+        "created_at": datetime.now(timezone.utc)
+    }
+    await db.invoices.insert_one(metadata)
+    return pdf_bytes, metadata
 
 # ==================== EMAIL SERVICE ====================
 
@@ -691,6 +913,166 @@ async def estimate_price(distance_km: float, duration_minutes: float = 0):
     
     return estimates
 
+# ==================== FINANCIAL ROUTES ====================
+
+@api_router.get("/admin/financial/stats", response_model=FinancialStats)
+async def get_financial_stats(request: Request):
+    await require_admin(request)
+    settings = await get_commission_settings()
+
+    completed_bookings = await db.bookings.find(
+        {"status": "completed", "estimated_price": {"$ne": None}},
+        {"_id": 0}
+    ).to_list(10000)
+
+    totals = {
+        "total_revenue_ttc": 0.0,
+        "total_revenue_ht": 0.0,
+        "total_tva_client": 0.0,
+        "total_commission_ttc": 0.0,
+        "total_commission_ht": 0.0,
+        "total_tva_commission": 0.0,
+        "total_driver_earnings": 0.0
+    }
+
+    for booking in completed_bookings:
+        breakdown = compute_financial_breakdown(
+            booking["estimated_price"],
+            settings["commission_rate"],
+            settings["tva_client_rate"],
+            settings["tva_commission_rate"]
+        )
+        totals["total_revenue_ttc"] += breakdown["price_ttc"]
+        totals["total_revenue_ht"] += breakdown["price_ht"]
+        totals["total_tva_client"] += breakdown["tva_client"]
+        totals["total_commission_ttc"] += breakdown["commission_ttc"]
+        totals["total_commission_ht"] += breakdown["commission_ht"]
+        totals["total_tva_commission"] += breakdown["tva_commission"]
+        totals["total_driver_earnings"] += breakdown["driver_earning"]
+
+    return FinancialStats(
+        total_revenue_ttc=round_amount(totals["total_revenue_ttc"]),
+        total_revenue_ht=round_amount(totals["total_revenue_ht"]),
+        total_tva_client=round_amount(totals["total_tva_client"]),
+        total_commission_ttc=round_amount(totals["total_commission_ttc"]),
+        total_commission_ht=round_amount(totals["total_commission_ht"]),
+        total_tva_commission=round_amount(totals["total_tva_commission"]),
+        total_driver_earnings=round_amount(totals["total_driver_earnings"]),
+        commission_rate=settings["commission_rate"],
+        completed_bookings_count=len(completed_bookings)
+    )
+
+@api_router.get("/admin/financial/commissions", response_model=CommissionSettings)
+async def get_financial_commissions(request: Request):
+    await require_admin(request)
+    settings = await get_commission_settings()
+    return CommissionSettings(**settings)
+
+@api_router.put("/admin/financial/commissions", response_model=CommissionSettings)
+async def update_financial_commissions(payload: CommissionSettingsUpdate, request: Request):
+    await require_admin(request)
+    settings = await get_commission_settings()
+
+    update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if update_data:
+        update_data["updated_at"] = datetime.now(timezone.utc)
+        await db.commission_settings.update_one({"id": settings["id"]}, {"$set": update_data})
+
+    updated = await db.commission_settings.find_one({"id": settings["id"]}, {"_id": 0})
+    return CommissionSettings(**updated)
+
+@api_router.get("/admin/financial/invoices", response_model=List[InvoiceMetadata])
+async def get_financial_invoices(request: Request):
+    await require_admin(request)
+    invoices = await db.invoices.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    return [InvoiceMetadata(**invoice) for invoice in invoices]
+
+@api_router.get("/driver/earnings", response_model=List[DriverEarning])
+async def get_driver_earnings(request: Request):
+    driver = await require_driver(request)
+    settings = await get_commission_settings()
+
+    bookings = await db.bookings.find(
+        {"driver_id": driver["id"], "status": "completed", "estimated_price": {"$ne": None}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+
+    earnings = []
+    for booking in bookings:
+        breakdown = compute_financial_breakdown(
+            booking["estimated_price"],
+            settings["commission_rate"],
+            settings["tva_client_rate"],
+            settings["tva_commission_rate"]
+        )
+        earnings.append(DriverEarning(
+            booking_id=booking["id"],
+            pickup_address=booking.get("pickup_address", ""),
+            dropoff_address=booking.get("dropoff_address", ""),
+            pickup_date=booking.get("pickup_date", ""),
+            pickup_time=booking.get("pickup_time", ""),
+            price_ttc=breakdown["price_ttc"],
+            commission_ttc=breakdown["commission_ttc"],
+            driver_earning=breakdown["driver_earning"],
+            status=booking.get("status", ""),
+            created_at=booking.get("created_at", datetime.now(timezone.utc))
+        ))
+
+    return earnings
+
+@api_router.get("/admin/invoices/{booking_id}/pdf")
+async def download_admin_invoice_pdf(booking_id: str, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "invoice")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=facture-{booking_id}.pdf"}
+    )
+
+@api_router.get("/admin/orders/{booking_id}/pdf")
+async def download_admin_order_pdf(booking_id: str, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "order")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=bon-de-commande-{booking_id}.pdf"}
+    )
+
+@api_router.get("/client/invoices/{booking_id}/pdf")
+async def download_client_invoice_pdf(booking_id: str, request: Request):
+    user = await get_current_user(request)
+    if user.get("role") != "client":
+        raise HTTPException(status_code=403, detail="Accès client requis")
+
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("client_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé à cette facture")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "invoice")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=facture-{booking_id}.pdf"}
+    )
+
 # ==================== ROOT ROUTE ====================
 
 @api_router.get("/")
@@ -722,6 +1104,9 @@ async def startup_event():
     await db.bookings.create_index("driver_id")
     await db.bookings.create_index("status")
     await db.vehicle_categories.create_index("id", unique=True)
+    await db.commission_settings.create_index("id", unique=True)
+    await db.invoices.create_index("id", unique=True)
+    await db.invoices.create_index("booking_id")
     
     # Seed admin user
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@econnect-vtc.com")
@@ -794,6 +1179,23 @@ async def startup_event():
         ]
         await db.vehicle_categories.insert_many(default_categories)
         logger.info("Default vehicle categories created")
+
+    existing_settings = await db.commission_settings.count_documents({})
+    if existing_settings == 0:
+        await db.commission_settings.insert_one({
+            "id": str(uuid.uuid4()),
+            "commission_rate": 0.10,
+            "tva_client_rate": 0.10,
+            "tva_commission_rate": 0.20,
+            "company_name": "Econnect VTC",
+            "company_address": "À compléter",
+            "company_phone": "À compléter",
+            "company_email": "À compléter",
+            "company_siret": "À compléter",
+            "company_vtc_number": "À compléter",
+            "updated_at": datetime.now(timezone.utc)
+        })
+        logger.info("Default commission settings created")
     
     # Write test credentials
     # credentials_path = Path("/app/memory/test_credentials.md")

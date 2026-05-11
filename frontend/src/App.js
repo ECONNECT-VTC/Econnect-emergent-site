@@ -11,10 +11,14 @@ import AdminBookings from '@/pages/admin/AdminBookings';
 import AdminDrivers from '@/pages/admin/AdminDrivers';
 import AdminClients from '@/pages/admin/AdminClients';
 import AdminPricing from '@/pages/admin/AdminPricing.jsx';
+import AdminFinancialDashboard from '@/pages/admin/AdminFinancialDashboard';
+import AdminCommissions from '@/pages/admin/AdminCommissions';
+import AdminDocuments from '@/pages/admin/AdminDocuments';
 import ClientDashboard from '@/pages/client/ClientDashboard';
 import ClientBookings from '@/pages/client/ClientBookings';
 import NewBooking from '@/pages/client/NewBooking';
 import DriverDashboard from '@/pages/driver/DriverDashboard';
+import DriverEarnings from '@/pages/driver/DriverEarnings';
 import './App.css';
 
 function App() {
@@ -78,6 +82,36 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/admin/financial"
+            element={
+              <ProtectedRoute role="admin">
+                <DashboardLayout title="Finance">
+                  <AdminFinancialDashboard />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/commissions"
+            element={
+              <ProtectedRoute role="admin">
+                <DashboardLayout title="Commissions">
+                  <AdminCommissions />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/documents"
+            element={
+              <ProtectedRoute role="admin">
+                <DashboardLayout title="Documents">
+                  <AdminDocuments />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
 
           {/* Client routes */}
           <Route
@@ -118,6 +152,16 @@ function App() {
               <ProtectedRoute role="driver">
                 <DashboardLayout title="Mes Courses">
                   <DriverDashboard />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/driver/earnings"
+            element={
+              <ProtectedRoute role="driver">
+                <DashboardLayout title="Mes Gains">
+                  <DriverEarnings />
                 </DashboardLayout>
               </ProtectedRoute>
             }

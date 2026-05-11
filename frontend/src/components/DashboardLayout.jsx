@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  House, CalendarCheck, Car, Users, SignOut, List, X, ChartBar, CarSimple, UserCircle, CurrencyEur
+  House, CalendarCheck, Car, Users, SignOut, List, X, ChartBar, CarSimple, UserCircle, CurrencyEur, ChartLineUp, Percent, FileText, Money
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 
@@ -27,10 +27,14 @@ const DashboardLayout = ({ children, title }) => {
           { name: 'Chauffeurs', path: '/admin/drivers', icon: CarSimple },
           { name: 'Clients', path: '/admin/clients', icon: Users },
           { name: 'Tarifs', path: '/admin/pricing', icon: CurrencyEur },
+          { name: 'Finance', path: '/admin/financial', icon: ChartLineUp },
+          { name: 'Commissions', path: '/admin/commissions', icon: Percent },
+          { name: 'Documents', path: '/admin/documents', icon: FileText },
         ];
       case 'driver':
         return [
           { name: 'Mes Courses', path: '/driver', icon: Car },
+          { name: 'Mes Gains', path: '/driver/earnings', icon: Money },
         ];
       case 'client':
       default:
