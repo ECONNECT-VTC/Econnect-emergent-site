@@ -26,6 +26,7 @@ const AdminDrivers = () => {
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', vehicle_model: '', vehicle_plate: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => { fetchDrivers(); }, []);
 
@@ -59,6 +60,16 @@ const AdminDrivers = () => {
     } catch (error) { console.error('Error:', error); }
   };
 
+  const filteredDrivers = drivers.filter((driver) => {
+    const term = search.toLowerCase().trim();
+    if (!term) return true;
+    return (
+      driver.name?.toLowerCase().includes(term) ||
+      driver.email?.toLowerCase().includes(term) ||
+      driver.phone?.toLowerCase().includes(term)
+    );
+  });
+
   return (
     <DashboardLayout title="Gestion des Chauffeurs">
       <div className="flex justify-between items-center mb-6">
@@ -75,16 +86,27 @@ const AdminDrivers = () => {
               <div><Label className="text-[#A1A1AA]">Email</Label><Input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} required className="bg-[#1E1E1E] border-white/10" /></div>
               <div><Label className="text-[#A1A1AA]">Telephone</Label><Input value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} required className="bg-[#1E1E1E] border-white/10" /></div>
               <div><Label className="text-[#A1A1AA]">Mot de passe</Label><Input type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} required className="bg-[#1E1E1E] border-white/10" /></div>
-              <div><Label className="text-[#A1A1AA]">Modele vehicule</Label><Input value={formData.vehicle_model} onChange={(e) => setFormData({...formData, vehicle_model: e.target.value})} required className="bg-[#1E1E1E] border-white/10" placeholder="Mercedes Classe E" /></div>
-              <div><Label className="text-[#A1A1AA]">Immatriculation</Label><Input value={formData.vehicle_plate} onChange={(e) => setFormData({...formData, vehicle_plate: e.target.value})} required className="bg-[#1E1E1E] border-white/10" placeholder="AB-123-CD" /></div>
+              <div><Label className="text-[#A1A1AA]">Modele vehicule</Label><Input value={formData.vehicle_model} onChange={(e) => setFormData({...formData, vehicle_model: e.target.value})} required className="bg-[#1E1E1E] border-white/10" /></div>
+              <div><Label className="text-[#A1A1AA]">Immatriculation</Label><Input value={formData.vehicle_plate} onChange={(e) => setFormData({...formData, vehicle_plate: e.target.value})} required className="bg-[#1E1E1E] border-white/10" /></div>
               <Button type="submit" disabled={submitting} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">{submitting ? 'Creation...' : 'Creer'}</Button>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
+      <div className="mb-4">
+        <Input
+          placeholder="Rechercher par nom, email ou téléphone..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="bg-[#1E1E1E] border-white/10 max-w-sm"
+        />
+      </div>
+
       {loading ? <div className="text-center py-12 text-[#A1A1AA]">Chargement...</div> : drivers.length === 0 ? (
         <div className="glass rounded-xl p-12 text-center"><CarSimple size={48} className="text-[#A1A1AA] mx-auto mb-4" /><p className="text-[#A1A1AA]">Aucun chauffeur</p></div>
+      ) : filteredDrivers.length === 0 ? (
+        <div className="glass rounded-xl p-12 text-center"><CarSimple size={48} className="text-[#A1A1AA] mx-auto mb-4" /><p className="text-[#A1A1AA]">Aucun résultat pour « {search} »</p></div>
       ) : (
         <div className="glass rounded-xl p-4 overflow-x-auto" data-testid="drivers-list">
           <table className="w-full min-w-[980px] text-sm">
@@ -100,7 +122,7 @@ const AdminDrivers = () => {
               </tr>
             </thead>
             <tbody>
-              {drivers.map((driver) => (
+              {filteredDrivers.map((driver) => (
                 <tr key={driver.id} className="border-b border-white/5">
                   <td className="py-3 font-medium">{driver.name}</td>
                   <td>{driver.email}</td>
