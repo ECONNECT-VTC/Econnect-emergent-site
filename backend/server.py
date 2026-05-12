@@ -131,9 +131,13 @@ class BookingResponse(BaseModel):
     duration_minutes: Optional[float] = None
     estimated_price: Optional[float] = None
     notes: Optional[str] = None
-    status: str  # pending, assigned, in_progress, completed, cancelled
+    status: str  # pending, received, assigned, in_progress, completed, cancellation_requested, cancelled
     driver_id: Optional[str] = None
     driver_name: Optional[str] = None
+    commission_override: Optional[float] = None
+    cancellation_reason: Optional[str] = None
+    refund_amount: Optional[float] = None
+    refunded_at: Optional[datetime] = None
     created_at: datetime
     assigned_at: Optional[datetime] = None
 
@@ -142,6 +146,16 @@ class AssignBooking(BaseModel):
 
 class BookingStatusUpdate(BaseModel):
     status: str
+
+class BookingCommissionUpdate(BaseModel):
+    commission_override: float
+
+class BookingCancelRequest(BaseModel):
+    cancellation_reason: Optional[str] = None
+
+class BookingCancellationDecision(BaseModel):
+    approved: bool
+    refund_amount: Optional[float] = None
 
 class StatsResponse(BaseModel):
     total_bookings: int
@@ -347,9 +361,15 @@ async def get_commission_settings() -> dict:
     await db.commission_settings.insert_one(defaults)
     return defaults
 
-def compute_financial_breakdown(price_ttc: float, commission_rate: float, tva_client_rate: float, tva_commission_rate: float) -> dict:
+def compute_financial_breakdown(
+    price_ttc: float,
+    commission_rate: float,
+    tva_client_rate: float,
+    tva_commission_rate: float,
+    commission_override: Optional[float] = None
+) -> dict:
     safe_price_ttc = float(price_ttc or 0)
-    commission_ttc = safe_price_ttc * commission_rate
+    commission_ttc = float(commission_override) if commission_override is not None else (safe_price_ttc * commission_rate)
     driver_earning = safe_price_ttc - commission_ttc
 
     price_ht = safe_price_ttc / (1 + tva_client_rate) if (1 + tva_client_rate) > 0 else safe_price_ttc
@@ -383,7 +403,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         booking["estimated_price"],
         settings["commission_rate"],
         settings["tva_client_rate"],
-        settings["tva_commission_rate"]
+        settings["tva_commission_rate"],
+        booking.get("commission_override")
     )
 
     title = "FACTURE CLIENT" if document_type == "invoice" else "BON DE COMMANDE"
@@ -470,7 +491,8 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         booking["estimated_price"],
         settings["commission_rate"],
         settings["tva_client_rate"],
-        settings["tva_commission_rate"]
+        settings["tva_commission_rate"],
+        booking.get("commission_override")
     )
 
     metadata = {
@@ -484,6 +506,8 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         "tva_amount": breakdown["tva_client"],
         "tva_rate": settings["tva_client_rate"],
         "type": document_type,
+        "driver_id": booking.get("driver_id"),
+        "driver_name": booking.get("driver_name"),
         "created_at": datetime.now(timezone.utc)
     }
     await db.invoices.insert_one(metadata)
@@ -514,7 +538,7 @@ async def send_notification_email(to_email: str, subject: str, html_content: str
         logger.error(f"Failed to send email: {e}")
         return False
 
-async def send_booking_notification_to_driver(driver: dict, booking: dict, client: dict):
+async def send_booking_notification_to_driver(driver: dict, booking: dict, client: dict, order_download_url: Optional[str] = None):
     """Send notification to driver when a booking is assigned"""
     subject = f"🚗 Nouvelle course assignée - {booking['pickup_date']} à {booking['pickup_time']}"
     html_content = f"""
@@ -538,6 +562,7 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
             
             <div style="margin-top: 30px; padding: 20px; background: #D4AF37; border-radius: 8px; text-align: center;">
                 <p style="color: #0A0A0A; font-weight: bold; margin: 0;">Connectez-vous à votre espace chauffeur pour confirmer</p>
+                {f"<p style='margin-top: 10px;'><a href='{order_download_url}' style='color: #0A0A0A; font-weight: bold;'>Télécharger le bon de commande</a></p>" if order_download_url else ""}
             </div>
         </div>
     </body>
@@ -653,6 +678,11 @@ async def create_booking(booking: BookingCreate, request: Request):
         "status": "pending",
         "driver_id": None,
         "driver_name": None,
+        "commission_override": None,
+        "cancellation_reason": None,
+        "cancellation_previous_status": None,
+        "refund_amount": None,
+        "refunded_at": None,
         "created_at": datetime.now(timezone.utc),
         "assigned_at": None
     }
@@ -667,13 +697,56 @@ async def get_my_bookings(request: Request):
     bookings = await db.bookings.find({"client_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
     return [BookingResponse(**b) for b in bookings]
 
+@api_router.post("/bookings/{booking_id}/cancel-request")
+async def request_booking_cancellation(booking_id: str, payload: BookingCancelRequest, request: Request):
+    user = await get_current_user(request)
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("client_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réservation")
+
+    if booking.get("status") not in ["pending", "assigned"]:
+        raise HTTPException(status_code=400, detail="Cette réservation ne peut pas être annulée")
+
+    await db.bookings.update_one(
+        {"id": booking_id},
+        {"$set": {
+            "status": "cancellation_requested",
+            "cancellation_reason": payload.cancellation_reason,
+            "cancellation_previous_status": booking.get("status")
+        }}
+    )
+    return {"message": "Demande d'annulation envoyée"}
+
 # ==================== DRIVER ROUTES ====================
 
 @api_router.get("/driver/bookings", response_model=List[BookingResponse])
 async def get_driver_bookings(request: Request):
     user = await require_driver(request)
-    bookings = await db.bookings.find({"driver_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    bookings = await db.bookings.find(
+        {"driver_id": user["id"], "status": {"$in": ["assigned", "in_progress", "completed"]}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
     return [BookingResponse(**b) for b in bookings]
+
+@api_router.get("/driver/bookings/{booking_id}/order-pdf")
+async def download_driver_order_pdf(booking_id: str, request: Request):
+    driver = await require_driver(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("driver_id") != driver["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé à ce bon de commande")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "order")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=bon-de-commande-{booking_id}.pdf"}
+    )
 
 @api_router.put("/driver/bookings/{booking_id}/status")
 async def update_booking_status_driver(booking_id: str, status_update: BookingStatusUpdate, request: Request):
@@ -742,28 +815,100 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("status") != "received":
+        raise HTTPException(status_code=400, detail="La course doit être réceptionnée avant assignation")
     
     driver = await db.users.find_one({"id": assign_data.driver_id, "role": "driver"})
     if not driver:
         raise HTTPException(status_code=404, detail="Chauffeur non trouvé")
     
+    assigned_at = datetime.now(timezone.utc)
+    updated_booking = {
+        **booking,
+        "driver_id": driver["id"],
+        "driver_name": driver["name"],
+        "status": "assigned",
+        "assigned_at": assigned_at
+    }
     await db.bookings.update_one(
         {"id": booking_id},
         {"$set": {
             "driver_id": driver["id"],
             "driver_name": driver["name"],
             "status": "assigned",
-            "assigned_at": datetime.now(timezone.utc)
+            "assigned_at": assigned_at
         }}
     )
+    settings = await get_commission_settings()
+    await generate_and_store_document(updated_booking, settings, "order")
     
     # Get client info
     client = await db.users.find_one({"id": booking["client_id"]})
+    order_download_url = f"{str(request.base_url).rstrip('/')}/api/driver/bookings/{booking_id}/order-pdf"
     
     # Send email notification to driver
-    await send_booking_notification_to_driver(driver, booking, client or {})
+    await send_booking_notification_to_driver(driver, updated_booking, client or {}, order_download_url)
     
     return {"message": "Course assignée avec succès", "driver_name": driver["name"]}
+
+@api_router.put("/admin/bookings/{booking_id}/receive")
+async def receive_booking(booking_id: str, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("status") != "pending":
+        raise HTTPException(status_code=400, detail="Seules les courses en attente peuvent être réceptionnées")
+
+    await db.bookings.update_one({"id": booking_id}, {"$set": {"status": "received"}})
+    return {"message": "Course réceptionnée", "status": "received"}
+
+@api_router.put("/admin/bookings/{booking_id}/commission")
+async def update_booking_commission(booking_id: str, payload: BookingCommissionUpdate, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    await db.bookings.update_one(
+        {"id": booking_id},
+        {"$set": {"commission_override": payload.commission_override}}
+    )
+    return {"message": "Commission ajustée", "commission_override": payload.commission_override}
+
+@api_router.put("/admin/bookings/{booking_id}/cancellation")
+async def handle_booking_cancellation(booking_id: str, payload: BookingCancellationDecision, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("status") != "cancellation_requested":
+        raise HTTPException(status_code=400, detail="Cette réservation n'a pas de demande d'annulation en attente")
+
+    if payload.approved:
+        await db.bookings.update_one(
+            {"id": booking_id},
+            {"$set": {
+                "status": "cancelled",
+                "refund_amount": payload.refund_amount,
+                "refunded_at": datetime.now(timezone.utc)
+            }}
+        )
+        return {"message": "Annulation approuvée", "status": "cancelled"}
+
+    fallback_status = booking.get("cancellation_previous_status") or ("assigned" if booking.get("driver_id") else "pending")
+    if fallback_status not in ["pending", "assigned"]:
+        fallback_status = "assigned" if booking.get("driver_id") else "pending"
+
+    await db.bookings.update_one(
+        {"id": booking_id},
+        {"$set": {
+            "status": fallback_status,
+            "refund_amount": None,
+            "refunded_at": None
+        }}
+    )
+    return {"message": "Annulation refusée", "status": fallback_status}
 
 @api_router.put("/admin/bookings/{booking_id}/status")
 async def update_booking_status_admin(booking_id: str, status_update: BookingStatusUpdate, request: Request):
@@ -773,7 +918,7 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
     
-    valid_statuses = ["pending", "assigned", "in_progress", "completed", "cancelled"]
+    valid_statuses = ["pending", "received", "assigned", "in_progress", "completed", "cancellation_requested", "cancelled"]
     if status_update.status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Statut invalide. Valeurs acceptées: {valid_statuses}")
     
@@ -931,12 +1076,16 @@ async def estimate_price(distance_km: float, duration_minutes: float = 0):
 # ==================== FINANCIAL ROUTES ====================
 
 @api_router.get("/admin/financial/stats", response_model=FinancialStats)
-async def get_financial_stats(request: Request):
+async def get_financial_stats(request: Request, driver_id: Optional[str] = None):
     await require_admin(request)
     settings = await get_commission_settings()
 
+    query = {"status": "completed", "estimated_price": {"$ne": None}}
+    if driver_id:
+        query["driver_id"] = driver_id
+
     completed_bookings = await db.bookings.find(
-        {"status": "completed", "estimated_price": {"$ne": None}},
+        query,
         {"_id": 0}
     ).to_list(10000)
 
@@ -955,7 +1104,8 @@ async def get_financial_stats(request: Request):
             booking["estimated_price"],
             settings["commission_rate"],
             settings["tva_client_rate"],
-            settings["tva_commission_rate"]
+            settings["tva_commission_rate"],
+            booking.get("commission_override")
         )
         totals["total_revenue_ttc"] += breakdown["price_ttc"]
         totals["total_revenue_ht"] += breakdown["price_ht"]
@@ -997,9 +1147,13 @@ async def update_financial_commissions(payload: CommissionSettingsUpdate, reques
     return CommissionSettings(**updated)
 
 @api_router.get("/admin/financial/invoices", response_model=List[InvoiceMetadata])
-async def get_financial_invoices(request: Request):
+async def get_financial_invoices(request: Request, driver_id: Optional[str] = None):
     await require_admin(request)
-    invoices = await db.invoices.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    query = {}
+    if driver_id:
+        booking_ids = await db.bookings.distinct("id", {"driver_id": driver_id})
+        query["booking_id"] = {"$in": booking_ids}
+    invoices = await db.invoices.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     return [InvoiceMetadata(**invoice) for invoice in invoices]
 
 @api_router.get("/driver/earnings", response_model=List[DriverEarning])
@@ -1018,7 +1172,8 @@ async def get_driver_earnings(request: Request):
             booking["estimated_price"],
             settings["commission_rate"],
             settings["tva_client_rate"],
-            settings["tva_commission_rate"]
+            settings["tva_commission_rate"],
+            booking.get("commission_override")
         )
         earnings.append(DriverEarning(
             booking_id=booking["id"],

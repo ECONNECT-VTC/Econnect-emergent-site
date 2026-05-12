@@ -7,11 +7,22 @@ import { MapPin, Clock, User, Phone, CheckCircle, Play, CarSimple } from '@phosp
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+const parseError = (error) => {
+  const detail = error?.response?.data?.detail;
+  if (!detail) return 'Erreur inconnue';
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((e) => `${e.loc?.slice(-1)[0] || 'champ'}: ${e.msg}`).join(' | ');
+  }
+  return 'Erreur inconnue';
+};
+
 const DriverDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAvailable, setIsAvailable] = useState(true);
   const [filter, setFilter] = useState('assigned');
+  const [error, setError] = useState('');
 
   useEffect(() => { fetchBookings(); }, []);
 
@@ -19,7 +30,7 @@ const DriverDashboard = () => {
     try {
       const response = await axios.get(`${API_URL}/api/driver/bookings`, { withCredentials: true });
       setBookings(response.data);
-    } catch (error) { console.error('Error:', error); }
+    } catch (err) { setError(parseError(err)); }
     finally { setLoading(false); }
   };
 
@@ -27,14 +38,14 @@ const DriverDashboard = () => {
     try {
       await axios.put(`${API_URL}/api/driver/availability?is_available=${available}`, {}, { withCredentials: true });
       setIsAvailable(available);
-    } catch (error) { console.error('Error:', error); }
+    } catch (err) { setError(parseError(err)); }
   };
 
   const updateBookingStatus = async (bookingId, status) => {
     try {
       await axios.put(`${API_URL}/api/driver/bookings/${bookingId}/status`, { status }, { withCredentials: true });
       fetchBookings();
-    } catch (error) { console.error('Error:', error); }
+    } catch (err) { setError(parseError(err)); }
   };
 
   const filteredBookings = filter === 'all' ? bookings : bookings.filter(b => b.status === filter);
@@ -47,6 +58,8 @@ const DriverDashboard = () => {
 
   return (
     <DashboardLayout title="Mes Courses">
+      {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
+
       <div className="glass rounded-xl p-6 mb-6 flex items-center justify-between" data-testid="availability-toggle">
         <div className="flex items-center gap-3">
           <CarSimple size={24} className={isAvailable ? 'text-green-400' : 'text-red-400'} />
@@ -102,6 +115,9 @@ const DriverDashboard = () => {
               </div>
               {booking.status === 'assigned' && <Button onClick={() => updateBookingStatus(booking.id, 'in_progress')} className="w-full bg-purple-600 hover:bg-purple-700"><Play size={18} className="mr-2" />Demarrer</Button>}
               {booking.status === 'in_progress' && <Button onClick={() => updateBookingStatus(booking.id, 'completed')} className="w-full bg-green-600 hover:bg-green-700"><CheckCircle size={18} className="mr-2" />Terminer</Button>}
+              <Button onClick={() => window.open(`${API_URL}/api/driver/bookings/${booking.id}/order-pdf`, '_blank')} variant="outline" className="mt-3 w-full border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10">
+                Télécharger bon de commande
+              </Button>
             </div>
           ))}
         </div>
