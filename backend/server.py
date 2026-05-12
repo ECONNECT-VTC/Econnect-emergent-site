@@ -109,10 +109,23 @@ class BookingBase(BaseModel):
 class BookingCreate(BookingBase):
     pass
 
+class AdminBookingCreate(BaseModel):
+    client_name: str
+    client_email: EmailStr
+    pickup_address: str
+    dropoff_address: str
+    pickup_date: str
+    pickup_time: str
+    transfer_type: str
+    client_phone: Optional[str] = None
+    notes: Optional[str] = None
+    estimated_price: Optional[float] = None
+    vehicle_category_id: Optional[str] = None
+
 class BookingResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
-    client_id: str
+    client_id: Optional[str] = None
     client_name: str
     client_email: str
     client_phone: Optional[str] = None
@@ -807,6 +820,53 @@ async def get_all_bookings(request: Request, status: Optional[str] = None):
     
     bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return [BookingResponse(**b) for b in bookings]
+
+@api_router.post("/admin/bookings", response_model=BookingResponse)
+async def create_admin_booking(booking: AdminBookingCreate, request: Request):
+    await require_admin(request)
+
+    vehicle_category_name = None
+    if booking.vehicle_category_id:
+        category = await db.vehicle_categories.find_one({"id": booking.vehicle_category_id})
+        if category:
+            vehicle_category_name = category["name"]
+
+    booking_doc = {
+        "id": str(uuid.uuid4()),
+        "client_id": None,
+        "client_name": booking.client_name,
+        "client_email": booking.client_email,
+        "client_phone": booking.client_phone,
+        "pickup_address": booking.pickup_address,
+        "dropoff_address": booking.dropoff_address,
+        "pickup_lat": None,
+        "pickup_lng": None,
+        "dropoff_lat": None,
+        "dropoff_lng": None,
+        "pickup_date": booking.pickup_date,
+        "pickup_time": booking.pickup_time,
+        "transfer_type": booking.transfer_type,
+        "vehicle_category_id": booking.vehicle_category_id,
+        "vehicle_category_name": vehicle_category_name,
+        "distance_km": None,
+        "duration_minutes": None,
+        "estimated_price": booking.estimated_price,
+        "notes": booking.notes,
+        "status": "received",
+        "driver_id": None,
+        "driver_name": None,
+        "commission_override": None,
+        "cancellation_reason": None,
+        "cancellation_previous_status": None,
+        "refund_amount": None,
+        "refunded_at": None,
+        "created_at": datetime.now(timezone.utc),
+        "assigned_at": None
+    }
+
+    await db.bookings.insert_one(booking_doc)
+    booking_doc.pop("_id", None)
+    return BookingResponse(**booking_doc)
 
 @api_router.put("/admin/bookings/{booking_id}/assign")
 async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, request: Request):
