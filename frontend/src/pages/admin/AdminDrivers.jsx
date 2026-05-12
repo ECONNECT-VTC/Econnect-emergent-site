@@ -9,6 +9,16 @@ import { CarSimple, Plus, Trash, Phone, Envelope, Car } from '@phosphor-icons/re
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
+const parseError = (err) => {
+  const detail = err.response?.data?.detail;
+  if (!detail) return 'Erreur inconnue';
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((e) => `${e.loc?.slice(-1)[0] || 'champ'}: ${e.msg}`).join(' | ');
+  }
+  return 'Erreur inconnue';
+};
+
 const AdminDrivers = () => {
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +47,7 @@ const AdminDrivers = () => {
       setFormData({ name: '', email: '', phone: '', password: '', vehicle_model: '', vehicle_plate: '' });
       fetchDrivers();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Erreur');
+      setError(parseError(err));
     } finally { setSubmitting(false); }
   };
 
