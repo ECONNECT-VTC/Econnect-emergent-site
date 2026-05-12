@@ -562,7 +562,7 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
             
             <div style="margin-top: 30px; padding: 20px; background: #D4AF37; border-radius: 8px; text-align: center;">
                 <p style="color: #0A0A0A; font-weight: bold; margin: 0;">Connectez-vous à votre espace chauffeur pour confirmer</p>
-                {f"<p style='margin-top: 10px;'><a href='{order_download_url}' style='color: #0A0A0A; font-weight: bold;'>Télécharger le bon de commande</a></p>" if order_download_url else ""}
+                {f"<p style='margin-top: 10px;'><a href='{order_download_url}' style='color: #0A0A0A; font-weight: bold;'>Télécharger le bon de commande</a></p><p style='color: #0A0A0A; margin-top: 6px;'>Connexion chauffeur requise pour ouvrir le document.</p>" if order_download_url else ""}
             </div>
         </div>
     </body>
@@ -896,7 +896,7 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
         )
         return {"message": "Annulation approuvée", "status": "cancelled"}
 
-    fallback_status = booking.get("cancellation_previous_status") or ("assigned" if booking.get("driver_id") else "pending")
+    fallback_status = booking.get("cancellation_previous_status")
     if fallback_status not in ["pending", "assigned"]:
         fallback_status = "assigned" if booking.get("driver_id") else "pending"
 
