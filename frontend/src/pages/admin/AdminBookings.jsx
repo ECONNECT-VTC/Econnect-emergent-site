@@ -19,11 +19,33 @@ const parseError = (error) => {
   return 'Erreur inconnue';
 };
 
+const getInitialCreateForm = () => ({
+  client_name: '',
+  client_email: '',
+  client_phone: '',
+  pickup_address: '',
+  dropoff_address: '',
+  pickup_date: '',
+  pickup_time: '',
+  transfer_type: 'standard',
+  notes: '',
+  estimated_price: ''
+});
+
+const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
+  const hours = String(Math.floor(i / 2)).padStart(2, '0');
+  const minutes = i % 2 === 0 ? '00' : '30';
+  return `${hours}:${minutes}`;
+});
+
 const AdminBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createForm, setCreateForm] = useState(getInitialCreateForm);
+  const [creating, setCreating] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [selectedDriver, setSelectedDriver] = useState('');
@@ -47,6 +69,32 @@ const AdminBookings = () => {
       setError(parseError(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateCreateField = (field, value) => {
+    setCreateForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreateBooking = async () => {
+    setCreating(true);
+    setError('');
+    try {
+      await axios.post(
+        `${API_URL}/api/admin/bookings`,
+        {
+          ...createForm,
+          estimated_price: createForm.estimated_price === '' ? null : Number(createForm.estimated_price)
+        },
+        { withCredentials: true }
+      );
+      setCreateDialogOpen(false);
+      setCreateForm(getInitialCreateForm());
+      fetchData();
+    } catch (err) {
+      setError(parseError(err));
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -113,6 +161,14 @@ const AdminBookings = () => {
   };
 
   const filteredBookings = filter === 'all' ? bookings : bookings.filter((b) => b.status === filter);
+  const canCreateBooking =
+    createForm.client_name.trim() &&
+    createForm.client_email.trim() &&
+    createForm.pickup_address.trim() &&
+    createForm.dropoff_address.trim() &&
+    createForm.pickup_date.trim() &&
+    createForm.pickup_time &&
+    createForm.transfer_type;
 
   const getStatusBadge = (status) => {
     const styles = {
@@ -139,6 +195,12 @@ const AdminBookings = () => {
   return (
     <DashboardLayout title="Gestion des Reservations">
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
+
+      <div className="flex justify-end mb-4">
+        <Button className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => setCreateDialogOpen(true)}>
+          + Nouvelle course
+        </Button>
+      </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
         {['all', 'pending', 'received', 'assigned', 'in_progress', 'completed', 'cancellation_requested', 'cancelled'].map((s) => (
@@ -210,6 +272,78 @@ const AdminBookings = () => {
           ))}
         </div>
       )}
+
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="bg-[#141414] border-white/10 max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="text-[#D4AF37]">Créer une nouvelle course</DialogTitle></DialogHeader>
+          <div className="grid md:grid-cols-2 gap-4 py-2">
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Nom du client *</p>
+              <Input value={createForm.client_name} onChange={(e) => updateCreateField('client_name', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Email du client *</p>
+              <Input type="email" value={createForm.client_email} onChange={(e) => updateCreateField('client_email', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Téléphone du client</p>
+              <Input value={createForm.client_phone} onChange={(e) => updateCreateField('client_phone', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Date de prise en charge *</p>
+              <Input value={createForm.pickup_date} onChange={(e) => updateCreateField('pickup_date', e.target.value)} placeholder="dd/MM/yyyy" className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div className="md:col-span-2">
+              <p className="text-sm text-[#A1A1AA] mb-2">Adresse de départ *</p>
+              <Input value={createForm.pickup_address} onChange={(e) => updateCreateField('pickup_address', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div className="md:col-span-2">
+              <p className="text-sm text-[#A1A1AA] mb-2">Adresse d'arrivée *</p>
+              <Input value={createForm.dropoff_address} onChange={(e) => updateCreateField('dropoff_address', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Heure de prise en charge *</p>
+              <Select value={createForm.pickup_time} onValueChange={(v) => updateCreateField('pickup_time', v)}>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10"><SelectValue placeholder="Choisir une heure" /></SelectTrigger>
+                <SelectContent className="bg-[#1E1E1E] border-white/10 max-h-64">
+                  {TIME_SLOTS.map((slot) => <SelectItem key={slot} value={slot}>{slot}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Type de transfert *</p>
+              <Select value={createForm.transfer_type} onValueChange={(v) => updateCreateField('transfer_type', v)}>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-[#1E1E1E] border-white/10">
+                  <SelectItem value="standard">standard</SelectItem>
+                  <SelectItem value="business">business</SelectItem>
+                  <SelectItem value="van">van</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Prix estimé (€)</p>
+              <Input type="number" min="0" step="0.01" value={createForm.estimated_price} onChange={(e) => updateCreateField('estimated_price', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div className="md:col-span-2">
+              <p className="text-sm text-[#A1A1AA] mb-2">Notes</p>
+              <textarea
+                value={createForm.notes}
+                onChange={(e) => updateCreateField('notes', e.target.value)}
+                rows={3}
+                className="w-full rounded-md bg-[#1E1E1E] border border-white/10 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+              />
+            </div>
+          </div>
+          <Button
+            onClick={handleCreateBooking}
+            disabled={creating || !canCreateBooking}
+            className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]"
+          >
+            {creating ? 'Création...' : 'Créer la course'}
+          </Button>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent className="bg-[#141414] border-white/10">
