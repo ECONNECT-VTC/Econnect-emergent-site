@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { CarSimple, Plus, Trash, Phone, Envelope, Car } from '@phosphor-icons/react';
+import { CarSimple, Plus, Trash } from '@phosphor-icons/react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -86,25 +86,39 @@ const AdminDrivers = () => {
       {loading ? <div className="text-center py-12 text-[#A1A1AA]">Chargement...</div> : drivers.length === 0 ? (
         <div className="glass rounded-xl p-12 text-center"><CarSimple size={48} className="text-[#A1A1AA] mx-auto mb-4" /><p className="text-[#A1A1AA]">Aucun chauffeur</p></div>
       ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="drivers-list">
-          {drivers.map((driver) => (
-            <div key={driver.id} className="glass rounded-xl p-6">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="font-bold text-lg">{driver.name}</h3>
-                  <span className={`text-xs px-2 py-1 rounded-full ${driver.is_available ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                    {driver.is_available ? 'Disponible' : 'Indisponible'}
-                  </span>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => deleteDriver(driver.id)} className="text-red-400 hover:bg-red-500/10"><Trash size={18} /></Button>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-[#A1A1AA]"><Envelope size={16} />{driver.email}</div>
-                <div className="flex items-center gap-2 text-[#A1A1AA]"><Phone size={16} />{driver.phone}</div>
-                <div className="flex items-center gap-2 text-[#D4AF37]"><Car size={16} />{driver.vehicle_model} - {driver.vehicle_plate}</div>
-              </div>
-            </div>
-          ))}
+        <div className="glass rounded-xl p-4 overflow-x-auto" data-testid="drivers-list">
+          <table className="w-full min-w-[980px] text-sm">
+            <thead>
+              <tr className="text-left text-[#A1A1AA] border-b border-white/10">
+                <th className="py-3">Nom</th>
+                <th>Email</th>
+                <th>Téléphone</th>
+                <th>Véhicule</th>
+                <th>Immatriculation</th>
+                <th>Disponibilité</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {drivers.map((driver) => (
+                <tr key={driver.id} className="border-b border-white/5">
+                  <td className="py-3 font-medium">{driver.name}</td>
+                  <td>{driver.email}</td>
+                  <td>{driver.phone}</td>
+                  <td>{driver.vehicle_model}</td>
+                  <td>{driver.vehicle_plate}</td>
+                  <td>
+                    <span className={`text-xs px-2 py-1 rounded-full ${driver.is_available ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {driver.is_available ? 'Disponible' : 'Indisponible'}
+                    </span>
+                  </td>
+                  <td>
+                    <Button variant="ghost" size="icon" onClick={() => deleteDriver(driver.id)} className="text-red-400 hover:bg-red-500/10"><Trash size={18} /></Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </DashboardLayout>
