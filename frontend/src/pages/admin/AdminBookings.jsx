@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { CalendarCheck, MapPin, User, CarSimple, CheckCircle } from '@phosphor-icons/react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -40,11 +41,13 @@ const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
 
 const AdminBookings = () => {
   const [bookings, setBookings] = useState([]);
+  const [clients, setClients] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createForm, setCreateForm] = useState(getInitialCreateForm);
+  const [selectedClientId, setSelectedClientId] = useState('');
   const [creating, setCreating] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
@@ -54,17 +57,72 @@ const AdminBookings = () => {
   const [cancellationAction, setCancellationAction] = useState('approve');
   const [refundAmount, setRefundAmount] = useState('');
   const [error, setError] = useState('');
+  const [googleMapsReady, setGoogleMapsReady] = useState(Boolean(window.google?.maps?.places));
+  const pickupRef = useRef(null);
+  const dropoffRef = useRef(null);
 
   useEffect(() => { fetchData(); }, []);
 
+  useEffect(() => {
+    if (!GOOGLE_MAPS_API_KEY) return;
+
+    const existingScript = document.getElementById('google-maps-script');
+    const handleLoad = () => setGoogleMapsReady(Boolean(window.google?.maps?.places));
+
+    if (window.google?.maps?.places) {
+      setGoogleMapsReady(true);
+      return undefined;
+    }
+
+    if (existingScript) {
+      existingScript.addEventListener('load', handleLoad);
+      return () => existingScript.removeEventListener('load', handleLoad);
+    }
+
+    const script = document.createElement('script');
+    script.id = 'google-maps-script';
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+    script.async = true;
+    script.addEventListener('load', handleLoad);
+    document.head.appendChild(script);
+
+    return () => script.removeEventListener('load', handleLoad);
+  }, []);
+
+  useEffect(() => {
+    if (!createDialogOpen || !window.google?.maps?.places) return;
+
+    const setupAutocomplete = (inputRef, field) => {
+      if (!inputRef.current) return null;
+
+      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, { types: ['address'] });
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        setCreateForm((prev) => ({ ...prev, [field]: place.formatted_address || '' }));
+      });
+
+      return autocomplete;
+    };
+
+    const pickupAutocomplete = setupAutocomplete(pickupRef, 'pickup_address');
+    const dropoffAutocomplete = setupAutocomplete(dropoffRef, 'dropoff_address');
+
+    return () => {
+      if (pickupAutocomplete) window.google.maps.event.clearInstanceListeners(pickupAutocomplete);
+      if (dropoffAutocomplete) window.google.maps.event.clearInstanceListeners(dropoffAutocomplete);
+    };
+  }, [createDialogOpen, googleMapsReady]);
+
   const fetchData = async () => {
     try {
-      const [bookingsRes, driversRes] = await Promise.all([
+      const [bookingsRes, driversRes, clientsRes] = await Promise.all([
         axios.get(`${API_URL}/api/admin/bookings`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/admin/drivers`, { withCredentials: true })
+        axios.get(`${API_URL}/api/admin/drivers`, { withCredentials: true }),
+        axios.get(`${API_URL}/api/admin/clients`, { withCredentials: true })
       ]);
       setBookings(bookingsRes.data);
       setDrivers(driversRes.data);
+      setClients(clientsRes.data);
     } catch (err) {
       setError(parseError(err));
     } finally {
@@ -74,6 +132,38 @@ const AdminBookings = () => {
 
   const updateCreateField = (field, value) => {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSelectedClientChange = (value) => {
+    if (value === 'manual') {
+      setSelectedClientId('');
+      setCreateForm((prev) => ({
+        ...prev,
+        client_name: '',
+        client_email: '',
+        client_phone: ''
+      }));
+      return;
+    }
+
+    const client = clients.find((entry) => entry.id === value);
+    setSelectedClientId(value);
+    if (!client) return;
+
+    setCreateForm((prev) => ({
+      ...prev,
+      client_name: client.name || '',
+      client_email: client.email || '',
+      client_phone: client.phone || ''
+    }));
+  };
+
+  const handleCreateDialogOpenChange = (open) => {
+    setCreateDialogOpen(open);
+    if (!open) {
+      setSelectedClientId('');
+      setCreateForm(getInitialCreateForm());
+    }
   };
 
   const handleCreateBooking = async () => {
@@ -88,8 +178,7 @@ const AdminBookings = () => {
         },
         { withCredentials: true }
       );
-      setCreateDialogOpen(false);
-      setCreateForm(getInitialCreateForm());
+      handleCreateDialogOpenChange(false);
       fetchData();
     } catch (err) {
       setError(parseError(err));
@@ -273,10 +362,26 @@ const AdminBookings = () => {
         </div>
       )}
 
-      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+      <Dialog open={createDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
         <DialogContent className="bg-[#141414] border-white/10 max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle className="text-[#D4AF37]">Créer une nouvelle course</DialogTitle></DialogHeader>
           <div className="grid md:grid-cols-2 gap-4 py-2">
+            <div className="md:col-span-2">
+              <p className="text-sm text-[#A1A1AA] mb-2">Choisir un client existant</p>
+              <Select value={selectedClientId || 'manual'} onValueChange={handleSelectedClientChange}>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                  <SelectValue placeholder="-- Saisir manuellement --" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1E1E1E] border-white/10">
+                  <SelectItem value="manual">-- Saisir manuellement --</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name} - {client.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Nom du client *</p>
               <Input value={createForm.client_name} onChange={(e) => updateCreateField('client_name', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
@@ -295,11 +400,11 @@ const AdminBookings = () => {
             </div>
             <div className="md:col-span-2">
               <p className="text-sm text-[#A1A1AA] mb-2">Adresse de départ *</p>
-              <Input value={createForm.pickup_address} onChange={(e) => updateCreateField('pickup_address', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+              <Input ref={pickupRef} value={createForm.pickup_address} onChange={(e) => updateCreateField('pickup_address', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
             </div>
             <div className="md:col-span-2">
               <p className="text-sm text-[#A1A1AA] mb-2">Adresse d'arrivée *</p>
-              <Input value={createForm.dropoff_address} onChange={(e) => updateCreateField('dropoff_address', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+              <Input ref={dropoffRef} value={createForm.dropoff_address} onChange={(e) => updateCreateField('dropoff_address', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
             </div>
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Heure de prise en charge *</p>
