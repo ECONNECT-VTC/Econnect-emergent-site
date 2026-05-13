@@ -149,6 +149,8 @@ class BookingResponse(BaseModel):
     driver_name: Optional[str] = None
     commission_override: Optional[float] = None
     cancellation_reason: Optional[str] = None
+    driver_cancellation_reason: Optional[str] = None
+    cancellation_previous_status: Optional[str] = None
     refund_amount: Optional[float] = None
     refunded_at: Optional[datetime] = None
     created_at: datetime
@@ -169,6 +171,12 @@ class BookingCancelRequest(BaseModel):
 class BookingCancellationDecision(BaseModel):
     approved: bool
     refund_amount: Optional[float] = None
+
+class AdminCancellationRequest(BaseModel):
+    cancellation_reason: Optional[str] = None
+
+class DriverCancellationRequest(BaseModel):
+    cancellation_reason: Optional[str] = None
 
 class StatsResponse(BaseModel):
     total_bookings: int
@@ -693,6 +701,7 @@ async def create_booking(booking: BookingCreate, request: Request):
         "driver_name": None,
         "commission_override": None,
         "cancellation_reason": None,
+        "driver_cancellation_reason": None,
         "cancellation_previous_status": None,
         "refund_amount": None,
         "refunded_at": None,
@@ -786,6 +795,32 @@ async def update_driver_availability(request: Request, is_available: bool = True
     await db.users.update_one({"id": user["id"]}, {"$set": {"is_available": is_available}})
     return {"message": "Disponibilité mise à jour", "is_available": is_available}
 
+@api_router.put("/driver/bookings/{booking_id}/cancel")
+async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequest, request: Request):
+    driver = await require_driver(request)
+
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    if booking.get("driver_id") != driver["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réservation")
+
+    if booking.get("status") != "assigned":
+        raise HTTPException(status_code=400, detail="Vous ne pouvez annuler que les courses assignées non démarrées")
+
+    update_data = {
+        "status": "received",
+        "driver_id": None,
+        "driver_name": None,
+        "assigned_at": None,
+        "driver_cancellation_reason": payload.cancellation_reason
+    }
+
+    await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
+
+    return {"message": "Vous vous êtes retiré de cette course. Elle sera réassignée.", "status": "received"}
+
 # ==================== ADMIN ROUTES ====================
 
 @api_router.get("/admin/stats", response_model=StatsResponse)
@@ -857,6 +892,7 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "driver_name": None,
         "commission_override": None,
         "cancellation_reason": None,
+        "driver_cancellation_reason": None,
         "cancellation_previous_status": None,
         "refund_amount": None,
         "refunded_at": None,
@@ -969,6 +1005,29 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
         }}
     )
     return {"message": "Annulation refusée", "status": fallback_status}
+
+@api_router.put("/admin/bookings/{booking_id}/cancel")
+async def cancel_booking_admin(booking_id: str, payload: AdminCancellationRequest, request: Request):
+    await require_admin(request)
+
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    if booking.get("status") not in ["pending", "received", "assigned"]:
+        raise HTTPException(status_code=400, detail="Cette réservation ne peut pas être annulée")
+
+    update_data = {
+        "status": "cancelled",
+        "cancellation_reason": payload.cancellation_reason,
+        "driver_id": None,
+        "driver_name": None,
+        "assigned_at": None
+    }
+
+    await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
+
+    return {"message": "Course annulée par l'administration", "status": "cancelled"}
 
 @api_router.put("/admin/bookings/{booking_id}/status")
 async def update_booking_status_admin(booking_id: str, status_update: BookingStatusUpdate, request: Request):
