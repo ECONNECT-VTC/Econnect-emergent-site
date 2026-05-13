@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Lock, ArrowLeft, CircleNotch } from '@phosphor-icons/react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
+const REDIRECT_DELAY_MS = 3000;
 
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
@@ -65,7 +66,7 @@ const ResetPassword = () => {
         new_password: newPassword,
       });
       setSuccess(true);
-      setTimeout(() => navigate('/login'), 3000);
+      setTimeout(() => navigate('/login'), REDIRECT_DELAY_MS);
     } catch (err) {
       const detail = err.response?.data?.detail;
       setError(typeof detail === 'string' ? detail : 'Une erreur est survenue. Veuillez réessayer.');

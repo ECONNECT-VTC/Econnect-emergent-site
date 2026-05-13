@@ -17,6 +17,7 @@ from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt
 import secrets
+import hashlib
 from io import BytesIO
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -672,13 +673,14 @@ async def forgot_password(data: PasswordResetRequest):
         )
 
         raw_token = secrets.token_urlsafe(32)
-        token_hash = hash_password(raw_token)
+        # Store a SHA-256 hash as a fast lookup key (sufficient for high-entropy random tokens)
+        token_lookup_hash = hashlib.sha256(raw_token.encode()).hexdigest()
         token_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         await db.password_reset_tokens.insert_one({
             "id": token_id,
             "user_id": user["id"],
-            "token": token_hash,
+            "token_hash": token_lookup_hash,
             "expires_at": now + timedelta(hours=24),
             "used": False,
             "created_at": now
@@ -708,18 +710,32 @@ async def forgot_password(data: PasswordResetRequest):
 
     return {"message": "Si cet email existe, un lien de réinitialisation a été envoyé."}
 
+def _hash_reset_token(token: str) -> str:
+    """Return the SHA-256 hex digest of a raw reset token for indexed lookup."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+async def _find_reset_token_record(token: str) -> Optional[dict]:
+    """Return the unexpired, unused token document for *token*, or None."""
+    lookup_hash = _hash_reset_token(token)
+    record = await db.password_reset_tokens.find_one(
+        {"token_hash": lookup_hash, "used": False}
+    )
+    if record is None:
+        return None
+    expires_at = record["expires_at"]
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) >= expires_at:
+        return None
+    return record
+
 @api_router.get("/auth/verify-reset-token/{token}")
 async def verify_reset_token(token: str):
     """Check whether a password-reset token is still valid (does not consume it)."""
-    async for record in db.password_reset_tokens.find({"used": False}):
-        if verify_password(token, record["token"]):
-            expires_at = record["expires_at"]
-            if expires_at.tzinfo is None:
-                expires_at = expires_at.replace(tzinfo=timezone.utc)
-            if datetime.now(timezone.utc) < expires_at:
-                return {"valid": True}
-            break
-    raise HTTPException(status_code=400, detail="Token invalide ou expiré")
+    record = await _find_reset_token_record(token)
+    if record is None:
+        raise HTTPException(status_code=400, detail="Token invalide ou expiré")
+    return {"valid": True}
 
 @api_router.post("/auth/reset-password")
 async def reset_password(data: PasswordResetConfirm):
@@ -727,31 +743,20 @@ async def reset_password(data: PasswordResetConfirm):
     if len(data.new_password) < 8:
         raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 8 caractères")
 
-    matched_record = None
-    async for record in db.password_reset_tokens.find({"used": False}):
-        if verify_password(data.token, record["token"]):
-            matched_record = record
-            break
-
-    if not matched_record:
-        raise HTTPException(status_code=400, detail="Token invalide ou expiré")
-
-    expires_at = matched_record["expires_at"]
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if datetime.now(timezone.utc) >= expires_at:
+    record = await _find_reset_token_record(data.token)
+    if record is None:
         raise HTTPException(status_code=400, detail="Token invalide ou expiré")
 
     new_hash = hash_password(data.new_password)
     await db.users.update_one(
-        {"id": matched_record["user_id"]},
+        {"id": record["user_id"]},
         {"$set": {"password_hash": new_hash}}
     )
     await db.password_reset_tokens.update_one(
-        {"id": matched_record["id"]},
+        {"id": record["id"]},
         {"$set": {"used": True}}
     )
-    logger.info(f"Password reset successful for user {matched_record['user_id']}")
+    logger.info(f"Password reset successful for user {record['user_id']}")
     return {"message": "Mot de passe réinitialisé avec succès"}
 
 # ==================== CLIENT ROUTES ====================
