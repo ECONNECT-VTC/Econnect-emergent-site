@@ -114,6 +114,17 @@ const LoginPage = () => {
             </Button>
           </form>
 
+          {/* Forgot password link */}
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={() => navigate('/forgot-password')}
+              className="text-[#D4AF37] hover:text-[#F0C74A] text-sm transition-colors"
+            >
+              Mot de passe oublié ?
+            </button>
+          </div>
+
           {/* Register link */}
           <p className="text-center mt-6 text-[#A1A1AA]">
             Pas encore de compte ?{' '}

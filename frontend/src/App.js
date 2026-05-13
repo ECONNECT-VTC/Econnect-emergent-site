@@ -6,6 +6,8 @@ import DashboardLayout from '@/components/DashboardLayout';
 import LandingPage from '@/pages/LandingPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
+import ForgotPassword from '@/pages/ForgotPassword';
+import ResetPassword from '@/pages/ResetPassword';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 import AdminBookings from '@/pages/admin/AdminBookings';
 import AdminDrivers from '@/pages/admin/AdminDrivers';
@@ -30,6 +32,8 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Admin routes */}
           <Route
