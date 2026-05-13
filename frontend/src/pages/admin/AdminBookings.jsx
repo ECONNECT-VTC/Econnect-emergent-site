@@ -57,6 +57,9 @@ const AdminBookings = () => {
   const [cancellationAction, setCancellationAction] = useState('approve');
   const [refundAmount, setRefundAmount] = useState('');
   const [error, setError] = useState('');
+  const [adminCancelDialogOpen, setAdminCancelDialogOpen] = useState(false);
+  const [adminCancelReason, setAdminCancelReason] = useState('');
+  const [bookingToAdminCancel, setBookingToAdminCancel] = useState(null);
   const [googleMapsReady, setGoogleMapsReady] = useState(Boolean(window.google?.maps?.places));
   const pickupRef = useRef(null);
   const dropoffRef = useRef(null);
@@ -249,6 +252,30 @@ const AdminBookings = () => {
     }
   };
 
+  const openAdminCancelDialog = (booking) => {
+    setBookingToAdminCancel(booking);
+    setAdminCancelReason('');
+    setAdminCancelDialogOpen(true);
+  };
+
+  const handleAdminCancellation = async () => {
+    if (!bookingToAdminCancel) return;
+    setError('');
+    try {
+      await axios.put(
+        `${API_URL}/api/admin/bookings/${bookingToAdminCancel.id}/cancel`,
+        { cancellation_reason: adminCancelReason || null },
+        { withCredentials: true }
+      );
+      setAdminCancelDialogOpen(false);
+      setBookingToAdminCancel(null);
+      setAdminCancelReason('');
+      fetchData();
+    } catch (err) {
+      setError(parseError(err));
+    }
+  };
+
   const filteredBookings = filter === 'all' ? bookings : bookings.filter((b) => b.status === filter);
   const canCreateBooking =
     createForm.client_name.trim() &&
@@ -341,6 +368,17 @@ const AdminBookings = () => {
                         Refuser
                       </Button>
                     </>
+                  )}
+
+                  {(booking.status === 'pending' || booking.status === 'received' || booking.status === 'assigned') && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+                      onClick={() => openAdminCancelDialog(booking)}
+                    >
+                      Annuler la course
+                    </Button>
                   )}
                 </div>
               </div>
@@ -495,6 +533,40 @@ const AdminBookings = () => {
             )}
             <Button onClick={handleCancellationDecision} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
               Confirmer
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={adminCancelDialogOpen} onOpenChange={setAdminCancelDialogOpen}>
+        <DialogContent className="bg-[#141414] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-[#D4AF37]">Annuler la course</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-[#FAFAFA]">
+              Cette course sera définitivement annulée. Le client sera notifié.
+            </p>
+            <p className="text-sm text-[#A1A1AA]">
+              Client: {bookingToAdminCancel?.client_name}
+            </p>
+            <p className="text-sm text-[#A1A1AA]">
+              Trajet: {bookingToAdminCancel?.pickup_address} → {bookingToAdminCancel?.dropoff_address}
+            </p>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Motif d'annulation (optionnel)</p>
+              <Input
+                value={adminCancelReason}
+                onChange={(e) => setAdminCancelReason(e.target.value)}
+                className="bg-[#1E1E1E] border-white/10"
+                placeholder="Ex: manque de chauffeurs disponibles"
+              />
+            </div>
+            <Button
+              onClick={handleAdminCancellation}
+              className="w-full bg-red-600 hover:bg-red-700 text-white"
+            >
+              Confirmer l'annulation
             </Button>
           </div>
         </DialogContent>
