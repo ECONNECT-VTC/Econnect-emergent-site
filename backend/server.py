@@ -814,7 +814,8 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
         "driver_id": None,
         "driver_name": None,
         "assigned_at": None,
-        "driver_cancellation_reason": payload.cancellation_reason
+        "driver_cancellation_reason": payload.cancellation_reason,
+        "cancellation_previous_status": booking.get("status")
     }
 
     await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
@@ -1022,7 +1023,8 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
         "cancellation_reason": payload.cancellation_reason,
         "driver_id": None,
         "driver_name": None,
-        "assigned_at": None
+        "assigned_at": None,
+        "cancellation_previous_status": booking.get("status")
     }
 
     await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
