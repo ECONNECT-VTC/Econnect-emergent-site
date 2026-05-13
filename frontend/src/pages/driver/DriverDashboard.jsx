@@ -3,6 +3,8 @@ import axios from 'axios';
 import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { MapPin, Clock, User, Phone, CheckCircle, Play, CarSimple } from '@phosphor-icons/react';
 
 const API_URL = process.env.REACT_APP_BACKEND_URL;
@@ -23,6 +25,9 @@ const DriverDashboard = () => {
   const [isAvailable, setIsAvailable] = useState(true);
   const [filter, setFilter] = useState('assigned');
   const [error, setError] = useState('');
+  const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+  const [withdrawReason, setWithdrawReason] = useState('');
+  const [bookingToWithdraw, setBookingToWithdraw] = useState(null);
 
   useEffect(() => { fetchBookings(); }, []);
 
@@ -46,6 +51,30 @@ const DriverDashboard = () => {
       await axios.put(`${API_URL}/api/driver/bookings/${bookingId}/status`, { status }, { withCredentials: true });
       fetchBookings();
     } catch (err) { setError(parseError(err)); }
+  };
+
+  const openWithdrawDialog = (booking) => {
+    setBookingToWithdraw(booking);
+    setWithdrawReason('');
+    setWithdrawDialogOpen(true);
+  };
+
+  const handleDriverWithdrawal = async () => {
+    if (!bookingToWithdraw) return;
+    setError('');
+    try {
+      await axios.put(
+        `${API_URL}/api/driver/bookings/${bookingToWithdraw.id}/cancel`,
+        { cancellation_reason: withdrawReason || null },
+        { withCredentials: true }
+      );
+      setWithdrawDialogOpen(false);
+      setBookingToWithdraw(null);
+      setWithdrawReason('');
+      fetchBookings();
+    } catch (err) {
+      setError(parseError(err));
+    }
   };
 
   const filteredBookings = filter === 'all' ? bookings : bookings.filter(b => b.status === filter);
@@ -114,6 +143,15 @@ const DriverDashboard = () => {
                 <div className="flex items-start gap-3"><MapPin size={20} className="text-red-400 mt-1" /><div><p className="text-xs text-[#A1A1AA]">Arrivee</p><p className="text-sm">{booking.dropoff_address}</p></div></div>
               </div>
               {booking.status === 'assigned' && <Button onClick={() => updateBookingStatus(booking.id, 'in_progress')} className="w-full bg-purple-600 hover:bg-purple-700"><Play size={18} className="mr-2" />Demarrer</Button>}
+              {booking.status === 'assigned' && (
+                <Button
+                  onClick={() => openWithdrawDialog(booking)}
+                  variant="outline"
+                  className="mt-2 w-full border-orange-500/50 text-orange-400 hover:bg-orange-500/10"
+                >
+                  Je ne peux plus assurer cette course
+                </Button>
+              )}
               {booking.status === 'in_progress' && <Button onClick={() => updateBookingStatus(booking.id, 'completed')} className="w-full bg-green-600 hover:bg-green-700"><CheckCircle size={18} className="mr-2" />Terminer</Button>}
               <Button onClick={() => window.open(`${API_URL}/api/driver/bookings/${booking.id}/order-pdf`, '_blank')} variant="outline" className="mt-3 w-full border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10">
                 Télécharger bon de commande
@@ -122,6 +160,40 @@ const DriverDashboard = () => {
           ))}
         </div>
       )}
+
+      <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+        <DialogContent className="bg-[#141414] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-[#D4AF37]">Se retirer de la course</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-[#FAFAFA]">
+              Cette course sera remise en pool et réassignée à un autre chauffeur disponible.
+            </p>
+            <p className="text-sm text-[#A1A1AA]">
+              Trajet: {bookingToWithdraw?.pickup_address} → {bookingToWithdraw?.dropoff_address}
+            </p>
+            <p className="text-sm text-[#A1A1AA]">
+              Date: {bookingToWithdraw?.pickup_date} à {bookingToWithdraw?.pickup_time}
+            </p>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Motif (optionnel)</p>
+              <Input
+                value={withdrawReason}
+                onChange={(e) => setWithdrawReason(e.target.value)}
+                className="bg-[#1E1E1E] border-white/10"
+                placeholder="Ex: problème mécanique, indisponibilité imprévue"
+              />
+            </div>
+            <Button
+              onClick={handleDriverWithdrawal}
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              Confirmer le retrait
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };
