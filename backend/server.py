@@ -179,6 +179,13 @@ class StatsResponse(BaseModel):
     total_drivers: int
     available_drivers: int
 
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
+
 # ==================== VEHICLE & PRICING MODELS ====================
 
 class VehicleCategory(BaseModel):
@@ -652,6 +659,100 @@ async def logout(response: Response):
 async def get_me(request: Request):
     user = await get_current_user(request)
     return user
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(data: PasswordResetRequest):
+    """Request a password reset. Always returns success to avoid email enumeration."""
+    user = await db.users.find_one({"email": data.email.lower()})
+    if user:
+        # Invalidate existing unused tokens for this user
+        await db.password_reset_tokens.update_many(
+            {"user_id": user["id"], "used": False},
+            {"$set": {"used": True}}
+        )
+
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hash_password(raw_token)
+        token_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        await db.password_reset_tokens.insert_one({
+            "id": token_id,
+            "user_id": user["id"],
+            "token": token_hash,
+            "expires_at": now + timedelta(hours=24),
+            "used": False,
+            "created_at": now
+        })
+
+        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+        reset_link = f"{frontend_url}/reset-password?token={raw_token}"
+        html_content = f"""
+<html>
+<body style="font-family: Arial, sans-serif; background-color: #0A0A0A; color: #FAFAFA; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: #141414; border-radius: 12px; padding: 30px; border: 1px solid #D4AF37;">
+    <h1 style="color: #D4AF37; margin-bottom: 20px;">Réinitialisation de votre mot de passe</h1>
+    <p>Bonjour,</p>
+    <p>Vous avez demandé la réinitialisation de votre mot de passe Econnect VTC.</p>
+    <p>Cliquez sur le lien ci-dessous pour créer un nouveau mot de passe :</p>
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="{reset_link}" style="background-color: #D4AF37; color: #0A0A0A; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">Réinitialiser mon mot de passe</a>
+    </div>
+    <p style="color: #A1A1AA; font-size: 14px;">Ce lien est valide pendant 24 heures.</p>
+    <p style="color: #A1A1AA; font-size: 14px;">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
+  </div>
+</body>
+</html>
+"""
+        await send_notification_email(user["email"], "Réinitialisation de votre mot de passe - Econnect VTC", html_content)
+        logger.info(f"Password reset token generated for user {user['id']}")
+
+    return {"message": "Si cet email existe, un lien de réinitialisation a été envoyé."}
+
+@api_router.get("/auth/verify-reset-token/{token}")
+async def verify_reset_token(token: str):
+    """Check whether a password-reset token is still valid (does not consume it)."""
+    async for record in db.password_reset_tokens.find({"used": False}):
+        if verify_password(token, record["token"]):
+            expires_at = record["expires_at"]
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) < expires_at:
+                return {"valid": True}
+            break
+    raise HTTPException(status_code=400, detail="Token invalide ou expiré")
+
+@api_router.post("/auth/reset-password")
+async def reset_password(data: PasswordResetConfirm):
+    """Reset the user password using a valid token."""
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 8 caractères")
+
+    matched_record = None
+    async for record in db.password_reset_tokens.find({"used": False}):
+        if verify_password(data.token, record["token"]):
+            matched_record = record
+            break
+
+    if not matched_record:
+        raise HTTPException(status_code=400, detail="Token invalide ou expiré")
+
+    expires_at = matched_record["expires_at"]
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) >= expires_at:
+        raise HTTPException(status_code=400, detail="Token invalide ou expiré")
+
+    new_hash = hash_password(data.new_password)
+    await db.users.update_one(
+        {"id": matched_record["user_id"]},
+        {"$set": {"password_hash": new_hash}}
+    )
+    await db.password_reset_tokens.update_one(
+        {"id": matched_record["id"]},
+        {"$set": {"used": True}}
+    )
+    logger.info(f"Password reset successful for user {matched_record['user_id']}")
+    return {"message": "Mot de passe réinitialisé avec succès"}
 
 # ==================== CLIENT ROUTES ====================
 
@@ -1444,6 +1545,11 @@ async def startup_event():
 - POST /api/auth/login - Login
 - POST /api/auth/logout - Logout
 - GET /api/auth/me - Get current user
+
+## Password Reset Flow
+- POST /api/auth/forgot-password - Request password reset
+- GET /api/auth/verify-reset-token/{{token}} - Verify token validity
+- POST /api/auth/reset-password - Reset password with token
 
 ## Admin Endpoints
 - GET /api/admin/stats - Dashboard stats
