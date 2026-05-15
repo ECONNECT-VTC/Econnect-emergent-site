@@ -3,7 +3,7 @@ import { Phone, Envelope, MapPin, InstagramLogo, FacebookLogo, LinkedinLogo } fr
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const Footer = () => {
-  const { t } = useLanguage();
+  const { t, getLocalizedPath, isRTL } = useLanguage();
 
   const navLinks = [
     { key: 'footerNavAccueil', href: '#accueil' },
@@ -62,7 +62,7 @@ const Footer = () => {
               {navLinks.map((link) => (
                 <li key={link.key}>
                   <a
-                    href={link.href}
+                    href={getLocalizedPath(link.href)}
                     className="text-[#A1A1AA] hover:text-[#D4AF37] transition-colors"
                   >
                     {t(link.key)}
@@ -99,7 +99,7 @@ const Footer = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className={`pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4 ${isRTL ? 'md:flex-row-reverse' : ''}`}>
           <p className="text-[#A1A1AA] text-sm">
             {t('copyright')}
           </p>
