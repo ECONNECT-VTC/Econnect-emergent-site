@@ -89,9 +89,9 @@ const NewBooking = () => {
   const getCategoryMeta = (category) => {
     if (!category) return { hasWifi: false, passengers: null, luggage: null };
     return {
-      hasWifi: Boolean(category.has_wifi ?? category.wifi ?? category.wifi_available),
-      passengers: category.max_passengers ?? category.passengers ?? null,
-      luggage: category.max_luggage ?? category.luggage ?? category.max_bags ?? null
+      hasWifi: Boolean(category.has_wifi),
+      passengers: category.max_passengers ?? null,
+      luggage: category.max_luggage ?? null
     };
   };
 
