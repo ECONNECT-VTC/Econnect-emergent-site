@@ -25,13 +25,14 @@ import './App.css';
 
 const VALID_LANGS = ['fr', 'en', 'es', 'de', 'it', 'pt', 'nl', 'ru', 'pl', 'ja', 'ko', 'zh', 'ar'];
 
-function getDefaultLangPath() {
+// Computed once at module load time
+const defaultLangPath = (() => {
   const stored = localStorage.getItem('preferred-lang');
   if (stored && VALID_LANGS.includes(stored)) return '/' + stored;
   const browserLang = (navigator.language || '').split('-')[0].toLowerCase();
   if (VALID_LANGS.includes(browserLang)) return '/' + browserLang;
   return '/fr';
-}
+})();
 
 function AppRoutes() {
   return (
@@ -195,7 +196,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to={getDefaultLangPath()} replace />} />
+        <Route path="/" element={<Navigate to={defaultLangPath} replace />} />
         <Route path="/:lang/*" element={<LanguageWrapper />} />
       </Routes>
     </BrowserRouter>
