@@ -1249,7 +1249,7 @@ async def get_vehicle_categories():
     """Get all active vehicle categories (public endpoint)"""
     categories = await db.vehicle_categories.find({"is_active": True}, {"_id": 0}).sort("order", 1).to_list(100)
     serialized_categories = [serialize_vehicle_category(c) for c in categories]
-    logger.info(
+    logger.debug(
         "Public vehicle categories response metadata: %s",
         [
             {
@@ -1639,16 +1639,27 @@ async def startup_event():
         await db.vehicle_categories.insert_many(default_categories)
         logger.info("Default vehicle categories created")
     else:
-        categories = await db.vehicle_categories.find({}, {"_id": 0, "id": 1, "name": 1, "has_wifi": 1, "max_passengers": 1, "max_luggage": 1}).to_list(100)
+        categories = await db.vehicle_categories.find(
+            {},
+            {
+                "_id": 0,
+                "id": 1,
+                "name": 1,
+                "has_wifi": 1,
+                "max_passengers": 1,
+                "max_luggage": 1,
+            },
+        ).to_list(100)
         updated_categories = 0
         for category in categories:
-            expected_metadata = DEFAULT_CATEGORY_METADATA.get(category.get("name"))
+            category_name = category.get("name") or ""
+            expected_metadata = DEFAULT_CATEGORY_METADATA.get(category_name)
             if not expected_metadata:
                 continue
 
             missing_fields = {}
             for field_name, expected_value in expected_metadata.items():
-                if category.get(field_name) is None:
+                if field_name not in category or category.get(field_name) is None:
                     missing_fields[field_name] = expected_value
 
             if missing_fields:
