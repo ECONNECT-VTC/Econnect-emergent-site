@@ -48,8 +48,8 @@ const getPathLanguage = (pathname = '/') => {
 const splitPath = (path = '/') => {
   const match = `${path || '/'}`.match(/^([^?#]*)(.*)$/);
   return {
-    pathname: match?.[1] || '/',
-    suffix: match?.[2] || '',
+    pathname: match[1] || '/',
+    suffix: match[2] || '',
   };
 };
 
@@ -157,7 +157,6 @@ export const LanguageProvider = ({ children }) => {
       isRTL,
       t,
       getLocalizedPath,
-      getTranslatedLink: getLocalizedPath,
       stripLanguagePrefix,
       isValidLanguage: (candidate) => Boolean(normalizeLanguage(candidate)),
       supportedLanguages: SUPPORTED_LANGUAGES,
