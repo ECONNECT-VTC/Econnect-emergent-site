@@ -27,9 +27,9 @@ const ClientDashboard = () => {
 
   const stats = {
     total: bookings.length,
-    pending: bookings.filter(b => b.status === 'pending').length,
-    assigned: bookings.filter(b => b.status === 'assigned' || b.status === 'in_progress').length,
-    completed: bookings.filter(b => b.status === 'completed').length,
+    pending: bookings.filter((b) => b.status === 'pending').length,
+    assigned: bookings.filter((b) => b.status === 'assigned' || b.status === 'in_progress').length,
+    completed: bookings.filter((b) => b.status === 'completed').length,
   };
 
   const recentBookings = bookings.slice(0, 3);

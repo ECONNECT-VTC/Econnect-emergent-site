@@ -20,13 +20,22 @@ const AdminDashboard = () => {
         ]);
         setStats(statsRes.data);
         setRecentBookings(bookingsRes.data.slice(0, 5));
-      } catch (error) { console.error('Error:', error); }
-      finally { setLoading(false); }
+      } catch (error) {
+        console.error('Error:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
   }, []);
 
-  if (loading) return <DashboardLayout title="Tableau de Bord"><div className="text-center py-12 text-[#A1A1AA]">Chargement...</div></DashboardLayout>;
+  if (loading) {
+    return (
+      <DashboardLayout title="Tableau de Bord">
+        <div className="text-center py-12 text-[#A1A1AA]">Chargement...</div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout title="Tableau de Bord">
