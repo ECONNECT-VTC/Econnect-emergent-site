@@ -277,12 +277,12 @@ const NewBooking = () => {
                             <p className="font-bold">{estimate.category_name}</p>
                             <p className="text-xs text-[#A1A1AA]">{estimate.price_per_km.toFixed(2)}€/km</p>
                             <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#A1A1AA]">
-                              {categoryMeta.hasWifi && <span className="bg-white/5 rounded px-2 py-1">📶 WiFi</span>}
+                              {categoryMeta.hasWifi && <span className="bg-white/5 rounded px-2 py-1" aria-label="WiFi disponible">📶 WiFi</span>}
                               {categoryMeta.passengers != null && (
-                                <span className="bg-white/5 rounded px-2 py-1">👥 {categoryMeta.passengers}</span>
+                                <span className="bg-white/5 rounded px-2 py-1" aria-label={`Capacité passagers: ${categoryMeta.passengers}`}>👥 {categoryMeta.passengers}</span>
                               )}
                               {categoryMeta.luggage != null && (
-                                <span className="bg-white/5 rounded px-2 py-1">🧳 {categoryMeta.luggage}</span>
+                                <span className="bg-white/5 rounded px-2 py-1" aria-label={`Capacité bagages: ${categoryMeta.luggage}`}>🧳 {categoryMeta.luggage}</span>
                               )}
                             </div>
                           </div>
