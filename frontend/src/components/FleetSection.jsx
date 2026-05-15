@@ -29,25 +29,29 @@ const FleetSection = () => {
       nameKey: 'comfortClassique',
       descKey: 'comfortClassiqueDesc',
       price: '30\u20ac',
-      image: 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg',
+      /*image: 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg',*/
+      image:'/photo/chr.png',
     },
     {
       nameKey: 'comfortPremium',
       descKey: 'comfortPremiumDesc',
       price: '55\u20ac',
-      image: 'https://images.pexels.com/photos/3802510/pexels-photo-3802510.jpeg',
+      /*image: 'https://images.pexels.com/photos/3802510/pexels-photo-3802510.jpeg',*/
+      image:'/photo/classe_c.png',
     },
     {
       nameKey: 'prestige',
       descKey: 'prestigeDesc',
       price: '90\u20ac',
-      image: 'https://images.pexels.com/photos/1545743/pexels-photo-1545743.jpeg',
+      /*image: 'https://images.pexels.com/photos/1545743/pexels-photo-1545743.jpeg',*/
+      image:'/photo/range_rover.png',
     },
     {
       nameKey: 'van',
       descKey: 'vanDesc',
       price: '70\u20ac',
-      image: 'https://images.pexels.com/photos/15774577/pexels-photo-15774577.jpeg',
+      /*image: 'https://images.pexels.com/photos/15774577/pexels-photo-15774577.jpeg',*/
+      image:'/photo/classe_v.png',
     },
   ];
 

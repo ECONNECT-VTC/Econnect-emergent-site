@@ -11,6 +11,11 @@
 - POST /api/auth/logout - Logout
 - GET /api/auth/me - Get current user
 
+## Password Reset Flow
+- POST /api/auth/forgot-password - Request password reset
+- GET /api/auth/verify-reset-token/{token} - Verify token validity
+- POST /api/auth/reset-password - Reset password with token
+
 ## Admin Endpoints
 - GET /api/admin/stats - Dashboard stats
 - GET /api/admin/bookings - All bookings

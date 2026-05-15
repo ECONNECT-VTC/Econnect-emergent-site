@@ -2,6 +2,8 @@ import { motion } from 'framer-motion';
 import { Car, Clock, Airplane, Buildings } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { image } from 'framer-motion/client';
+//import mise_a_dispoImg from '@/public/photo/mise_a_dispo.jpg';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -43,6 +45,7 @@ const Services = () => {
       descKey: 'miseDispositionDesc',
       icon: Clock,
       image: 'https://images.pexels.com/photos/8425052/pexels-photo-8425052.jpeg',
+      /*image:'/photo/mise_a_dispo.jpg',*/
       colSpan: 'md:col-span-6',
       rowSpan: '',
     },
@@ -52,7 +55,8 @@ const Services = () => {
       subtitleKey: 'transfertsSubtitle',
       descKey: 'transfertsDesc',
       icon: Airplane,
-      image: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800',
+      image:'/photo/transfert_aero.png',
+      /*image: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800',*/
       colSpan: 'md:col-span-4',
       rowSpan: 'md:row-span-2',
     },
@@ -62,7 +66,8 @@ const Services = () => {
       subtitleKey: 'affairesSubtitle',
       descKey: 'affairesDesc',
       icon: Buildings,
-      image: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg',
+      image:'/photo/mise_a_dispo.jpg',
+      /*image: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg',*/
       colSpan: 'md:col-span-8',
       rowSpan: '',
     },
