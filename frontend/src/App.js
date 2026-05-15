@@ -50,7 +50,7 @@ const LanguageRouteGuard = () => {
 
   const segments = location.pathname.split('/').filter(Boolean);
   const nextPath =
-    segments.length > 1 && segments[0].length <= 3
+    segments.length > 1 && /^[a-z]{2,3}$/i.test(segments[0])
       ? `/${segments.slice(1).join('/')}`
       : location.pathname;
 

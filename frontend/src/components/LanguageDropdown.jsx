@@ -41,7 +41,7 @@ const LanguageDropdown = ({ className = '', fullWidth = false, onSelect }) => {
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}
-        className={`flex items-center ${isRTL ? 'flex-row-reverse' : ''} ${fullWidth ? 'w-full justify-between' : 'justify-between'} gap-3 rounded-xl border border-white/10 bg-[#141414] px-4 py-2.5 text-sm text-white transition-colors hover:border-[#D4AF37]/50 hover:bg-[#1E1E1E]`}
+        className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''} ${fullWidth ? 'w-full' : ''} gap-3 rounded-xl border border-white/10 bg-[#141414] px-4 py-2.5 text-sm text-white transition-colors hover:border-[#D4AF37]/50 hover:bg-[#1E1E1E]`}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
       >

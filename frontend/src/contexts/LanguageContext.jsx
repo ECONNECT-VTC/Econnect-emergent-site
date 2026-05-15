@@ -46,10 +46,19 @@ const getPathLanguage = (pathname = '/') => {
 };
 
 const splitPath = (path = '/') => {
-  const [, pathname = '/', suffix = ''] = `${path || '/'}`.match(/^([^?#]*)(.*)$/) || [];
+  const normalizedPath = `${path || '/'}`;
+  const suffixIndex = normalizedPath.search(/[?#]/);
+
+  if (suffixIndex === -1) {
+    return {
+      pathname: normalizedPath || '/',
+      suffix: '',
+    };
+  }
+
   return {
-    pathname,
-    suffix,
+    pathname: normalizedPath.slice(0, suffixIndex) || '/',
+    suffix: normalizedPath.slice(suffixIndex),
   };
 };
 
@@ -58,7 +67,7 @@ const stripLanguagePrefix = (pathname = '/') => {
 
   if (segments.length > 0 && SUPPORTED_LANGUAGES.includes(segments[0])) {
     const stripped = `/${segments.slice(1).join('/')}`;
-    return stripped === '/' ? '/' : stripped.replace(/\/$/, '') || '/';
+    return stripped === '/' ? '/' : stripped.replace(/\/$/, '');
   }
 
   return pathname || '/';
