@@ -46,10 +46,10 @@ const getPathLanguage = (pathname = '/') => {
 };
 
 const splitPath = (path = '/') => {
-  const match = `${path || '/'}`.match(/^([^?#]*)(.*)$/);
+  const [, pathname = '/', suffix = ''] = `${path || '/'}`.match(/^([^?#]*)(.*)$/) || [];
   return {
-    pathname: match[1] || '/',
-    suffix: match[2] || '',
+    pathname,
+    suffix,
   };
 };
 
