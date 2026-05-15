@@ -24,7 +24,6 @@ from sendgrid.helpers.mail import Mail
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
-# test repository github 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
@@ -548,11 +547,11 @@ async def send_notification_email(to_email: str, subject: str, html_content: str
     """Send email notification via SendGrid"""
     sendgrid_key = os.environ.get('SENDGRID_API_KEY')
     sender_email = os.environ.get('SENDER_EMAIL', 'noreply@econnect-vtc.com')
-    
+
     if not sendgrid_key:
         logger.warning("SendGrid API key not configured, skipping email")
         return False
-    
+
     try:
         message = Mail(
             from_email=sender_email,
@@ -575,12 +574,12 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
     <body style="font-family: Arial, sans-serif; background-color: #0A0A0A; color: #FAFAFA; padding: 20px;">
         <div style="max-width: 600px; margin: 0 auto; background: #141414; border-radius: 12px; padding: 30px; border: 1px solid #D4AF37;">
             <h1 style="color: #D4AF37; margin-bottom: 20px;">Nouvelle Course Assignée</h1>
-            
+
             <h2 style="color: #FAFAFA;">Détails du client</h2>
             <p><strong>Nom:</strong> {client.get('name', 'N/A')}</p>
             <p><strong>Téléphone:</strong> {client.get('phone', 'N/A')}</p>
             <p><strong>Email:</strong> {client.get('email', 'N/A')}</p>
-            
+
             <h2 style="color: #FAFAFA; margin-top: 20px;">Détails de la course</h2>
             <p><strong>📅 Date:</strong> {booking['pickup_date']}</p>
             <p><strong>⏰ Heure:</strong> {booking['pickup_time']}</p>
@@ -588,10 +587,10 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
             <p><strong>🏁 Arrivée:</strong> {booking['dropoff_address']}</p>
             <p><strong>Type:</strong> {booking['transfer_type']}</p>
             {f"<p><strong>Notes:</strong> {booking.get('notes', '')}</p>" if booking.get('notes') else ""}
-            
+
             <div style="margin-top: 30px; padding: 20px; background: #D4AF37; border-radius: 8px; text-align: center;">
                 <p style="color: #0A0A0A; font-weight: bold; margin: 0;">Connectez-vous à votre espace chauffeur pour confirmer</p>
-                {f"<p style='margin-top: 10px;'><a href='{order_download_url}' style='color: #0A0A0A; font-weight: bold;'>Télécharger le bon de commande</a></p><p style='color: #0A0A0A; margin-top: 6px;'>Connexion chauffeur requise pour ouvrir le document.</p>" if order_download_url else ""}
+                {f"<p style='margin-top: 10px;'><a href='{order_download_url}' style='color: #0A0A0A; font-weight: bold;'>Télécharger le bon de commande</a></p>" if order_download_url else ""}
             </div>
         </div>
     </body>
@@ -607,7 +606,7 @@ async def register(user_data: UserCreate, response: Response):
     existing = await db.users.find_one({"email": user_data.email.lower()})
     if existing:
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
-    
+
     user_id = str(uuid.uuid4())
     user_doc = {
         "id": user_id,
@@ -618,15 +617,15 @@ async def register(user_data: UserCreate, response: Response):
         "role": "client",  # Default role for registration
         "created_at": datetime.now(timezone.utc)
     }
-    
+
     await db.users.insert_one(user_doc)
-    
+
     access_token = create_access_token(user_id, user_doc["email"], user_doc["role"])
     refresh_token = create_refresh_token(user_id)
-    
+
     response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
     response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
-    
+
     return {
         "id": user_id,
         "email": user_doc["email"],
@@ -640,16 +639,16 @@ async def login(credentials: UserLogin, response: Response):
     user = await db.users.find_one({"email": credentials.email.lower()})
     if not user:
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
-    
+
     if not verify_password(credentials.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
-    
+
     access_token = create_access_token(user["id"], user["email"], user["role"])
     refresh_token = create_refresh_token(user["id"])
-    
+
     response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
     response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
-    
+
     return {
         "id": user["id"],
         "email": user["email"],
@@ -772,14 +771,14 @@ async def reset_password(data: PasswordResetConfirm):
 @api_router.post("/bookings", response_model=BookingResponse)
 async def create_booking(booking: BookingCreate, request: Request):
     user = await get_current_user(request)
-    
+
     # Get vehicle category name if provided
     vehicle_category_name = None
     if booking.vehicle_category_id:
         category = await db.vehicle_categories.find_one({"id": booking.vehicle_category_id})
         if category:
             vehicle_category_name = category["name"]
-    
+
     booking_id = str(uuid.uuid4())
     booking_doc = {
         "id": booking_id,
@@ -814,7 +813,7 @@ async def create_booking(booking: BookingCreate, request: Request):
         "created_at": datetime.now(timezone.utc),
         "assigned_at": None
     }
-    
+
     await db.bookings.insert_one(booking_doc)
     booking_doc.pop("_id", None)
     return BookingResponse(**booking_doc)
@@ -879,20 +878,20 @@ async def download_driver_order_pdf(booking_id: str, request: Request):
 @api_router.put("/driver/bookings/{booking_id}/status")
 async def update_booking_status_driver(booking_id: str, status_update: BookingStatusUpdate, request: Request):
     user = await require_driver(request)
-    
+
     booking = await db.bookings.find_one({"id": booking_id, "driver_id": user["id"]})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    
+
     valid_statuses = ["in_progress", "completed"]
     if status_update.status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Statut invalide. Valeurs acceptées: {valid_statuses}")
-    
+
     await db.bookings.update_one(
         {"id": booking_id},
         {"$set": {"status": status_update.status}}
     )
-    
+
     return {"message": "Statut mis à jour", "status": status_update.status}
 
 @api_router.put("/driver/availability")
@@ -933,7 +932,7 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
 @api_router.get("/admin/stats", response_model=StatsResponse)
 async def get_admin_stats(request: Request):
     await require_admin(request)
-    
+
     total_bookings = await db.bookings.count_documents({})
     pending_bookings = await db.bookings.count_documents({"status": "pending"})
     assigned_bookings = await db.bookings.count_documents({"status": "assigned"})
@@ -941,7 +940,7 @@ async def get_admin_stats(request: Request):
     total_clients = await db.users.count_documents({"role": "client"})
     total_drivers = await db.users.count_documents({"role": "driver"})
     available_drivers = await db.users.count_documents({"role": "driver", "is_available": True})
-    
+
     return StatsResponse(
         total_bookings=total_bookings,
         pending_bookings=pending_bookings,
@@ -955,11 +954,11 @@ async def get_admin_stats(request: Request):
 @api_router.get("/admin/bookings", response_model=List[BookingResponse])
 async def get_all_bookings(request: Request, status: Optional[str] = None):
     await require_admin(request)
-    
+
     query = {}
     if status:
         query["status"] = status
-    
+
     bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return [BookingResponse(**b) for b in bookings]
 
@@ -1014,17 +1013,17 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
 @api_router.put("/admin/bookings/{booking_id}/assign")
 async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, request: Request):
     await require_admin(request)
-    
+
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
     if booking.get("status") != "received":
         raise HTTPException(status_code=400, detail="La course doit être réceptionnée avant assignation")
-    
+
     driver = await db.users.find_one({"id": assign_data.driver_id, "role": "driver"})
     if not driver:
         raise HTTPException(status_code=404, detail="Chauffeur non trouvé")
-    
+
     assigned_at = datetime.now(timezone.utc)
     updated_booking = {
         **booking,
@@ -1044,14 +1043,14 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     )
     settings = await get_commission_settings()
     await generate_and_store_document(updated_booking, settings, "order")
-    
+
     # Get client info
     client = await db.users.find_one({"id": booking["client_id"]})
     order_download_url = f"{str(request.base_url).rstrip('/')}/api/driver/bookings/{booking_id}/order-pdf"
-    
+
     # Send email notification to driver
     await send_booking_notification_to_driver(driver, updated_booking, client or {}, order_download_url)
-    
+
     return {"message": "Course assignée avec succès", "driver_name": driver["name"]}
 
 @api_router.put("/admin/bookings/{booking_id}/receive")
@@ -1140,38 +1139,38 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
 @api_router.put("/admin/bookings/{booking_id}/status")
 async def update_booking_status_admin(booking_id: str, status_update: BookingStatusUpdate, request: Request):
     await require_admin(request)
-    
+
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    
+
     valid_statuses = ["pending", "received", "assigned", "in_progress", "completed", "cancellation_requested", "cancelled"]
     if status_update.status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f"Statut invalide. Valeurs acceptées: {valid_statuses}")
-    
+
     await db.bookings.update_one(
         {"id": booking_id},
         {"$set": {"status": status_update.status}}
     )
-    
+
     return {"message": "Statut mis à jour", "status": status_update.status}
 
 @api_router.get("/admin/drivers", response_model=List[DriverResponse])
 async def get_all_drivers(request: Request):
     await require_admin(request)
-    
+
     drivers = await db.users.find({"role": "driver"}, {"_id": 0, "password_hash": 0}).to_list(100)
     return [DriverResponse(**d) for d in drivers]
 
 @api_router.post("/admin/drivers", response_model=DriverResponse)
 async def create_driver(driver_data: DriverCreate, request: Request):
     await require_admin(request)
-    
+
     # Check if email exists
     existing = await db.users.find_one({"email": driver_data.email.lower()})
     if existing:
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
-    
+
     driver_id = str(uuid.uuid4())
     driver_doc = {
         "id": driver_id,
@@ -1185,27 +1184,27 @@ async def create_driver(driver_data: DriverCreate, request: Request):
         "is_available": True,
         "created_at": datetime.now(timezone.utc)
     }
-    
+
     await db.users.insert_one(driver_doc)
     driver_doc.pop("_id", None)
     driver_doc.pop("password_hash", None)
-    
+
     return DriverResponse(**driver_doc)
 
 @api_router.delete("/admin/drivers/{driver_id}")
 async def delete_driver(driver_id: str, request: Request):
     await require_admin(request)
-    
+
     result = await db.users.delete_one({"id": driver_id, "role": "driver"})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Chauffeur non trouvé")
-    
+
     return {"message": "Chauffeur supprimé"}
 
 @api_router.get("/admin/clients", response_model=List[UserResponse])
 async def get_all_clients(request: Request):
     await require_admin(request)
-    
+
     clients = await db.users.find({"role": "client"}, {"_id": 0, "password_hash": 0}).to_list(100)
     return [UserResponse(**c) for c in clients]
 
@@ -1227,7 +1226,7 @@ async def get_all_vehicle_categories(request: Request):
 @api_router.post("/admin/vehicle-categories", response_model=VehicleCategory)
 async def create_vehicle_category(category: VehicleCategoryCreate, request: Request):
     await require_admin(request)
-    
+
     category_id = str(uuid.uuid4())
     category_doc = {
         "id": category_id,
@@ -1239,7 +1238,7 @@ async def create_vehicle_category(category: VehicleCategoryCreate, request: Requ
         "is_active": True,
         "order": category.order
     }
-    
+
     await db.vehicle_categories.insert_one(category_doc)
     category_doc.pop("_id", None)
     return VehicleCategory(**category_doc)
@@ -1247,26 +1246,26 @@ async def create_vehicle_category(category: VehicleCategoryCreate, request: Requ
 @api_router.put("/admin/vehicle-categories/{category_id}", response_model=VehicleCategory)
 async def update_vehicle_category(category_id: str, category: VehicleCategoryUpdate, request: Request):
     await require_admin(request)
-    
+
     existing = await db.vehicle_categories.find_one({"id": category_id})
     if not existing:
         raise HTTPException(status_code=404, detail="Catégorie non trouvée")
-    
+
     update_data = {k: v for k, v in category.model_dump().items() if v is not None}
     if update_data:
         await db.vehicle_categories.update_one({"id": category_id}, {"$set": update_data})
-    
+
     updated = await db.vehicle_categories.find_one({"id": category_id}, {"_id": 0})
     return VehicleCategory(**updated)
 
 @api_router.delete("/admin/vehicle-categories/{category_id}")
 async def delete_vehicle_category(category_id: str, request: Request):
     await require_admin(request)
-    
+
     result = await db.vehicle_categories.delete_one({"id": category_id})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Catégorie non trouvée")
-    
+
     return {"message": "Catégorie supprimée"}
 
 # ==================== PRICE ESTIMATION ROUTE ====================
@@ -1279,14 +1278,14 @@ async def estimate_price(distance_km: float, duration_minutes: float = 0):
     """
     if distance_km <= 0:
         raise HTTPException(status_code=400, detail="La distance doit être positive")
-    
+
     categories = await db.vehicle_categories.find({"is_active": True}, {"_id": 0}).sort("order", 1).to_list(100)
-    
+
     estimates = []
     for cat in categories:
         base_price = distance_km * cat["price_per_km"]
         final_price = max(base_price, cat["min_fare"])
-        
+
         estimates.append(PriceEstimate(
             category_id=cat["id"],
             category_name=cat["name"],
@@ -1297,7 +1296,7 @@ async def estimate_price(distance_km: float, duration_minutes: float = 0):
             min_fare=cat["min_fare"],
             price_per_km=cat["price_per_km"]
         ))
-    
+
     return estimates
 
 # ==================== FINANCIAL ROUTES ====================
@@ -1505,11 +1504,11 @@ async def startup_event():
     await db.invoices.create_index("id", unique=True)
     await db.invoices.create_index("booking_id")
     await db.invoices.create_index([("booking_id", 1), ("type", 1)], unique=True)
-    
+
     # Seed admin user
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@econnect-vtc.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
-    
+
     existing_admin = await db.users.find_one({"email": admin_email})
     if not existing_admin:
         admin_doc = {
@@ -1529,7 +1528,7 @@ async def startup_event():
             {"$set": {"password_hash": hash_password(admin_password)}}
         )
         logger.info("Admin password updated")
-    
+
     # Seed default vehicle categories if none exist
     existing_categories = await db.vehicle_categories.count_documents({})
     if existing_categories == 0:
@@ -1594,9 +1593,8 @@ async def startup_event():
             "updated_at": datetime.now(timezone.utc)
         })
         logger.info("Default commission settings created")
-    
+
     # Write test credentials
-    # credentials_path = Path("/app/memory/test_credentials.md")
     credentials_path = Path("./test_credentials.md")
     credentials_path.parent.mkdir(parents=True, exist_ok=True)
     credentials_path.write_text(f"""# Test Credentials
@@ -1649,7 +1647,7 @@ async def startup_event():
 - Luxe: 4.00€/km, min 50€
 - Green: 2.80€/km, min 30€
 """)
-    logger.info("Test credentials written to /app/memory/test_credentials.md")
+    logger.info("Test credentials written to ./test_credentials.md")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
