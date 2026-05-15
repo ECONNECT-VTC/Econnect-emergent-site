@@ -15,7 +15,7 @@ import AdminDashboard from '@/pages/admin/AdminDashboard';
 import AdminDocuments from '@/pages/admin/AdminDocuments';
 import AdminDrivers from '@/pages/admin/AdminDrivers';
 import AdminFinancialDashboard from '@/pages/admin/AdminFinancialDashboard';
-import AdminPricing from '@/pages/admin/AdminPricing';
+import AdminPricing from '@/pages/admin/AdminPricing.jsx';
 import ClientBookings from '@/pages/client/ClientBookings';
 import ClientDashboard from '@/pages/client/ClientDashboard';
 import NewBooking from '@/pages/client/NewBooking';

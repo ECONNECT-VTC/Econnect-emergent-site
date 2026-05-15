@@ -86,6 +86,15 @@ const NewBooking = () => {
     return priceEstimates.find(e => e.category_id === selectedCategory);
   };
 
+  const getCategoryMeta = (category) => {
+    if (!category) return { hasWifi: false, passengers: null, luggage: null };
+    return {
+      hasWifi: Boolean(category.has_wifi ?? category.wifi ?? category.wifi_available),
+      passengers: category.max_passengers ?? category.passengers ?? null,
+      luggage: category.max_luggage ?? category.luggage ?? category.max_bags ?? null
+    };
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -245,6 +254,7 @@ const NewBooking = () => {
                 <div className="grid sm:grid-cols-2 gap-3" data-testid="vehicle-selection">
                   {priceEstimates.map((estimate) => {
                     const category = categories.find(c => c.id === estimate.category_id);
+                    const categoryMeta = getCategoryMeta(category);
                     const isSelected = selectedCategory === estimate.category_id;
                     return (
                       <div 
@@ -266,6 +276,15 @@ const NewBooking = () => {
                           <div className="flex-1">
                             <p className="font-bold">{estimate.category_name}</p>
                             <p className="text-xs text-[#A1A1AA]">{estimate.price_per_km.toFixed(2)}€/km</p>
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#A1A1AA]">
+                              {categoryMeta.hasWifi && <span className="bg-white/5 rounded px-2 py-1">📶 WiFi</span>}
+                              {categoryMeta.passengers != null && (
+                                <span className="bg-white/5 rounded px-2 py-1">👥 {categoryMeta.passengers}</span>
+                              )}
+                              {categoryMeta.luggage != null && (
+                                <span className="bg-white/5 rounded px-2 py-1">🧳 {categoryMeta.luggage}</span>
+                              )}
+                            </div>
                           </div>
                           <div className="text-right">
                             <p className="text-xl font-bold text-[#D4AF37]">{estimate.final_price.toFixed(2)}€</p>

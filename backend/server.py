@@ -205,6 +205,9 @@ class VehicleCategory(BaseModel):
     description: str
     price_per_km: float  # Prix par kilomètre en euros
     min_fare: float  # Tarif minimum
+    has_wifi: Optional[bool] = None
+    max_passengers: Optional[int] = None
+    max_luggage: Optional[int] = None
     image_url: Optional[str] = None
     is_active: bool = True
     order: int = 0  # Pour l'ordre d'affichage
@@ -214,6 +217,9 @@ class VehicleCategoryCreate(BaseModel):
     description: str
     price_per_km: float
     min_fare: float
+    has_wifi: Optional[bool] = None
+    max_passengers: Optional[int] = None
+    max_luggage: Optional[int] = None
     image_url: Optional[str] = None
     order: int = 0
 
@@ -222,6 +228,9 @@ class VehicleCategoryUpdate(BaseModel):
     description: Optional[str] = None
     price_per_km: Optional[float] = None
     min_fare: Optional[float] = None
+    has_wifi: Optional[bool] = None
+    max_passengers: Optional[int] = None
+    max_luggage: Optional[int] = None
     image_url: Optional[str] = None
     is_active: Optional[bool] = None
     order: Optional[int] = None
@@ -1236,6 +1245,9 @@ async def create_vehicle_category(category: VehicleCategoryCreate, request: Requ
         "description": category.description,
         "price_per_km": category.price_per_km,
         "min_fare": category.min_fare,
+        "has_wifi": category.has_wifi,
+        "max_passengers": category.max_passengers,
+        "max_luggage": category.max_luggage,
         "image_url": category.image_url,
         "is_active": True,
         "order": category.order
@@ -1541,6 +1553,9 @@ async def startup_event():
                 "description": "Confort et elegance pour vos trajets quotidiens. Mercedes Classe E, BMW Serie 5.",
                 "price_per_km": 2.50,
                 "min_fare": 25.00,
+                "has_wifi": True,
+                "max_passengers": 3,
+                "max_luggage": 2,
                 "image_url": "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=400",
                 "is_active": True,
                 "order": 1
@@ -1551,6 +1566,9 @@ async def startup_event():
                 "description": "Ideal pour les groupes jusqu'a 7 personnes. Mercedes Classe V, Volkswagen Caravelle.",
                 "price_per_km": 3.00,
                 "min_fare": 35.00,
+                "has_wifi": True,
+                "max_passengers": 7,
+                "max_luggage": 7,
                 "image_url": "https://images.unsplash.com/photo-1559416523-140ddc3d238c?w=400",
                 "is_active": True,
                 "order": 2
@@ -1561,6 +1579,9 @@ async def startup_event():
                 "description": "Experience premium avec vehicules haut de gamme. Mercedes Classe S, BMW Serie 7.",
                 "price_per_km": 4.00,
                 "min_fare": 50.00,
+                "has_wifi": True,
+                "max_passengers": 3,
+                "max_luggage": 3,
                 "image_url": "https://images.unsplash.com/photo-1563720360172-67b8f3dce741?w=400",
                 "is_active": True,
                 "order": 3
@@ -1571,6 +1592,9 @@ async def startup_event():
                 "description": "Vehicules electriques et hybrides pour un transport eco-responsable. Tesla Model S, Mercedes EQS.",
                 "price_per_km": 2.80,
                 "min_fare": 30.00,
+                "has_wifi": True,
+                "max_passengers": 4,
+                "max_luggage": 3,
                 "image_url": "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=400",
                 "is_active": True,
                 "order": 4
