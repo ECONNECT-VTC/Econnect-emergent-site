@@ -331,15 +331,23 @@ const AdminBookings = () => {
         ))}
       </div>
 
-      {loading ? <div className="text-center py-12 text-[#A1A1AA]">Chargement...</div> : filteredBookings.length === 0 ? (
-        <div className="glass rounded-xl p-12 text-center"><CalendarCheck size={48} className="text-[#A1A1AA] mx-auto mb-4" /><p className="text-[#A1A1AA]">Aucune reservation</p></div>
+      {loading ? (
+        <div className="text-center py-12 text-[#A1A1AA]">Chargement...</div>
+      ) : filteredBookings.length === 0 ? (
+        <div className="glass rounded-xl p-12 text-center">
+          <CalendarCheck size={48} className="text-[#A1A1AA] mx-auto mb-4" />
+          <p className="text-[#A1A1AA]">Aucune reservation</p>
+        </div>
       ) : (
         <div className="space-y-4" data-testid="admin-bookings">
           {filteredBookings.map((booking) => (
             <div key={booking.id} className="glass rounded-xl p-6">
               <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
                 <div>
-                  <div className="flex items-center gap-2 mb-1"><User size={18} className="text-[#D4AF37]" /><span className="font-medium">{booking.client_name}</span></div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <User size={18} className="text-[#D4AF37]" />
+                    <span className="font-medium">{booking.client_name}</span>
+                  </div>
                   <p className="text-sm text-[#A1A1AA]">{booking.client_email}</p>
                   <p className="text-sm text-[#D4AF37]">{booking.pickup_date} - {booking.pickup_time}</p>
                 </div>
@@ -383,15 +391,36 @@ const AdminBookings = () => {
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
-                <div className="flex items-start gap-3"><MapPin size={20} className="text-green-400 mt-1" /><div><p className="text-xs text-[#A1A1AA]">Depart</p><p className="text-sm">{booking.pickup_address}</p></div></div>
-                <div className="flex items-start gap-3"><MapPin size={20} className="text-red-400 mt-1" /><div><p className="text-xs text-[#A1A1AA]">Arrivee</p><p className="text-sm">{booking.dropoff_address}</p></div></div>
+                <div className="flex items-start gap-3">
+                  <MapPin size={20} className="text-green-400 mt-1" />
+                  <div>
+                    <p className="text-xs text-[#A1A1AA]">Depart</p>
+                    <p className="text-sm">{booking.pickup_address}</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <MapPin size={20} className="text-red-400 mt-1" />
+                  <div>
+                    <p className="text-xs text-[#A1A1AA]">Arrivee</p>
+                    <p className="text-sm">{booking.dropoff_address}</p>
+                  </div>
+                </div>
               </div>
 
               {(booking.driver_name || booking.cancellation_reason || booking.refund_amount != null) && (
                 <div className="mt-4 pt-4 border-t border-white/10 space-y-1 text-sm">
-                  {booking.driver_name && <p><CarSimple size={16} className="inline mr-2 text-[#D4AF37]" />Chauffeur: <span className="text-[#D4AF37]">{booking.driver_name}</span></p>}
-                  {booking.cancellation_reason && <p className="text-orange-300">Motif annulation: {booking.cancellation_reason}</p>}
-                  {booking.refund_amount != null && <p className="text-green-400">Remboursement: {Number(booking.refund_amount).toFixed(2)}€</p>}
+                  {booking.driver_name && (
+                    <p>
+                      <CarSimple size={16} className="inline mr-2 text-[#D4AF37]" />
+                      Chauffeur: <span className="text-[#D4AF37]">{booking.driver_name}</span>
+                    </p>
+                  )}
+                  {booking.cancellation_reason && (
+                    <p className="text-orange-300">Motif annulation: {booking.cancellation_reason}</p>
+                  )}
+                  {booking.refund_amount != null && (
+                    <p className="text-green-400">Remboursement: {Number(booking.refund_amount).toFixed(2)}€</p>
+                  )}
                 </div>
               )}
             </div>
@@ -401,7 +430,9 @@ const AdminBookings = () => {
 
       <Dialog open={createDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
         <DialogContent className="bg-[#141414] border-white/10 max-w-xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle className="text-[#D4AF37]">Créer une nouvelle course</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="text-[#D4AF37]">Créer une nouvelle course</DialogTitle>
+          </DialogHeader>
           <div className="grid md:grid-cols-2 gap-4 py-2">
             <div className="md:col-span-2">
               <p className="text-sm text-[#A1A1AA] mb-2">Choisir un client existant</p>
@@ -446,16 +477,22 @@ const AdminBookings = () => {
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Heure de prise en charge *</p>
               <Select value={createForm.pickup_time} onValueChange={(v) => updateCreateField('pickup_time', v)}>
-                <SelectTrigger className="bg-[#1E1E1E] border-white/10"><SelectValue placeholder="Choisir une heure" /></SelectTrigger>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                  <SelectValue placeholder="Choisir une heure" />
+                </SelectTrigger>
                 <SelectContent className="bg-[#1E1E1E] border-white/10 max-h-64">
-                  {TIME_SLOTS.map((slot) => <SelectItem key={slot} value={slot}>{slot}</SelectItem>)}
+                  {TIME_SLOTS.map((slot) => (
+                    <SelectItem key={slot} value={slot}>{slot}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Type de transfert *</p>
               <Select value={createForm.transfer_type} onValueChange={(v) => updateCreateField('transfer_type', v)}>
-                <SelectTrigger className="bg-[#1E1E1E] border-white/10"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent className="bg-[#1E1E1E] border-white/10">
                   <SelectItem value="standard">standard</SelectItem>
                   <SelectItem value="business">business</SelectItem>
@@ -489,11 +526,15 @@ const AdminBookings = () => {
 
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent className="bg-[#141414] border-white/10">
-          <DialogHeader><DialogTitle className="text-[#D4AF37]">Assigner un chauffeur</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="text-[#D4AF37]">Assigner un chauffeur</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-[#A1A1AA]">Course: {selectedBooking?.pickup_address} → {selectedBooking?.dropoff_address}</p>
             <Select value={selectedDriver} onValueChange={setSelectedDriver}>
-              <SelectTrigger className="bg-[#1E1E1E] border-white/10"><SelectValue placeholder="Choisir un chauffeur" /></SelectTrigger>
+              <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                <SelectValue placeholder="Choisir un chauffeur" />
+              </SelectTrigger>
               <SelectContent className="bg-[#1E1E1E] border-white/10">
                 {drivers.filter((d) => d.is_available).map((d) => (
                   <SelectItem key={d.id} value={d.id}>{d.name} - {d.vehicle_model}</SelectItem>

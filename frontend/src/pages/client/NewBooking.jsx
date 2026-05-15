@@ -43,7 +43,9 @@ const NewBooking = () => {
         withCredentials: true
       });
       setCategories(response.data);
-    } catch (error) { console.error('Error:', error); }
+    } catch (error) {
+      console.error('Error:', error);
+    }
   };
 
   const estimatePrice = async () => {
@@ -57,8 +59,8 @@ const NewBooking = () => {
         { withCredentials: true }
       );
       setPriceEstimates(response.data);
-    } catch (error) { 
-      console.error('Error:', error); 
+    } catch (error) {
+      console.error('Error:', error);
     } finally {
       setEstimatingPrice(false);
     }
@@ -73,12 +75,11 @@ const NewBooking = () => {
     }
   }, [distance, duration]);
 
-  const timeSlots = [];
-  for (let h = 0; h < 24; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      timeSlots.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-    }
-  }
+  const timeSlots = Array.from({ length: 48 }, (_, i) => {
+    const hours = String(Math.floor(i / 2)).padStart(2, '0');
+    const minutes = i % 2 === 0 ? '00' : '30';
+    return `${hours}:${minutes}`;
+  });
 
   const getSelectedPrice = () => {
     if (!selectedCategory || priceEstimates.length === 0) return null;
@@ -166,7 +167,9 @@ const NewBooking = () => {
                     <SelectValue placeholder="Choisir" />
                   </SelectTrigger>
                   <SelectContent className="bg-[#1E1E1E] border-white/10 max-h-60">
-                    {timeSlots.map((slot) => (<SelectItem key={slot} value={slot}>{slot}</SelectItem>))}
+                    {timeSlots.map((slot) => (
+                      <SelectItem key={slot} value={slot}>{slot}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
