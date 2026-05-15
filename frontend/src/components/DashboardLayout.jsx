@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import {
   House, CalendarCheck, Car, Users, SignOut, List, X, ChartBar, CarSimple, UserCircle, CurrencyEur, ChartLineUp, Percent, FileText, Money
 } from '@phosphor-icons/react';
@@ -9,39 +10,41 @@ import { Button } from '@/components/ui/button';
 
 const DashboardLayout = ({ children, title }) => {
   const { user, logout } = useAuth();
+  const { language } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
-    navigate('/');
+    navigate(`/${language}`);
   };
 
   const getNavLinks = () => {
+    const p = `/${language}`;
     switch (user?.role) {
       case 'admin':
         return [
-          { name: 'Dashboard', path: '/admin', icon: ChartBar },
-          { name: 'Réservations', path: '/admin/bookings', icon: CalendarCheck },
-          { name: 'Chauffeurs', path: '/admin/drivers', icon: CarSimple },
-          { name: 'Clients', path: '/admin/clients', icon: Users },
-          { name: 'Tarifs', path: '/admin/pricing', icon: CurrencyEur },
-          { name: 'Finance', path: '/admin/financial', icon: ChartLineUp },
-          { name: 'Commissions', path: '/admin/commissions', icon: Percent },
-          { name: 'Documents', path: '/admin/documents', icon: FileText },
+          { name: 'Dashboard', path: `${p}/admin`, icon: ChartBar },
+          { name: 'Réservations', path: `${p}/admin/bookings`, icon: CalendarCheck },
+          { name: 'Chauffeurs', path: `${p}/admin/drivers`, icon: CarSimple },
+          { name: 'Clients', path: `${p}/admin/clients`, icon: Users },
+          { name: 'Tarifs', path: `${p}/admin/pricing`, icon: CurrencyEur },
+          { name: 'Finance', path: `${p}/admin/financial`, icon: ChartLineUp },
+          { name: 'Commissions', path: `${p}/admin/commissions`, icon: Percent },
+          { name: 'Documents', path: `${p}/admin/documents`, icon: FileText },
         ];
       case 'driver':
         return [
-          { name: 'Mes Courses', path: '/driver', icon: Car },
-          { name: 'Mes Gains', path: '/driver/earnings', icon: Money },
+          { name: 'Mes Courses', path: `${p}/driver`, icon: Car },
+          { name: 'Mes Gains', path: `${p}/driver/earnings`, icon: Money },
         ];
       case 'client':
       default:
         return [
-          { name: 'Dashboard', path: '/client', icon: House },
-          { name: 'Mes Réservations', path: '/client/bookings', icon: CalendarCheck },
-          { name: 'Nouvelle Course', path: '/client/new-booking', icon: Car },
+          { name: 'Dashboard', path: `${p}/client`, icon: House },
+          { name: 'Mes Réservations', path: `${p}/client/bookings`, icon: CalendarCheck },
+          { name: 'Nouvelle Course', path: `${p}/client/new-booking`, icon: Car },
         ];
     }
   };
@@ -55,7 +58,7 @@ const DashboardLayout = ({ children, title }) => {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="p-6 border-b border-white/10">
-            <Link to="/" className="text-2xl font-bold font-['Cormorant_Garamond'] gold-text">
+            <Link to={`/${language}`} className="text-2xl font-bold font-['Cormorant_Garamond'] gold-text">
               Econnect VTC
             </Link>
           </div>

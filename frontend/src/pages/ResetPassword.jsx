@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ const REDIRECT_DELAY_MS = 3000;
 const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { lang = 'fr' } = useParams();
   const token = searchParams.get('token') || '';
 
   const [newPassword, setNewPassword] = useState('');
@@ -66,7 +67,7 @@ const ResetPassword = () => {
         new_password: newPassword,
       });
       setSuccess(true);
-      setTimeout(() => navigate('/login'), REDIRECT_DELAY_MS);
+      setTimeout(() => navigate(`/${lang}/login`), REDIRECT_DELAY_MS);
     } catch (err) {
       const detail = err.response?.data?.detail;
       setError(typeof detail === 'string' ? detail : 'Une erreur est survenue. Veuillez réessayer.');
@@ -118,7 +119,7 @@ const ResetPassword = () => {
             </p>
           </div>
           <Link
-            to="/login"
+            to={`/${lang}/login`}
             className="inline-block mt-2 text-[#D4AF37] hover:text-[#F0C74A] text-sm transition-colors"
           >
             Se connecter maintenant
@@ -198,7 +199,7 @@ const ResetPassword = () => {
       >
         <div className="glass rounded-2xl p-8">
           {/* Back link */}
-          <Link to="/login" className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
+          <Link to={`/${lang}/login`} className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
             <ArrowLeft size={20} className="mr-2" />
             Retour à la connexion
           </Link>

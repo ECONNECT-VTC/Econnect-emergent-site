@@ -1,10 +1,11 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 const ProtectedRoute = ({ children, role }) => {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const { lang = 'fr' } = useParams();
 
   if (loading) {
     return (
@@ -15,17 +16,16 @@ const ProtectedRoute = ({ children, role }) => {
   }
 
   if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to={`/${lang}/login`} state={{ from: location }} replace />;
   }
 
   if (role && user.role !== role) {
-    // Redirect to appropriate dashboard based on role
     const dashboards = {
-      client: '/client',
-      driver: '/driver',
-      admin: '/admin'
+      client: `/${lang}/client`,
+      driver: `/${lang}/driver`,
+      admin: `/${lang}/admin`,
     };
-    return <Navigate to={dashboards[user.role] || '/'} replace />;
+    return <Navigate to={dashboards[user.role] || `/${lang}`} replace />;
   }
 
   return children;

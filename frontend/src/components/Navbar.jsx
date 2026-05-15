@@ -3,18 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { List, X, CaretDown } from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
-
-const LANGUAGES = [
-  { code: 'fr', label: '🇫🇷' },
-  { code: 'en', label: '🇬🇧' },
-  { code: 'es', label: '🇪🇸' },
-];
+import LanguageDropdown from '@/components/LanguageDropdown';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isGammeOpen, setIsGammeOpen] = useState(false);
-  const { language, setLanguage, t } = useLanguage();
+  const { language, t } = useLanguage();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -111,26 +106,8 @@ const Navbar = () => {
 
         {/* Right-side actions (desktop) */}
         <div className="hidden md:flex items-center gap-3">
-          {/* Language selectors */}
-          <div className="flex items-center gap-1 mr-2">
-            {LANGUAGES.map((lang) => (
-              <button
-                key={lang.code}
-                onClick={() => setLanguage(lang.code)}
-                className="text-base font-bold leading-none px-2 py-1 rounded transition-colors duration-200"
-                style={{
-                  color: language === lang.code ? '#D4AF37' : '#A1A1AA',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-                title={lang.label}
-                data-testid={`lang-${lang.code}`}
-              >
-                {lang.label}
-              </button>
-            ))}
-          </div>
+          {/* Language dropdown */}
+          <LanguageDropdown />
 
           {/* Réserver button */}
           <a
@@ -144,7 +121,7 @@ const Navbar = () => {
 
           {/* Connexion button */}
           <Link
-            to="/login"
+            to={`/${language}/login`}
             className="font-semibold px-5 py-2 rounded-lg transition-all duration-300 text-sm"
             style={{
               background: 'transparent',
@@ -160,7 +137,7 @@ const Navbar = () => {
 
           {/* S'inscrire button */}
           <Link
-            to="/register"
+            to={`/${language}/register`}
             className="font-semibold px-5 py-2 rounded-lg transition-all duration-300 text-sm"
             style={{ background: '#D4AF37', color: '#232323' }}
             onMouseEnter={e => { e.currentTarget.style.background = '#F0C74A'; }}
@@ -221,23 +198,9 @@ const Navbar = () => {
                 </div>
               </div>
 
-              {/* Language selectors */}
-              <div className="flex items-center gap-3 py-2">
-                {LANGUAGES.map((lang) => (
-                  <button
-                    key={lang.code}
-                    onClick={() => setLanguage(lang.code)}
-                    className="text-base font-bold px-2 py-1 rounded transition-colors duration-200"
-                    style={{
-                      color: language === lang.code ? '#D4AF37' : '#A1A1AA',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {lang.label}
-                  </button>
-                ))}
+              {/* Language dropdown (mobile) */}
+              <div className="py-1">
+                <LanguageDropdown />
               </div>
 
               {/* Réserver button */}
@@ -252,7 +215,7 @@ const Navbar = () => {
 
               {/* Connexion */}
               <Link
-                to="/login"
+                to={`/${language}/login`}
                 className="font-semibold w-full text-center py-3 rounded-lg transition-all duration-300"
                 style={{ border: '1.5px solid #D4AF37', color: '#D4AF37', background: 'transparent' }}
                 onClick={() => setIsMobileMenuOpen(false)}
@@ -262,7 +225,7 @@ const Navbar = () => {
 
               {/* S'inscrire */}
               <Link
-                to="/register"
+                to={`/${language}/register`}
                 className="font-semibold w-full text-center py-3 rounded-lg transition-all duration-300"
                 style={{ background: '#D4AF37', color: '#232323' }}
                 onClick={() => setIsMobileMenuOpen(false)}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { lang = 'fr' } = useParams();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -25,11 +26,11 @@ const LoginPage = () => {
       const user = await login(email, password);
       // Redirect based on role
       const dashboards = {
-        client: '/client',
-        driver: '/driver',
-        admin: '/admin'
+        client: `/${lang}/client`,
+        driver: `/${lang}/driver`,
+        admin: `/${lang}/admin`,
       };
-      const from = location.state?.from?.pathname || dashboards[user.role] || '/';
+      const from = location.state?.from?.pathname || dashboards[user.role] || `/${lang}`;
       navigate(from, { replace: true });
     } catch (err) {
       const detail = err.response?.data?.detail;
@@ -48,7 +49,7 @@ const LoginPage = () => {
       >
         <div className="glass rounded-2xl p-8">
           {/* Back link */}
-          <Link to="/" className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
+          <Link to={`/${lang}`} className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
             <ArrowLeft size={20} className="mr-2" />
             Retour à l'accueil
           </Link>
@@ -118,7 +119,7 @@ const LoginPage = () => {
           <div className="text-center mt-4">
             <button
               type="button"
-              onClick={() => navigate('/forgot-password')}
+              onClick={() => navigate(`/${lang}/forgot-password`)}
               className="text-[#D4AF37] hover:text-[#F0C74A] text-sm transition-colors"
             >
               Mot de passe oublié ?
@@ -128,7 +129,7 @@ const LoginPage = () => {
           {/* Register link */}
           <p className="text-center mt-6 text-[#A1A1AA]">
             Pas encore de compte ?{' '}
-            <Link to="/register" className="text-[#D4AF37] hover:underline">
+            <Link to={`/${lang}/register`} className="text-[#D4AF37] hover:underline">
               S'inscrire
             </Link>
           </p>
