@@ -1,13 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Lock, ArrowLeft, CircleNotch } from '@phosphor-icons/react';
+import { ArrowLeft, CircleNotch, Lock } from '@phosphor-icons/react';
+import API_URL from '@/config';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
 const REDIRECT_DELAY_MS = 3000;
 
 const ResetPassword = () => {

@@ -1,15 +1,13 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Car, Plus, PencilSimple, Trash, CurrencyEur } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { Textarea } from '@/components/ui/textarea';
+import { Car, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
+import API_URL from '@/config';
 
 const AdminPricing = () => {
   const [categories, setCategories] = useState([]);
@@ -79,7 +77,11 @@ const AdminPricing = () => {
 
     try {
       if (editingCategory) {
-        await axios.put(`${API_URL}/api/admin/vehicle-categories/${editingCategory.id}`, payload, { withCredentials: true });
+        await axios.put(
+          `${API_URL}/api/admin/vehicle-categories/${editingCategory.id}`,
+          payload,
+          { withCredentials: true }
+        );
       } else {
         await axios.post(`${API_URL}/api/admin/vehicle-categories`, payload, { withCredentials: true });
       }
@@ -94,8 +96,9 @@ const AdminPricing = () => {
 
   const toggleActive = async (category) => {
     try {
-      await axios.put(`${API_URL}/api/admin/vehicle-categories/${category.id}`, 
-        { is_active: !category.is_active }, 
+      await axios.put(
+        `${API_URL}/api/admin/vehicle-categories/${category.id}`,
+        { is_active: !category.is_active },
         { withCredentials: true }
       );
       fetchCategories();
@@ -105,7 +108,7 @@ const AdminPricing = () => {
   };
 
   const deleteCategory = async (id) => {
-    if (!window.confirm('Supprimer cette categorie ?')) return;
+    if (!window.confirm('Supprimer cette catégorie ?')) return;
     try {
       await axios.delete(`${API_URL}/api/admin/vehicle-categories/${id}`, { withCredentials: true });
       fetchCategories();
@@ -115,37 +118,45 @@ const AdminPricing = () => {
   };
 
   return (
-    <DashboardLayout title="Gestion des Tarifs">
+    <div className="bg-[#0A0A0A] text-white min-h-full">
       <div className="flex justify-between items-center mb-6">
-        <p className="text-[#A1A1AA]">{categories.length} categorie(s) de vehicules</p>
+        <p className="text-[#A1A1AA]">{categories.length} catégorie(s) de véhicules</p>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openCreateDialog} className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" data-testid="add-category-btn">
+            <Button
+              onClick={openCreateDialog}
+              className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]"
+              data-testid="add-category-btn"
+            >
               <Plus size={18} className="mr-2" />Ajouter
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-[#141414] border-white/10 max-w-lg">
             <DialogHeader>
               <DialogTitle className="text-[#D4AF37]">
-                {editingCategory ? 'Modifier la categorie' : 'Nouvelle categorie'}
+                {editingCategory ? 'Modifier la catégorie' : 'Nouvelle catégorie'}
               </DialogTitle>
             </DialogHeader>
-            {error && <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label className="text-[#A1A1AA]">Nom</Label>
-                <Input 
-                  value={formData.name} 
+                <Input
+                  value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
-                  className="bg-[#1E1E1E] border-white/10" 
+                  className="bg-[#1E1E1E] border-white/10"
                   placeholder="Ex: Berline, Van, Luxe"
                 />
               </div>
               <div>
                 <Label className="text-[#A1A1AA]">Description</Label>
-                <Textarea 
-                  value={formData.description} 
+                <Textarea
+                  value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   required
                   className="bg-[#1E1E1E] border-white/10"
@@ -155,24 +166,24 @@ const AdminPricing = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-[#A1A1AA]">Prix par km (€)</Label>
-                  <Input 
-                    type="number" 
+                  <Input
+                    type="number"
                     step="0.01"
                     min="0"
-                    value={formData.price_per_km} 
+                    value={formData.price_per_km}
                     onChange={(e) => setFormData({ ...formData, price_per_km: e.target.value })}
                     required
-                    className="bg-[#1E1E1E] border-white/10" 
+                    className="bg-[#1E1E1E] border-white/10"
                     placeholder="2.50"
                   />
                 </div>
                 <div>
                   <Label className="text-[#A1A1AA]">Tarif minimum (€)</Label>
-                  <Input 
+                  <Input
                     type="number"
                     step="0.01"
                     min="0"
-                    value={formData.min_fare} 
+                    value={formData.min_fare}
                     onChange={(e) => setFormData({ ...formData, min_fare: e.target.value })}
                     required
                     className="bg-[#1E1E1E] border-white/10"
@@ -182,8 +193,8 @@ const AdminPricing = () => {
               </div>
               <div>
                 <Label className="text-[#A1A1AA]">URL Image (optionnel)</Label>
-                <Input 
-                  value={formData.image_url} 
+                <Input
+                  value={formData.image_url}
                   onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
                   className="bg-[#1E1E1E] border-white/10"
                   placeholder="https://..."
@@ -191,15 +202,19 @@ const AdminPricing = () => {
               </div>
               <div>
                 <Label className="text-[#A1A1AA]">Ordre d'affichage</Label>
-                <Input 
+                <Input
                   type="number"
-                  value={formData.order} 
+                  value={formData.order}
                   onChange={(e) => setFormData({ ...formData, order: e.target.value })}
                   className="bg-[#1E1E1E] border-white/10"
                 />
               </div>
-              <Button type="submit" disabled={submitting} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
-                {submitting ? 'Enregistrement...' : editingCategory ? 'Modifier' : 'Creer'}
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]"
+              >
+                {submitting ? 'Enregistrement...' : editingCategory ? 'Modifier' : 'Créer'}
               </Button>
             </form>
           </DialogContent>
@@ -211,12 +226,15 @@ const AdminPricing = () => {
       ) : categories.length === 0 ? (
         <div className="glass rounded-xl p-12 text-center">
           <Car size={48} className="text-[#A1A1AA] mx-auto mb-4" />
-          <p className="text-[#A1A1AA]">Aucune categorie</p>
+          <p className="text-[#A1A1AA]">Aucune catégorie</p>
         </div>
       ) : (
         <div className="grid md:grid-cols-2 gap-4" data-testid="categories-list">
           {categories.map((category) => (
-            <div key={category.id} className={`glass rounded-xl overflow-hidden ${!category.is_active ? 'opacity-60' : ''}`}>
+            <div
+              key={category.id}
+              className={`glass rounded-xl overflow-hidden ${!category.is_active ? 'opacity-60' : ''}`}
+            >
               {category.image_url && (
                 <div className="h-32 overflow-hidden">
                   <img src={category.image_url} alt={category.name} className="w-full h-full object-cover" />
@@ -229,8 +247,8 @@ const AdminPricing = () => {
                     <p className="text-sm text-[#A1A1AA] mt-1">{category.description}</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Switch 
-                      checked={category.is_active} 
+                    <Switch
+                      checked={category.is_active}
                       onCheckedChange={() => toggleActive(category)}
                       className="data-[state=checked]:bg-green-500"
                     />
@@ -249,17 +267,17 @@ const AdminPricing = () => {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => openEditDialog(category)}
                     className="flex-1 border-white/10 hover:bg-white/10"
                   >
                     <PencilSimple size={16} className="mr-2" />Modifier
                   </Button>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => deleteCategory(category.id)}
                     className="text-red-400 hover:bg-red-500/10"
                   >
@@ -271,7 +289,7 @@ const AdminPricing = () => {
           ))}
         </div>
       )}
-    </DashboardLayout>
+    </div>
   );
 };
 

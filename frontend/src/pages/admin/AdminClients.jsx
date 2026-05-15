@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import DashboardLayout from '@/components/DashboardLayout';
-import { Users, Envelope, Phone, Calendar } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { Calendar, Envelope, Phone, Users } from '@phosphor-icons/react';
+import API_URL from '@/config';
 
 const AdminClients = () => {
   const [clients, setClients] = useState([]);
@@ -20,11 +18,12 @@ const AdminClients = () => {
         setLoading(false);
       }
     };
+
     fetchClients();
   }, []);
 
   return (
-    <DashboardLayout title="Gestion des Clients">
+    <div className="bg-[#0A0A0A] text-white min-h-full">
       <div className="mb-6">
         <p className="text-[#A1A1AA]">{clients.length} client(s) inscrits</p>
       </div>
@@ -51,14 +50,15 @@ const AdminClients = () => {
                   </div>
                 )}
                 <div className="flex items-center gap-2 text-[#D4AF37]">
-                  <Calendar size={16} />Inscrit le {new Date(client.created_at).toLocaleDateString('fr-FR')}
+                  <Calendar size={16} />
+                  Inscrit le {new Date(client.created_at).toLocaleDateString('fr-FR')}
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
-    </DashboardLayout>
+    </div>
   );
 };
 

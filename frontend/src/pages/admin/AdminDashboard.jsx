@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
-import DashboardLayout from '@/components/DashboardLayout';
-import { CalendarCheck, CarSimple, Users, Clock, CheckCircle, TrendingUp } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { CalendarCheck, CarSimple, Clock, Users } from '@phosphor-icons/react';
+import API_URL from '@/config';
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -26,19 +24,16 @@ const AdminDashboard = () => {
         setLoading(false);
       }
     };
+
     fetchData();
   }, []);
 
   if (loading) {
-    return (
-      <DashboardLayout title="Tableau de Bord">
-        <div className="text-center py-12 text-[#A1A1AA]">Chargement...</div>
-      </DashboardLayout>
-    );
+    return <div className="text-center py-12 text-[#A1A1AA]">Chargement...</div>;
   }
 
   return (
-    <DashboardLayout title="Tableau de Bord">
+    <div className="bg-[#0A0A0A] text-white min-h-full">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" data-testid="admin-stats">
         <div className="glass rounded-xl p-6">
           <CalendarCheck size={32} className="text-[#D4AF37] mb-3" />
@@ -95,17 +90,17 @@ const AdminDashboard = () => {
               <span className="text-green-400 font-bold">{stats?.available_drivers || 0}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-[#A1A1AA]">Courses assignees</span>
+              <span className="text-[#A1A1AA]">Courses assignées</span>
               <span className="text-blue-400 font-bold">{stats?.assigned_bookings || 0}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-[#A1A1AA]">Courses terminees</span>
+              <span className="text-[#A1A1AA]">Courses terminées</span>
               <span className="text-[#D4AF37] font-bold">{stats?.completed_bookings || 0}</span>
             </div>
           </div>
         </div>
       </div>
-    </DashboardLayout>
+    </div>
   );
 };
 

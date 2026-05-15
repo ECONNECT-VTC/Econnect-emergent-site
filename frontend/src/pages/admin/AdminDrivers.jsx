@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { CarSimple, Plus, Trash } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import API_URL from '@/config';
 
 const parseError = (err) => {
   const detail = err.response?.data?.detail;
@@ -23,7 +21,14 @@ const AdminDrivers = () => {
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', vehicle_model: '', vehicle_plate: '' });
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    vehicle_model: '',
+    vehicle_plate: ''
+  });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
@@ -80,12 +85,15 @@ const AdminDrivers = () => {
   });
 
   return (
-    <DashboardLayout title="Gestion des Chauffeurs">
+    <div className="bg-[#0A0A0A] text-white min-h-full">
       <div className="flex justify-between items-center mb-6">
         <p className="text-[#A1A1AA]">{drivers.length} chauffeur(s)</p>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" data-testid="add-driver-btn">
+            <Button
+              className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]"
+              data-testid="add-driver-btn"
+            >
               <Plus size={18} className="mr-2" />Ajouter
             </Button>
           </DialogTrigger>
@@ -93,7 +101,11 @@ const AdminDrivers = () => {
             <DialogHeader>
               <DialogTitle className="text-[#D4AF37]">Nouveau Chauffeur</DialogTitle>
             </DialogHeader>
-            {error && <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
             <form onSubmit={createDriver} className="space-y-4">
               <div>
                 <Label className="text-[#A1A1AA]">Nom</Label>
@@ -115,7 +127,7 @@ const AdminDrivers = () => {
                 />
               </div>
               <div>
-                <Label className="text-[#A1A1AA]">Telephone</Label>
+                <Label className="text-[#A1A1AA]">Téléphone</Label>
                 <Input
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -134,7 +146,7 @@ const AdminDrivers = () => {
                 />
               </div>
               <div>
-                <Label className="text-[#A1A1AA]">Modele vehicule</Label>
+                <Label className="text-[#A1A1AA]">Modèle véhicule</Label>
                 <Input
                   value={formData.vehicle_model}
                   onChange={(e) => setFormData({ ...formData, vehicle_model: e.target.value })}
@@ -151,8 +163,12 @@ const AdminDrivers = () => {
                   className="bg-[#1E1E1E] border-white/10"
                 />
               </div>
-              <Button type="submit" disabled={submitting} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
-                {submitting ? 'Creation...' : 'Creer'}
+              <Button
+                type="submit"
+                disabled={submitting}
+                className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]"
+              >
+                {submitting ? 'Création...' : 'Créer'}
               </Button>
             </form>
           </DialogContent>
@@ -203,12 +219,23 @@ const AdminDrivers = () => {
                   <td>{driver.vehicle_model}</td>
                   <td>{driver.vehicle_plate}</td>
                   <td>
-                    <span className={`text-xs px-2 py-1 rounded-full ${driver.is_available ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    <span
+                      className={`text-xs px-2 py-1 rounded-full ${
+                        driver.is_available
+                          ? 'bg-green-500/20 text-green-400'
+                          : 'bg-red-500/20 text-red-400'
+                      }`}
+                    >
                       {driver.is_available ? 'Disponible' : 'Indisponible'}
                     </span>
                   </td>
                   <td>
-                    <Button variant="ghost" size="icon" onClick={() => deleteDriver(driver.id)} className="text-red-400 hover:bg-red-500/10">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => deleteDriver(driver.id)}
+                      className="text-red-400 hover:bg-red-500/10"
+                    >
                       <Trash size={18} />
                     </Button>
                   </td>
@@ -218,7 +245,7 @@ const AdminDrivers = () => {
           </table>
         </div>
       )}
-    </DashboardLayout>
+    </div>
   );
 };
 
