@@ -27,14 +27,19 @@ const AdminPricing = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => { fetchCategories(); }, []);
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
   const fetchCategories = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/admin/vehicle-categories`, { withCredentials: true });
       setCategories(response.data);
-    } catch (error) { console.error('Error:', error); }
-    finally { setLoading(false); }
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openCreateDialog = () => {
@@ -82,7 +87,9 @@ const AdminPricing = () => {
       fetchCategories();
     } catch (err) {
       setError(err.response?.data?.detail || 'Erreur');
-    } finally { setSubmitting(false); }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const toggleActive = async (category) => {
@@ -92,7 +99,9 @@ const AdminPricing = () => {
         { withCredentials: true }
       );
       fetchCategories();
-    } catch (error) { console.error('Error:', error); }
+    } catch (error) {
+      console.error('Error:', error);
+    }
   };
 
   const deleteCategory = async (id) => {
@@ -100,7 +109,9 @@ const AdminPricing = () => {
     try {
       await axios.delete(`${API_URL}/api/admin/vehicle-categories/${id}`, { withCredentials: true });
       fetchCategories();
-    } catch (error) { console.error('Error:', error); }
+    } catch (error) {
+      console.error('Error:', error);
+    }
   };
 
   return (
@@ -125,8 +136,8 @@ const AdminPricing = () => {
                 <Label className="text-[#A1A1AA]">Nom</Label>
                 <Input 
                   value={formData.name} 
-                  onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                  required 
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
                   className="bg-[#1E1E1E] border-white/10" 
                   placeholder="Ex: Berline, Van, Luxe"
                 />
@@ -135,8 +146,8 @@ const AdminPricing = () => {
                 <Label className="text-[#A1A1AA]">Description</Label>
                 <Textarea 
                   value={formData.description} 
-                  onChange={(e) => setFormData({...formData, description: e.target.value})} 
-                  required 
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  required
                   className="bg-[#1E1E1E] border-white/10"
                   placeholder="Description de la gamme..."
                 />
@@ -149,8 +160,8 @@ const AdminPricing = () => {
                     step="0.01"
                     min="0"
                     value={formData.price_per_km} 
-                    onChange={(e) => setFormData({...formData, price_per_km: e.target.value})} 
-                    required 
+                    onChange={(e) => setFormData({ ...formData, price_per_km: e.target.value })}
+                    required
                     className="bg-[#1E1E1E] border-white/10" 
                     placeholder="2.50"
                   />
@@ -162,8 +173,8 @@ const AdminPricing = () => {
                     step="0.01"
                     min="0"
                     value={formData.min_fare} 
-                    onChange={(e) => setFormData({...formData, min_fare: e.target.value})} 
-                    required 
+                    onChange={(e) => setFormData({ ...formData, min_fare: e.target.value })}
+                    required
                     className="bg-[#1E1E1E] border-white/10"
                     placeholder="25.00"
                   />
@@ -173,7 +184,7 @@ const AdminPricing = () => {
                 <Label className="text-[#A1A1AA]">URL Image (optionnel)</Label>
                 <Input 
                   value={formData.image_url} 
-                  onChange={(e) => setFormData({...formData, image_url: e.target.value})} 
+                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
                   className="bg-[#1E1E1E] border-white/10"
                   placeholder="https://..."
                 />
@@ -183,7 +194,7 @@ const AdminPricing = () => {
                 <Input 
                   type="number"
                   value={formData.order} 
-                  onChange={(e) => setFormData({...formData, order: e.target.value})} 
+                  onChange={(e) => setFormData({ ...formData, order: e.target.value })}
                   className="bg-[#1E1E1E] border-white/10"
                 />
               </div>
@@ -195,7 +206,9 @@ const AdminPricing = () => {
         </Dialog>
       </div>
 
-      {loading ? <div className="text-center py-12 text-[#A1A1AA]">Chargement...</div> : categories.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-12 text-[#A1A1AA]">Chargement...</div>
+      ) : categories.length === 0 ? (
         <div className="glass rounded-xl p-12 text-center">
           <Car size={48} className="text-[#A1A1AA] mx-auto mb-4" />
           <p className="text-[#A1A1AA]">Aucune categorie</p>
