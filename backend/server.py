@@ -570,32 +570,32 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
     """Send notification to driver when a booking is assigned"""
     subject = f"🚗 Nouvelle course assignée - {booking['pickup_date']} à {booking['pickup_time']}"
     html_content = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif; background-color: #0A0A0A; color: #FAFAFA; padding: 20px;">
-        <div style="max-width: 600px; margin: 0 auto; background: #141414; border-radius: 12px; padding: 30px; border: 1px solid #D4AF37;">
-            <h1 style="color: #D4AF37; margin-bottom: 20px;">Nouvelle Course Assignée</h1>
+<html>
+<body style="font-family: Arial, sans-serif; background-color: #0A0A0A; color: #FAFAFA; padding: 20px;">
+<div style="max-width: 600px; margin: 0 auto; background: #141414; border-radius: 12px; padding: 30px; border: 1px solid #D4AF37;">
+<h1 style="color: #D4AF37; margin-bottom: 20px;">Nouvelle Course Assignée</h1>
 
-            <h2 style="color: #FAFAFA;">Détails du client</h2>
-            <p><strong>Nom:</strong> {client.get('name', 'N/A')}</p>
-            <p><strong>Téléphone:</strong> {client.get('phone', 'N/A')}</p>
-            <p><strong>Email:</strong> {client.get('email', 'N/A')}</p>
+<h2 style="color: #FAFAFA;">Détails du client</h2>
+<p><strong>Nom:</strong> {client.get('name', 'N/A')}</p>
+<p><strong>Téléphone:</strong> {client.get('phone', 'N/A')}</p>
+<p><strong>Email:</strong> {client.get('email', 'N/A')}</p>
 
-            <h2 style="color: #FAFAFA; margin-top: 20px;">Détails de la course</h2>
-            <p><strong>📅 Date:</strong> {booking['pickup_date']}</p>
-            <p><strong>⏰ Heure:</strong> {booking['pickup_time']}</p>
-            <p><strong>📍 Départ:</strong> {booking['pickup_address']}</p>
-            <p><strong>🏁 Arrivée:</strong> {booking['dropoff_address']}</p>
-            <p><strong>Type:</strong> {booking['transfer_type']}</p>
-            {f"<p><strong>Notes:</strong> {booking.get('notes', '')}</p>" if booking.get('notes') else ""}
+<h2 style="color: #FAFAFA; margin-top: 20px;">Détails de la course</h2>
+<p><strong>📅 Date:</strong> {booking['pickup_date']}</p>
+<p><strong>⏰ Heure:</strong> {booking['pickup_time']}</p>
+<p><strong>📍 Départ:</strong> {booking['pickup_address']}</p>
+<p><strong>🏁 Arrivée:</strong> {booking['dropoff_address']}</p>
+<p><strong>Type:</strong> {booking['transfer_type']}</p>
+{f"<p><strong>Notes:</strong> {booking.get('notes', '')}</p>" if booking.get('notes') else ""}
 
-            <div style="margin-top: 30px; padding: 20px; background: #D4AF37; border-radius: 8px; text-align: center;">
-                <p style="color: #0A0A0A; font-weight: bold; margin: 0;">Connectez-vous à votre espace chauffeur pour confirmer</p>
-                {f"<p style='margin-top: 10px;'><a href='{order_download_url}' style='color: #0A0A0A; font-weight: bold;'>Télécharger le bon de commande</a></p>" if order_download_url else ""}
-            </div>
-        </div>
-    </body>
-    </html>
-    """
+<div style="margin-top: 30px; padding: 20px; background: #D4AF37; border-radius: 8px; text-align: center;">
+<p style="color: #0A0A0A; font-weight: bold; margin: 0;">Connectez-vous à votre espace chauffeur pour confirmer</p>
+{f"<p style='margin-top: 10px;'><a href='{order_download_url}' style='color: #0A0A0A; font-weight: bold;'>Télécharger le bon de commande</a></p>" if order_download_url else ""}
+</div>
+</div>
+</body>
+</html>
+"""
     await send_notification_email(driver['email'], subject, html_content)
 
 # ==================== AUTH ROUTES ====================
@@ -698,17 +698,17 @@ async def forgot_password(data: PasswordResetRequest):
         html_content = f"""
 <html>
 <body style="font-family: Arial, sans-serif; background-color: #0A0A0A; color: #FAFAFA; padding: 20px;">
-  <div style="max-width: 600px; margin: 0 auto; background: #141414; border-radius: 12px; padding: 30px; border: 1px solid #D4AF37;">
-    <h1 style="color: #D4AF37; margin-bottom: 20px;">Réinitialisation de votre mot de passe</h1>
-    <p>Bonjour,</p>
-    <p>Vous avez demandé la réinitialisation de votre mot de passe Econnect VTC.</p>
-    <p>Cliquez sur le lien ci-dessous pour créer un nouveau mot de passe :</p>
-    <div style="text-align: center; margin: 30px 0;">
-      <a href="{reset_link}" style="background-color: #D4AF37; color: #0A0A0A; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">Réinitialiser mon mot de passe</a>
-    </div>
-    <p style="color: #A1A1AA; font-size: 14px;">Ce lien est valide pendant 24 heures.</p>
-    <p style="color: #A1A1AA; font-size: 14px;">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
-  </div>
+<div style="max-width: 600px; margin: 0 auto; background: #141414; border-radius: 12px; padding: 30px; border: 1px solid #D4AF37;">
+<h1 style="color: #D4AF37; margin-bottom: 20px;">Réinitialisation de votre mot de passe</h1>
+<p>Bonjour,</p>
+<p>Vous avez demandé la réinitialisation de votre mot de passe Econnect VTC.</p>
+<p>Cliquez sur le lien ci-dessous pour créer un nouveau mot de passe :</p>
+<div style="text-align: center; margin: 30px 0;">
+<a href="{reset_link}" style="background-color: #D4AF37; color: #0A0A0A; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">Réinitialiser mon mot de passe</a>
+</div>
+<p style="color: #A1A1AA; font-size: 14px;">Ce lien est valide pendant 24 heures.</p>
+<p style="color: #A1A1AA; font-size: 14px;">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
+</div>
 </body>
 </html>
 """
