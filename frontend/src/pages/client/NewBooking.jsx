@@ -43,6 +43,13 @@ const NewBooking = () => {
         withCredentials: true
       });
       setCategories(response.data);
+      console.info('Vehicle categories received:', response.data.map((category) => ({
+        id: category.id,
+        name: category.name,
+        has_wifi: category.has_wifi,
+        max_passengers: category.max_passengers,
+        max_luggage: category.max_luggage
+      })));
     } catch (error) {
       console.error('Error:', error);
     }
@@ -89,11 +96,30 @@ const NewBooking = () => {
   const getCategoryMeta = (category) => {
     if (!category) return { hasWifi: false, passengers: null, luggage: null };
     return {
-      hasWifi: Boolean(category.has_wifi),
-      passengers: category.max_passengers ?? null,
-      luggage: category.max_luggage ?? null
+      hasWifi: category.has_wifi === true,
+      passengers: Number.isFinite(Number(category.max_passengers)) ? Number(category.max_passengers) : null,
+      luggage: Number.isFinite(Number(category.max_luggage)) ? Number(category.max_luggage) : null
     };
   };
+
+  useEffect(() => {
+    if (priceEstimates.length === 0) return;
+
+    const badgeDebug = priceEstimates.map((estimate) => {
+      const category = categories.find(c => c.id === estimate.category_id)
+        || categories.find(c => c.name === estimate.category_name);
+      return {
+        estimate_category_id: estimate.category_id,
+        estimate_category_name: estimate.category_name,
+        category_found: Boolean(category),
+        has_wifi: category?.has_wifi ?? null,
+        max_passengers: category?.max_passengers ?? null,
+        max_luggage: category?.max_luggage ?? null
+      };
+    });
+
+    console.info('Vehicle card badge data:', badgeDebug);
+  }, [categories, priceEstimates]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -253,7 +279,8 @@ const NewBooking = () => {
                 <Label className="text-[#A1A1AA]">Choisir votre vehicule</Label>
                 <div className="grid sm:grid-cols-2 gap-3" data-testid="vehicle-selection">
                   {priceEstimates.map((estimate) => {
-                    const category = categories.find(c => c.id === estimate.category_id);
+                    const category = categories.find(c => c.id === estimate.category_id)
+                      || categories.find(c => c.name === estimate.category_name);
                     const categoryMeta = getCategoryMeta(category);
                     const isSelected = selectedCategory === estimate.category_id;
                     return (

@@ -247,6 +247,29 @@ class PriceEstimate(BaseModel):
 
 # ==================== FINANCIAL MODELS ====================
 
+DEFAULT_CATEGORY_METADATA = {
+    "Berline": {"has_wifi": True, "max_passengers": 3, "max_luggage": 2},
+    "Van": {"has_wifi": True, "max_passengers": 7, "max_luggage": 7},
+    "Luxe": {"has_wifi": True, "max_passengers": 3, "max_luggage": 3},
+    "Green": {"has_wifi": True, "max_passengers": 4, "max_luggage": 3},
+}
+
+
+def serialize_vehicle_category(category: dict) -> VehicleCategory:
+    return VehicleCategory(
+        id=category["id"],
+        name=category["name"],
+        description=category["description"],
+        price_per_km=category["price_per_km"],
+        min_fare=category["min_fare"],
+        has_wifi=category.get("has_wifi"),
+        max_passengers=category.get("max_passengers"),
+        max_luggage=category.get("max_luggage"),
+        image_url=category.get("image_url"),
+        is_active=category.get("is_active", True),
+        order=category.get("order", 0),
+    )
+
 class CommissionSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
@@ -1225,14 +1248,27 @@ async def get_all_clients(request: Request):
 async def get_vehicle_categories():
     """Get all active vehicle categories (public endpoint)"""
     categories = await db.vehicle_categories.find({"is_active": True}, {"_id": 0}).sort("order", 1).to_list(100)
-    return [VehicleCategory(**c) for c in categories]
+    serialized_categories = [serialize_vehicle_category(c) for c in categories]
+    logger.info(
+        "Public vehicle categories response metadata: %s",
+        [
+            {
+                "name": category.name,
+                "has_wifi": category.has_wifi,
+                "max_passengers": category.max_passengers,
+                "max_luggage": category.max_luggage,
+            }
+            for category in serialized_categories
+        ],
+    )
+    return serialized_categories
 
 @api_router.get("/admin/vehicle-categories", response_model=List[VehicleCategory])
 async def get_all_vehicle_categories(request: Request):
     """Get all vehicle categories including inactive (admin only)"""
     await require_admin(request)
     categories = await db.vehicle_categories.find({}, {"_id": 0}).sort("order", 1).to_list(100)
-    return [VehicleCategory(**c) for c in categories]
+    return [serialize_vehicle_category(c) for c in categories]
 
 @api_router.post("/admin/vehicle-categories", response_model=VehicleCategory)
 async def create_vehicle_category(category: VehicleCategoryCreate, request: Request):
@@ -1602,6 +1638,25 @@ async def startup_event():
         ]
         await db.vehicle_categories.insert_many(default_categories)
         logger.info("Default vehicle categories created")
+    else:
+        categories = await db.vehicle_categories.find({}, {"_id": 0, "id": 1, "name": 1, "has_wifi": 1, "max_passengers": 1, "max_luggage": 1}).to_list(100)
+        updated_categories = 0
+        for category in categories:
+            expected_metadata = DEFAULT_CATEGORY_METADATA.get(category.get("name"))
+            if not expected_metadata:
+                continue
+
+            missing_fields = {}
+            for field_name, expected_value in expected_metadata.items():
+                if category.get(field_name) is None:
+                    missing_fields[field_name] = expected_value
+
+            if missing_fields:
+                await db.vehicle_categories.update_one({"id": category["id"]}, {"$set": missing_fields})
+                updated_categories += 1
+
+        if updated_categories:
+            logger.info("Backfilled vehicle category metadata for %s categories", updated_categories)
 
     existing_settings = await db.commission_settings.count_documents({})
     if existing_settings == 0:
