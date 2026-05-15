@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ const ForgotPassword = () => {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const { lang = 'fr' } = useParams();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,7 +40,7 @@ const ForgotPassword = () => {
       >
         <div className="glass rounded-2xl p-8">
           {/* Back link */}
-          <Link to="/login" className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
+          <Link to={`/${lang}/login`} className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
             <ArrowLeft size={20} className="mr-2" />
             Retour à la connexion
           </Link>
@@ -69,7 +70,7 @@ const ForgotPassword = () => {
                 </p>
               </div>
               <Link
-                to="/login"
+                to={`/${lang}/login`}
                 className="inline-block mt-4 text-[#D4AF37] hover:text-[#F0C74A] text-sm transition-colors"
               >
                 Retour à la connexion

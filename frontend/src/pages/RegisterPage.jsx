@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+  const { lang = 'fr' } = useParams();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,7 +37,7 @@ const RegisterPage = () => {
 
     try {
       await register(email, password, name, phone);
-      navigate('/client', { replace: true });
+      navigate(`/${lang}/client`, { replace: true });
     } catch (err) {
       const detail = err.response?.data?.detail;
       setError(typeof detail === 'string' ? detail : "Erreur lors de l'inscription");
@@ -54,7 +55,7 @@ const RegisterPage = () => {
       >
         <div className="glass rounded-2xl p-8">
           {/* Back link */}
-          <Link to="/" className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
+          <Link to={`/${lang}`} className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
             <ArrowLeft size={20} className="mr-2" />
             Retour à l'accueil
           </Link>
@@ -173,7 +174,7 @@ const RegisterPage = () => {
           {/* Login link */}
           <p className="text-center mt-6 text-[#A1A1AA]">
             Déjà un compte ?{' '}
-            <Link to="/login" className="text-[#D4AF37] hover:underline">
+            <Link to={`/${lang}/login`} className="text-[#D4AF37] hover:underline">
               Se connecter
             </Link>
           </p>
