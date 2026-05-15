@@ -101,6 +101,13 @@ class VTCPricingTester:
                             else:
                                 self.log_test(f"{expected} category pricing", False, 
                                             f"Expected {expected_data}, got {cat['price_per_km']}/{cat['min_fare']}")
+
+                            metadata_fields = ['has_wifi', 'max_passengers', 'max_luggage']
+                            for field_name in metadata_fields:
+                                if field_name in cat:
+                                    self.log_test(f"{expected} category includes {field_name}", True)
+                                else:
+                                    self.log_test(f"{expected} category includes {field_name}", False, "Field missing from response")
                         else:
                             self.log_test(f"Default category {expected} exists", False, "Category not found")
                 else:
