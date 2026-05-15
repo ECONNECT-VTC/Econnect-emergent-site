@@ -140,7 +140,10 @@ export const LanguageProvider = ({ children }) => {
   );
 
   const t = useCallback(
-    (key) => (translations[language] && translations[language][key]) || translations.fr[key] || key,
+    (key) =>
+      (translations[language] && translations[language][key]) ||
+      translations[DEFAULT_LANGUAGE][key] ||
+      key,
     [language],
   );
 

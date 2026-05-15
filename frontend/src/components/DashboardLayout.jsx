@@ -38,26 +38,26 @@ const DashboardLayout = ({ children, titleKey }) => {
     switch (user?.role) {
       case 'admin':
         return [
-          { name: t('dashboard'), path: '/admin', icon: ChartBar },
-          { name: t('reservations'), path: '/admin/bookings', icon: CalendarCheck },
-          { name: t('drivers'), path: '/admin/drivers', icon: CarSimple },
-          { name: t('clients'), path: '/admin/clients', icon: Users },
-          { name: t('pricing'), path: '/admin/pricing', icon: CurrencyEur },
-          { name: t('finance'), path: '/admin/financial', icon: ChartLineUp },
-          { name: t('commissions'), path: '/admin/commissions', icon: Percent },
-          { name: t('documents'), path: '/admin/documents', icon: FileText },
+          { key: 'dashboard', name: t('dashboard'), path: '/admin', icon: ChartBar },
+          { key: 'reservations', name: t('reservations'), path: '/admin/bookings', icon: CalendarCheck },
+          { key: 'drivers', name: t('drivers'), path: '/admin/drivers', icon: CarSimple },
+          { key: 'clients', name: t('clients'), path: '/admin/clients', icon: Users },
+          { key: 'pricing', name: t('pricing'), path: '/admin/pricing', icon: CurrencyEur },
+          { key: 'finance', name: t('finance'), path: '/admin/financial', icon: ChartLineUp },
+          { key: 'commissions', name: t('commissions'), path: '/admin/commissions', icon: Percent },
+          { key: 'documents', name: t('documents'), path: '/admin/documents', icon: FileText },
         ];
       case 'driver':
         return [
-          { name: t('myRides'), path: '/driver', icon: Car },
-          { name: t('myEarnings'), path: '/driver/earnings', icon: Money },
+          { key: 'my-rides', name: t('myRides'), path: '/driver', icon: Car },
+          { key: 'my-earnings', name: t('myEarnings'), path: '/driver/earnings', icon: Money },
         ];
       case 'client':
       default:
         return [
-          { name: t('dashboard'), path: '/client', icon: House },
-          { name: t('myBookings'), path: '/client/bookings', icon: CalendarCheck },
-          { name: t('newRide'), path: '/client/new-booking', icon: Car },
+          { key: 'dashboard', name: t('dashboard'), path: '/client', icon: House },
+          { key: 'my-bookings', name: t('myBookings'), path: '/client/bookings', icon: CalendarCheck },
+          { key: 'new-ride', name: t('newRide'), path: '/client/new-booking', icon: Car },
         ];
     }
   };
@@ -97,7 +97,7 @@ const DashboardLayout = ({ children, titleKey }) => {
                       ? 'bg-[#D4AF37] text-[#0A0A0A]'
                       : 'text-[#A1A1AA] hover:bg-white/5 hover:text-white'
                   }`}
-                  data-testid={`nav-${link.name.toLowerCase().replace(/\s+/g, '-')}`}
+                  data-testid={`nav-${link.key}`}
                 >
                   <link.icon size={22} weight={isActive ? 'fill' : 'regular'} />
                   <span className="font-medium">{link.name}</span>

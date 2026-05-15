@@ -262,7 +262,7 @@ const es = {
   miseDispositionSubtitle: 'Chófer Privado',
   miseDispositionDesc:
     'Ideal para compras, citas profesionales o eventos privados. Duración y kilometraje ajustables.',
-  transfertsTitle: 'Traslados a Estaciones y Aeropuertos',
+  transfertsTitle: 'Traslados a Estaciones & Aeropuertos',
   transfertsSubtitle: 'Viaje con total tranquilidad',
   transfertsDesc:
     'Recibimiento personalizado con cartel nominativo. Seguimiento en tiempo real de horarios. Asistencia de equipaje.',
@@ -444,6 +444,7 @@ const translations = {
   fr,
   en,
   es,
+  // TODO: replace these shared English fallbacks with dedicated localized copy before production release.
   de: { ...en },
   it: { ...en },
   pt: { ...en },
