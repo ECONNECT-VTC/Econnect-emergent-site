@@ -28,6 +28,7 @@ const getInitialCreateForm = () => ({
   pickup_date: '',
   pickup_time: '',
   transfer_type: 'standard',
+  vehicle_category_id: '',
   notes: '',
   estimated_price: ''
 });
@@ -38,10 +39,18 @@ const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
   return `${hours}:${minutes}`;
 });
 
+const CATEGORY_DISPLAY_NAMES = {
+  Berline: 'Confort Classique',
+  Green: 'Confort Premium',
+  Luxe: 'Prestige',
+  Van: 'Van'
+};
+
 const AdminBookings = () => {
   const [bookings, setBookings] = useState([]);
   const [clients, setClients] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [vehicleCategories, setVehicleCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -117,14 +126,16 @@ const AdminBookings = () => {
 
   const fetchData = async () => {
     try {
-      const [bookingsRes, driversRes, clientsRes] = await Promise.all([
+      const [bookingsRes, driversRes, clientsRes, categoriesRes] = await Promise.all([
         axios.get(`${API_URL}/api/admin/bookings`, { withCredentials: true }),
         axios.get(`${API_URL}/api/admin/drivers`, { withCredentials: true }),
-        axios.get(`${API_URL}/api/admin/clients`, { withCredentials: true })
+        axios.get(`${API_URL}/api/admin/clients`, { withCredentials: true }),
+        axios.get(`${API_URL}/api/vehicle-categories`, { withCredentials: true })
       ]);
       setBookings(bookingsRes.data);
       setDrivers(driversRes.data);
       setClients(clientsRes.data);
+      setVehicleCategories(categoriesRes.data);
     } catch (err) {
       setError(parseError(err));
     } finally {
@@ -176,6 +187,7 @@ const AdminBookings = () => {
         `${API_URL}/api/admin/bookings`,
         {
           ...createForm,
+          vehicle_category_id: createForm.vehicle_category_id || null,
           estimated_price: createForm.estimated_price === '' ? null : Number(createForm.estimated_price)
         },
         { withCredentials: true }
@@ -497,6 +509,22 @@ const AdminBookings = () => {
                   <SelectItem value="standard">standard</SelectItem>
                   <SelectItem value="business">business</SelectItem>
                   <SelectItem value="van">van</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Gamme de véhicule</p>
+              <Select value={createForm.vehicle_category_id || 'none'} onValueChange={(v) => updateCreateField('vehicle_category_id', v === 'none' ? '' : v)}>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                  <SelectValue placeholder="Choisir une gamme" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1E1E1E] border-white/10">
+                  <SelectItem value="none">Aucune</SelectItem>
+                  {vehicleCategories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {CATEGORY_DISPLAY_NAMES[category.name] || category.name} - {category.price_per_km.toFixed(2)}€/km
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

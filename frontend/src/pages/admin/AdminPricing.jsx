@@ -255,14 +255,10 @@ const AdminPricing = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="grid grid-cols-1 gap-4 mb-4">
                   <div className="bg-[#1E1E1E] rounded-lg p-4">
                     <p className="text-xs text-[#A1A1AA] uppercase mb-1">Prix / km</p>
                     <p className="text-2xl font-bold text-[#D4AF37]">{category.price_per_km.toFixed(2)}€</p>
-                  </div>
-                  <div className="bg-[#1E1E1E] rounded-lg p-4">
-                    <p className="text-xs text-[#A1A1AA] uppercase mb-1">Tarif minimum</p>
-                    <p className="text-2xl font-bold text-[#D4AF37]">{category.min_fare.toFixed(2)}€</p>
                   </div>
                 </div>
 

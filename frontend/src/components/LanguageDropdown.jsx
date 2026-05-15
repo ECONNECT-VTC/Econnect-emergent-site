@@ -48,7 +48,6 @@ const LanguageDropdown = () => {
         data-testid="lang-dropdown-toggle"
       >
         <span className="text-base leading-none">{currentLang.flag}</span>
-        <span className="uppercase tracking-wide">{currentLang.code}</span>
         <CaretDown
           size={12}
           className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
