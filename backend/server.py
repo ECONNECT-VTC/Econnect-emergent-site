@@ -1,28 +1,30 @@
-from dotenv import load_dotenv
-from pathlib import Path
-
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
-
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
-from bson import ObjectId
-import os
+# Standard library
+import hashlib
 import logging
-from pydantic import BaseModel, Field, ConfigDict, EmailStr
-from typing import List, Optional, Tuple
+import os
+import secrets
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
+from io import BytesIO
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+# Third-party
 import bcrypt
 import jwt
-import secrets
-import hashlib
-from io import BytesIO
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from dotenv import load_dotenv
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, ConfigDict, EmailStr
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
+from starlette.middleware.cors import CORSMiddleware
+
+# Load environment variables before accessing os.environ
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']

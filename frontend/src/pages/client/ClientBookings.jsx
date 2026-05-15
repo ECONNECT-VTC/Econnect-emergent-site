@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { CalendarCheck, MapPin } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import API_URL from '@/config';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -85,7 +83,7 @@ const ClientBookings = () => {
   };
 
   return (
-    <DashboardLayout title="Mes Reservations">
+    <div className="bg-[#0A0A0A] text-white min-h-full">
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
 
       <div className="flex flex-wrap gap-2 mb-6">
@@ -183,7 +181,7 @@ const ClientBookings = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+    </div>
   );
 };
 

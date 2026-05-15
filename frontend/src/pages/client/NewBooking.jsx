@@ -1,19 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { MapPin, Calendar, Clock, ArrowRight, CircleNotch, CheckCircle, Car, CurrencyEur } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { ArrowRight, Calendar, Car, CheckCircle, CircleNotch, Clock, CurrencyEur, MapPin } from '@phosphor-icons/react';
+import API_URL from '@/config';
 
 const NewBooking = () => {
   const navigate = useNavigate();
@@ -125,18 +123,16 @@ const NewBooking = () => {
 
   if (success) {
     return (
-      <DashboardLayout title="Nouvelle Reservation">
-        <div className="glass rounded-xl p-12 text-center">
-          <CheckCircle size={64} className="text-green-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold font-['Cormorant_Garamond'] mb-2">Reservation confirmee !</h2>
-          <p className="text-[#A1A1AA]">Redirection...</p>
-        </div>
-      </DashboardLayout>
+      <div className="glass rounded-xl p-12 text-center">
+        <CheckCircle size={64} className="text-green-400 mx-auto mb-4" />
+        <h2 className="text-2xl font-bold font-['Cormorant_Garamond'] mb-2">Réservation confirmée !</h2>
+        <p className="text-[#A1A1AA]">Redirection...</p>
+      </div>
     );
   }
 
   return (
-    <DashboardLayout title="Nouvelle Reservation">
+    <div className="bg-[#0A0A0A] text-white min-h-full">
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Form */}
         <div className="lg:col-span-2 glass rounded-xl p-6 md:p-8" data-testid="new-booking-form">
@@ -335,7 +331,7 @@ const NewBooking = () => {
           )}
         </div>
       </div>
-    </DashboardLayout>
+    </div>
   );
 };
 

@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import DashboardLayout from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CalendarCheck, MapPin, User, CarSimple, CheckCircle } from '@phosphor-icons/react';
+import { CalendarCheck, CarSimple, CheckCircle, MapPin, User } from '@phosphor-icons/react';
+import API_URL from '@/config';
 
-const API_URL = process.env.REACT_APP_BACKEND_URL;
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
 const parseError = (error) => {
@@ -309,7 +308,7 @@ const AdminBookings = () => {
   };
 
   return (
-    <DashboardLayout title="Gestion des Reservations">
+    <div className="bg-[#0A0A0A] text-white min-h-full">
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
 
       <div className="flex justify-end mb-4">
@@ -571,7 +570,7 @@ const AdminBookings = () => {
           </div>
         </DialogContent>
       </Dialog>
-    </DashboardLayout>
+    </div>
   );
 };
 

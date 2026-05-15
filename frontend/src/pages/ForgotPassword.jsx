@@ -5,9 +5,8 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Envelope, ArrowLeft, CircleNotch } from '@phosphor-icons/react';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { ArrowLeft, CircleNotch, Envelope } from '@phosphor-icons/react';
+import API_URL from '@/config';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState('');

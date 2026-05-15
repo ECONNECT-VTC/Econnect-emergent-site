@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-
-const API_URL = process.env.REACT_APP_BACKEND_URL;
+import { Input } from '@/components/ui/input';
+import API_URL from '@/config';
 const formatAmount = (value) => `${(Number(value) || 0).toFixed(2)}€`;
 const MAX_RECENT_BOOKINGS = 50;
 
