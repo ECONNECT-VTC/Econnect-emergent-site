@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useInvoices } from '@/hooks/useInvoices';
-import { formatCurrency, invoiceTypeLabel } from '@/utils/invoiceUtils';
+import { formatCurrency, formatInvoiceNumber, invoiceTypeLabel } from '@/utils/invoiceUtils';
 import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
 import API_URL from '@/config';
 
@@ -136,7 +136,7 @@ const AdminDocuments = () => {
             {!loading && rows.map((row, idx) => (
               <tr key={`${row.id}-${row.invoiceType}-${idx}`} className="border-b border-white/5 hover:bg-white/[0.02]">
                 <td className="py-3 font-mono text-[#D4AF37]">
-                  {row.invoiceNumber ? String(row.invoiceNumber).padStart(6, '0') : '—'}
+                  {row.invoiceNumber ? formatInvoiceNumber(row.invoiceNumber) : '—'}
                 </td>
                 <td>
                   <span className={`px-2 py-1 rounded text-xs font-medium ${

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useDriverInvoices } from '@/hooks/useInvoices';
-import { formatCurrency } from '@/utils/invoiceUtils';
+import { formatCurrency, formatInvoiceNumber } from '@/utils/invoiceUtils';
 import { downloadDriverInvoicePdf } from '@/utils/invoiceGenerator';
 import API_URL from '@/config';
 
@@ -71,7 +71,7 @@ const DriverInvoiceSection = () => {
             {!loading && filtered.map((inv) => (
               <tr key={inv.booking_id} className="border-b border-white/5 hover:bg-white/[0.02]">
                 <td className="py-3 font-mono text-[#D4AF37]">
-                  {inv.invoice_number ? String(inv.invoice_number).padStart(6, '0') : '—'}
+                  {inv.invoice_number ? formatInvoiceNumber(inv.invoice_number) : '—'}
                 </td>
                 <td>{inv.client_name}</td>
                 <td className="text-xs text-[#A1A1AA]">

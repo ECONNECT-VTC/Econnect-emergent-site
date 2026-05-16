@@ -460,7 +460,10 @@ async def get_next_sequential_number() -> str:
     )
     seq = result["seq"]
     if seq > 999999:
-        seq = (seq % 1000000) + 1
+        raise HTTPException(
+            status_code=500,
+            detail="La limite de numérotation des factures (999999) a été atteinte. Contactez l'administrateur."
+        )
     return str(seq).zfill(6)
 
 def generate_financial_pdf(booking: dict, settings: dict, document_type: str, document_number: str) -> bytes:
@@ -604,7 +607,6 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         total_label = "TOTAL TTC"
         total_value = breakdown['price_ttc']
     elif document_type == "driver":
-        client_inv = None
         c.drawString(40, y, f"Rémunération trajet - {booking.get('transfer_type', 'VTC')}")
         c.drawRightString(width - 40, y, f"{breakdown['driver_earning']:.2f} EUR HT")
         y -= 20
