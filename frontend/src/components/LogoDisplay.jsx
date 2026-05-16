@@ -4,7 +4,7 @@ const LogoDisplay = ({ className = '', alt = 'Logo ECONNECT VTC', priority = fal
   <img
     src="/photo/logo.png"
     alt={alt}
-    className={`h-[160px] w-auto object-contain ${className}`}
+    className={`w-auto object-contain ${className}`}
     loading={priority ? 'eager' : 'lazy'}
   />
 );
