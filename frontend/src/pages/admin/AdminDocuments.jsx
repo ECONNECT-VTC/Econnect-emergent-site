@@ -3,6 +3,7 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { formatCurrency, formatInvoiceNumber, invoiceTypeLabel } from '@/utils/invoiceUtils';
 import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
 import API_URL from '@/config';
+import LogoDisplay from '@/components/LogoDisplay';
 
 const TABS = [
   { key: 'all', label: 'Tous' },
@@ -64,6 +65,13 @@ const AdminDocuments = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
+      <div className="bg-[#141414] border border-[#D4AF37]/30 rounded-xl p-5 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <LogoDisplay className="h-[150px]" priority />
+          <p className="text-[#A1A1AA] text-sm mt-2">Section Admin — Gestion documentaire complète</p>
+        </div>
+      </div>
+
       {error && (
         <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">
           {error}

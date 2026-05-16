@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -12,10 +12,12 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ArrowRight, Calendar, Car, CheckCircle, CircleNotch, Clock, CurrencyEur, MapPin } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import { parseBookingError } from './newBookingUtils';
 
 const NewBooking = () => {
   const enableDebugLogging = process.env.NODE_ENV !== 'production';
   const navigate = useNavigate();
+  const { lang = 'fr' } = useParams();
   const [date, setDate] = useState();
   const [time, setTime] = useState('');
   const [pickup, setPickup] = useState('');
@@ -43,9 +45,10 @@ const NewBooking = () => {
       const response = await axios.get(`${API_URL}/api/vehicle-categories`, {
         withCredentials: true
       });
-      setCategories(response.data);
+      const safeCategories = Array.isArray(response.data) ? response.data : [];
+      setCategories(safeCategories);
       if (enableDebugLogging) {
-        console.info('Vehicle categories received:', response.data.map((category) => ({
+        console.info('Vehicle categories received:', safeCategories.map((category) => ({
           id: category.id,
           name: category.name,
           has_wifi: category.has_wifi,
@@ -53,8 +56,9 @@ const NewBooking = () => {
           max_luggage: category.max_luggage
         })));
       }
-    } catch (error) {
-      console.error('Error:', error);
+    } catch (err) {
+      setCategories([]);
+      setError(parseBookingError(err, 'Erreur lors du chargement des catégories de véhicules'));
     }
   };
 
@@ -68,9 +72,10 @@ const NewBooking = () => {
         {},
         { withCredentials: true }
       );
-      setPriceEstimates(response.data);
-    } catch (error) {
-      console.error('Error:', error);
+      setPriceEstimates(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      setPriceEstimates([]);
+      setError(parseBookingError(err, 'Erreur lors du calcul des tarifs'));
     } finally {
       setEstimatingPrice(false);
     }
@@ -156,9 +161,9 @@ const NewBooking = () => {
       }, { withCredentials: true });
 
       setSuccess(true);
-      setTimeout(() => navigate('/client/bookings'), 2000);
+      setTimeout(() => navigate(`/${lang}/client/bookings`), 2000);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Erreur lors de la reservation');
+      setError(parseBookingError(err, 'Erreur lors de la réservation'));
     } finally {
       setLoading(false);
     }

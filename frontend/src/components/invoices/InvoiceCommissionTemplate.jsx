@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatDate, calculateDueDate, formatCurrency, formatInvoiceNumber } from '@/utils/invoiceUtils';
+import LogoDisplay from '@/components/LogoDisplay';
 
 /**
  * InvoiceCommissionTemplate
@@ -43,9 +44,7 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
       <div className="bg-gradient-to-r from-[#0A0A0A] to-[#141414] px-8 py-6 border-b border-[#D4AF37]/30 rounded-t-lg">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold text-[#D4AF37]" style={{ fontFamily: 'Cormorant Garamond, serif' }}>
-              {companyName}
-            </h1>
+            <LogoDisplay className="h-[160px]" priority />
             <p className="text-[#A1A1AA] text-xs uppercase tracking-widest mt-1">Service de Transport Privé Premium</p>
           </div>
           <div className="text-right">
