@@ -38,6 +38,7 @@ const DashboardLayout = ({ children, title }) => {
         return [
           { name: 'Mes Courses', path: `${p}/driver`, icon: Car },
           { name: 'Mes Gains', path: `${p}/driver/earnings`, icon: Money },
+          { name: 'Mes Factures', path: `${p}/driver/invoices`, icon: FileText },
         ];
       case 'client':
       default:

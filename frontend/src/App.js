@@ -21,6 +21,7 @@ import ClientDashboard from '@/pages/client/ClientDashboard';
 import NewBooking from '@/pages/client/NewBooking';
 import DriverDashboard from '@/pages/driver/DriverDashboard';
 import DriverEarnings from '@/pages/driver/DriverEarnings';
+import DriverInvoiceSection from '@/pages/driver/DriverInvoiceSection';
 import './App.css';
 
 const VALID_LANGS = ['fr', 'en', 'es', 'de', 'it', 'pt', 'nl', 'ru', 'pl', 'ja', 'ko', 'zh', 'ar'];
@@ -174,6 +175,16 @@ function AppRoutes() {
           <ProtectedRoute role="driver">
             <DashboardLayout title="Mes Gains">
               <DriverEarnings />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="driver/invoices"
+        element={
+          <ProtectedRoute role="driver">
+            <DashboardLayout title="Mes Factures">
+              <DriverInvoiceSection />
             </DashboardLayout>
           </ProtectedRoute>
         }

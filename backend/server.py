@@ -450,13 +450,26 @@ def compute_financial_breakdown(
         "driver_earning": round_amount(driver_earning),
     }
 
-def build_document_number(prefix: str) -> str:
-    return f"{prefix}-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{str(uuid.uuid4())[:6].upper()}"
+async def get_next_sequential_number() -> str:
+    """Get the next sequential 6-digit invoice number (000001 to 999999)."""
+    result = await db.counters.find_one_and_update(
+        {"_id": "invoice_seq"},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=True
+    )
+    seq = result["seq"]
+    if seq > 999999:
+        raise HTTPException(
+            status_code=500,
+            detail="La limite de numérotation des factures (999999) a été atteinte. Contactez l'administrateur."
+        )
+    return str(seq).zfill(6)
 
 def generate_financial_pdf(booking: dict, settings: dict, document_type: str, document_number: str) -> bytes:
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
-    _, height = A4
+    width, height = A4
 
     if booking.get("estimated_price") is None:
         raise HTTPException(status_code=400, detail="Montant de course indisponible")
@@ -469,61 +482,183 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         booking.get("commission_override")
     )
 
-    title = "FACTURE CLIENT" if document_type == "invoice" else "BON DE COMMANDE"
+    title_map = {
+        "invoice": "FACTURE CLIENT",
+        "order": "BON DE COMMANDE",
+        "driver": "FACTURE CHAUFFEUR",
+        "commission": "FACTURE COMMISSION",
+    }
+    title = title_map.get(document_type, "DOCUMENT")
 
-    y = height - 50
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(40, y, "Econnect VTC")
-    y -= 30
+    # Header background
+    c.setFillColorRGB(0.04, 0.04, 0.04)
+    c.rect(0, height - 100, width, 100, fill=1, stroke=0)
+
+    y = height - 40
+    c.setFillColorRGB(0.83, 0.69, 0.22)
+    c.setFont("Helvetica-Bold", 20)
+    c.drawString(40, y, "ECONNECT VTC")
+    c.setFont("Helvetica", 9)
+    c.setFillColorRGB(0.63, 0.63, 0.67)
+    c.drawString(40, y - 18, "Service de Transport Privé Premium")
+
+    c.setFillColorRGB(0.83, 0.69, 0.22)
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(40, y, title)
-    y -= 20
+    c.drawRightString(width - 40, y, title)
     c.setFont("Helvetica", 11)
-    c.drawString(40, y, f"N°: {document_number}")
+    c.drawRightString(width - 40, y - 18, f"N° {document_number}")
+
+    # Gold separator line
+    c.setStrokeColorRGB(0.83, 0.69, 0.22)
+    c.setLineWidth(1.5)
+    c.line(40, height - 110, width - 40, height - 110)
+
+    y = height - 135
+    now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+    due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%d/%m/%Y")
+
+    c.setFillColorRGB(0.63, 0.63, 0.67)
+    c.setFont("Helvetica", 9)
+    c.drawString(40, y, f"Date : {now_str}   |   Échéance : {due_date}   |   SIRET : {settings['company_siret']}")
     y -= 25
 
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, y, "Entreprise")
-    y -= 16
-    c.setFont("Helvetica", 10)
+    # Parties section
+    c.setFillColorRGB(0.83, 0.69, 0.22)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(40, y, "ÉMETTEUR")
+    c.drawString(300, y, "DESTINATAIRE" if document_type != "driver" else "CHAUFFEUR")
+    y -= 14
+
+    c.setFillColorRGB(0.98, 0.98, 0.98)
+    c.setFont("Helvetica-Bold", 10)
     c.drawString(40, y, settings["company_name"])
-    y -= 14
+    if document_type == "driver":
+        c.drawString(300, y, booking.get("driver_name", "N/A"))
+    else:
+        c.drawString(300, y, booking.get("client_name", "N/A"))
+    y -= 13
+
+    c.setFillColorRGB(0.63, 0.63, 0.67)
+    c.setFont("Helvetica", 9)
     c.drawString(40, y, settings["company_address"])
-    y -= 14
-    c.drawString(40, y, f"Tél: {settings['company_phone']} | Email: {settings['company_email']}")
-    y -= 14
-    c.drawString(40, y, f"SIRET: {settings['company_siret']} | N° VTC: {settings['company_vtc_number']}")
+    if document_type == "driver":
+        c.drawString(300, y, "Chauffeur VTC Partenaire")
+    else:
+        c.drawString(300, y, booking.get("client_email", "N/A"))
+    y -= 13
+
+    c.drawString(40, y, settings["company_email"])
+    y -= 13
+    c.drawString(40, y, f"N° VTC : {settings['company_vtc_number']}")
     y -= 25
 
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, y, "Client")
-    y -= 16
-    c.setFont("Helvetica", 10)
-    c.drawString(40, y, booking.get("client_name", "N/A"))
+    # Separator
+    c.setStrokeColorRGB(0.83, 0.69, 0.22, 0.3)
+    c.setLineWidth(0.5)
+    c.line(40, y, width - 40, y)
+    y -= 20
+
+    # Trip details
+    c.setFillColorRGB(0.83, 0.69, 0.22)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(40, y, "DÉTAILS DU TRAJET")
     y -= 14
-    c.drawString(40, y, booking.get("client_email", "N/A"))
+
+    c.setFillColorRGB(0.63, 0.63, 0.67)
+    c.setFont("Helvetica", 9)
+    c.drawString(40, y, f"Départ : {booking.get('pickup_address', 'N/A')}")
+    y -= 13
+    c.drawString(40, y, f"Arrivée : {booking.get('dropoff_address', 'N/A')}")
+    y -= 13
+    c.drawString(40, y, f"Date : {booking.get('pickup_date', 'N/A')} à {booking.get('pickup_time', 'N/A')}")
     y -= 25
 
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, y, "Détails de la course")
-    y -= 16
-    c.setFont("Helvetica", 10)
-    c.drawString(40, y, f"Départ: {booking.get('pickup_address', 'N/A')}")
-    y -= 14
-    c.drawString(40, y, f"Arrivée: {booking.get('dropoff_address', 'N/A')}")
-    y -= 14
-    c.drawString(40, y, f"Date: {booking.get('pickup_date', 'N/A')} à {booking.get('pickup_time', 'N/A')}")
-    y -= 28
+    # Separator
+    c.setStrokeColorRGB(0.83, 0.69, 0.22, 0.3)
+    c.line(40, y, width - 40, y)
+    y -= 20
 
+    # Table header
+    c.setFillColorRGB(0.83, 0.69, 0.22)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(40, y, "DESCRIPTION")
+    c.drawRightString(width - 40, y, "MONTANT")
+    y -= 10
+    c.setStrokeColorRGB(0.83, 0.69, 0.22)
+    c.setLineWidth(1)
+    c.line(40, y, width - 40, y)
+    y -= 15
+
+    c.setFillColorRGB(0.98, 0.98, 0.98)
+    c.setFont("Helvetica", 10)
+
+    if document_type in ("invoice", "order"):
+        c.drawString(40, y, f"Service de transport - {booking.get('transfer_type', 'VTC')}")
+        c.drawRightString(width - 40, y, f"{breakdown['price_ht']:.2f} EUR")
+        y -= 20
+        c.setFillColorRGB(0.63, 0.63, 0.67)
+        c.setFont("Helvetica", 9)
+        c.drawString(40, y, "Sous-total HT")
+        c.drawRightString(width - 40, y, f"{breakdown['price_ht']:.2f} EUR")
+        y -= 13
+        c.drawString(40, y, f"TVA ({round_amount(settings['tva_client_rate'] * 100):.0f}%)")
+        c.drawRightString(width - 40, y, f"{breakdown['tva_client']:.2f} EUR")
+        y -= 20
+        total_label = "TOTAL TTC"
+        total_value = breakdown['price_ttc']
+    elif document_type == "driver":
+        c.drawString(40, y, f"Rémunération trajet - {booking.get('transfer_type', 'VTC')}")
+        c.drawRightString(width - 40, y, f"{breakdown['driver_earning']:.2f} EUR HT")
+        y -= 20
+        c.setFillColorRGB(0.63, 0.63, 0.67)
+        c.setFont("Helvetica", 9)
+        c.drawString(40, y, "Montant course client TTC")
+        c.drawRightString(width - 40, y, f"{breakdown['price_ttc']:.2f} EUR")
+        y -= 13
+        c.drawString(40, y, f"Commission prélevée TTC ({round_amount(settings['commission_rate'] * 100):.0f}%)")
+        c.drawRightString(width - 40, y, f"- {breakdown['commission_ttc']:.2f} EUR")
+        y -= 20
+        total_label = "MONTANT À VERSER (HT)"
+        total_value = breakdown['driver_earning']
+    else:  # commission
+        c.drawString(40, y, f"Commission de gestion - {booking.get('transfer_type', 'VTC')}")
+        c.drawRightString(width - 40, y, f"{breakdown['commission_ht']:.2f} EUR")
+        y -= 20
+        c.setFillColorRGB(0.63, 0.63, 0.67)
+        c.setFont("Helvetica", 9)
+        c.drawString(40, y, "Commission HT")
+        c.drawRightString(width - 40, y, f"{breakdown['commission_ht']:.2f} EUR")
+        y -= 13
+        c.drawString(40, y, f"TVA commission ({round_amount(settings['tva_commission_rate'] * 100):.0f}%)")
+        c.drawRightString(width - 40, y, f"{breakdown['tva_commission']:.2f} EUR")
+        y -= 20
+        total_label = "TOTAL COMMISSION TTC"
+        total_value = breakdown['commission_ttc']
+
+    # Total box
+    y -= 5
+    c.setFillColorRGB(0.83, 0.69, 0.22, 0.1)
+    c.rect(40, y - 10, width - 80, 28, fill=1, stroke=0)
+    c.setStrokeColorRGB(0.83, 0.69, 0.22)
+    c.setLineWidth(1)
+    c.rect(40, y - 10, width - 80, 28, fill=0, stroke=1)
+    c.setFillColorRGB(0.83, 0.69, 0.22)
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(40, y, "Montants")
-    y -= 16
-    c.setFont("Helvetica", 11)
-    c.drawString(40, y, f"Montant HT: {breakdown['price_ht']:.2f} €")
-    y -= 16
-    c.drawString(40, y, f"TVA client ({round_amount(settings['tva_client_rate'] * 100):.0f}%): {breakdown['tva_client']:.2f} €")
-    y -= 16
-    c.drawString(40, y, f"Montant TTC: {breakdown['price_ttc']:.2f} €")
+    c.drawString(50, y + 5, total_label)
+    c.drawRightString(width - 50, y + 5, f"{total_value:.2f} EUR")
+
+    y -= 40
+
+    # Payment conditions
+    c.setStrokeColorRGB(0.83, 0.69, 0.22, 0.3)
+    c.setLineWidth(0.5)
+    c.line(40, y, width - 40, y)
+    y -= 15
+    c.setFillColorRGB(0.63, 0.63, 0.67)
+    c.setFont("Helvetica", 8)
+    c.drawString(40, y, "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.")
+    y -= 12
+    c.drawString(40, y, f"TVA non récupérable par le preneur. {settings['company_name']} - {settings['company_address']}")
 
     c.showPage()
     c.save()
@@ -532,7 +667,6 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     return pdf_bytes
 
 async def generate_and_store_document(booking: dict, settings: dict, document_type: str) -> Tuple[bytes, dict]:
-    prefix = "INV" if document_type == "invoice" else "BC"
     existing_document = await db.invoices.find_one(
         {"booking_id": booking["id"], "type": document_type},
         {"_id": 0}
@@ -547,7 +681,7 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         )
         return existing_pdf, existing_document
 
-    document_number = build_document_number(prefix)
+    document_number = await get_next_sequential_number()
     pdf_bytes = generate_financial_pdf(booking, settings, document_type, document_number)
     breakdown = compute_financial_breakdown(
         booking["estimated_price"],
@@ -557,16 +691,32 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         booking.get("commission_override")
     )
 
+    if document_type == "driver":
+        amount_ttc = breakdown["driver_earning"]
+        amount_ht = breakdown["driver_earning"]
+        tva_amount = 0.0
+        tva_rate = 0.0
+    elif document_type == "commission":
+        amount_ttc = breakdown["commission_ttc"]
+        amount_ht = breakdown["commission_ht"]
+        tva_amount = breakdown["tva_commission"]
+        tva_rate = settings["tva_commission_rate"]
+    else:
+        amount_ttc = breakdown["price_ttc"]
+        amount_ht = breakdown["price_ht"]
+        tva_amount = breakdown["tva_client"]
+        tva_rate = settings["tva_client_rate"]
+
     metadata = {
         "id": str(uuid.uuid4()),
         "invoice_number": document_number,
         "booking_id": booking["id"],
         "client_name": booking.get("client_name", "N/A"),
         "client_email": booking.get("client_email", "N/A"),
-        "amount_ttc": breakdown["price_ttc"],
-        "amount_ht": breakdown["price_ht"],
-        "tva_amount": breakdown["tva_client"],
-        "tva_rate": settings["tva_client_rate"],
+        "amount_ttc": amount_ttc,
+        "amount_ht": amount_ht,
+        "tva_amount": tva_amount,
+        "tva_rate": tva_rate,
         "type": document_type,
         "driver_id": booking.get("driver_id"),
         "driver_name": booking.get("driver_name"),
@@ -1432,6 +1582,58 @@ async def get_financial_invoices(request: Request, driver_id: Optional[str] = No
     invoices = await db.invoices.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     return [InvoiceMetadata(**invoice) for invoice in invoices]
 
+@api_router.get("/admin/financial/completed-bookings")
+async def get_completed_bookings_financial(request: Request):
+    """Returns all completed bookings with full financial breakdown and invoice numbers."""
+    await require_admin(request)
+    settings = await get_commission_settings()
+
+    bookings = await db.bookings.find(
+        {"status": "completed", "estimated_price": {"$ne": None}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+
+    result = []
+    for b in bookings:
+        breakdown = compute_financial_breakdown(
+            b["estimated_price"],
+            settings["commission_rate"],
+            settings["tva_client_rate"],
+            settings["tva_commission_rate"],
+            b.get("commission_override")
+        )
+        client_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "invoice"}, {"_id": 0})
+        driver_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "driver"}, {"_id": 0})
+        commission_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "commission"}, {"_id": 0})
+
+        result.append({
+            "id": b["id"],
+            "client_name": b.get("client_name", "N/A"),
+            "client_email": b.get("client_email", "N/A"),
+            "driver_name": b.get("driver_name"),
+            "driver_id": b.get("driver_id"),
+            "pickup_address": b.get("pickup_address", ""),
+            "dropoff_address": b.get("dropoff_address", ""),
+            "pickup_date": b.get("pickup_date", ""),
+            "pickup_time": b.get("pickup_time", ""),
+            "transfer_type": b.get("transfer_type", ""),
+            "created_at": b.get("created_at", datetime.now(timezone.utc)),
+            "price_ttc": breakdown["price_ttc"],
+            "price_ht": breakdown["price_ht"],
+            "tva_client": breakdown["tva_client"],
+            "commission_ttc": breakdown["commission_ttc"],
+            "commission_ht": breakdown["commission_ht"],
+            "tva_commission": breakdown["tva_commission"],
+            "driver_earning": breakdown["driver_earning"],
+            "tva_client_rate": settings["tva_client_rate"],
+            "tva_commission_rate": settings["tva_commission_rate"],
+            "commission_rate": settings["commission_rate"],
+            "client_invoice_number": client_inv["invoice_number"] if client_inv else None,
+            "driver_invoice_number": driver_inv["invoice_number"] if driver_inv else None,
+            "commission_invoice_number": commission_inv["invoice_number"] if commission_inv else None,
+        })
+    return result
+
 @api_router.get("/driver/earnings", response_model=List[DriverEarning])
 async def get_driver_earnings(request: Request):
     driver = await require_driver(request)
@@ -1479,7 +1681,39 @@ async def download_admin_invoice_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=facture-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=facture-client-{booking_id}.pdf"}
+    )
+
+@api_router.get("/admin/invoices/{booking_id}/driver-pdf")
+async def download_admin_driver_invoice_pdf(booking_id: str, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "driver")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=facture-chauffeur-{booking_id}.pdf"}
+    )
+
+@api_router.get("/admin/invoices/{booking_id}/commission-pdf")
+async def download_admin_commission_pdf(booking_id: str, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "commission")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=facture-commission-{booking_id}.pdf"}
     )
 
 @api_router.get("/admin/orders/{booking_id}/pdf")
@@ -1496,6 +1730,62 @@ async def download_admin_order_pdf(booking_id: str, request: Request):
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=bon-de-commande-{booking_id}.pdf"}
+    )
+
+@api_router.get("/driver/invoices")
+async def get_driver_invoices(request: Request):
+    """Returns the driver's completed bookings with financial breakdown and invoice numbers."""
+    driver = await require_driver(request)
+    settings = await get_commission_settings()
+
+    bookings = await db.bookings.find(
+        {"driver_id": driver["id"], "status": "completed", "estimated_price": {"$ne": None}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+
+    result = []
+    for b in bookings:
+        breakdown = compute_financial_breakdown(
+            b["estimated_price"],
+            settings["commission_rate"],
+            settings["tva_client_rate"],
+            settings["tva_commission_rate"],
+            b.get("commission_override")
+        )
+        driver_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "driver"}, {"_id": 0})
+
+        result.append({
+            "booking_id": b["id"],
+            "client_name": b.get("client_name", "N/A"),
+            "pickup_address": b.get("pickup_address", ""),
+            "dropoff_address": b.get("dropoff_address", ""),
+            "pickup_date": b.get("pickup_date", ""),
+            "pickup_time": b.get("pickup_time", ""),
+            "transfer_type": b.get("transfer_type", ""),
+            "created_at": b.get("created_at", datetime.now(timezone.utc)),
+            "price_ttc": breakdown["price_ttc"],
+            "commission_ttc": breakdown["commission_ttc"],
+            "driver_earning": breakdown["driver_earning"],
+            "invoice_number": driver_inv["invoice_number"] if driver_inv else None,
+        })
+    return result
+
+@api_router.get("/driver/invoices/{booking_id}/pdf")
+async def download_driver_invoice_pdf(booking_id: str, request: Request):
+    driver = await require_driver(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("driver_id") != driver["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé à cette facture")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "driver")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=facture-chauffeur-{booking_id}.pdf"}
     )
 
 @api_router.get("/client/invoices/{booking_id}/pdf")
