@@ -3,6 +3,7 @@ import hashlib
 import logging
 import os
 import secrets
+import unicodedata
 import uuid
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
@@ -495,11 +496,14 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         raw_method = str(booking.get("payment_method") or "").strip().lower()
         raw_notes = str(booking.get("notes") or "").strip().lower()
         source = raw_method or raw_notes
-        if any(token in source for token in ["cb", "carte", "card", "bleue"]):
+        normalized = ''.join(
+            char for char in unicodedata.normalize("NFD", source) if unicodedata.category(char) != "Mn"
+        )
+        if any(token in normalized for token in ["cb", "carte", "card", "bleue", "bleu"]):
             return "cb"
-        if any(token in source for token in ["cash", "espèce", "espece", "espèces", "especes"]):
+        if any(token in normalized for token in ["cash", "espece", "especes"]):
             return "cash"
-        if "virement" in source:
+        if "virement" in normalized:
             return "virement"
         return "unknown"
 
@@ -587,7 +591,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     y -= 25
 
     # Separator
-    c.setStrokeColorRGB(0.83, 0.69, 0.22, 0.3)
+    c.setStrokeColorRGB(0.83, 0.69, 0.22)
     c.setLineWidth(0.5)
     c.line(40, y, width - 40, y)
     y -= 20
@@ -608,7 +612,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     y -= 25
 
     # Separator
-    c.setStrokeColorRGB(0.83, 0.69, 0.22, 0.3)
+    c.setStrokeColorRGB(0.83, 0.69, 0.22)
     c.line(40, y, width - 40, y)
     y -= 20
 
@@ -639,7 +643,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawRightString(x_rate, y, f"{unit_price_ht:.2f} EUR" if unit_price_ht else "-")
         c.drawRightString(x_ht, y, f"{line_price_ht:.2f} EUR")
         y -= 15
-        c.setStrokeColorRGB(0.83, 0.69, 0.22, 0.3)
+        c.setStrokeColorRGB(0.83, 0.69, 0.22)
         c.setLineWidth(0.5)
         c.line(40, y, width - 40, y)
         y -= 15
@@ -712,7 +716,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     y -= 40
 
     # Payment conditions
-    c.setStrokeColorRGB(0.83, 0.69, 0.22, 0.3)
+    c.setStrokeColorRGB(0.83, 0.69, 0.22)
     c.setLineWidth(0.5)
     c.line(40, y, width - 40, y)
     y -= 15
