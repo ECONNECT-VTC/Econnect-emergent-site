@@ -489,17 +489,51 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         "commission": "FACTURE COMMISSION",
     }
     title = title_map.get(document_type, "DOCUMENT")
+    is_client_invoice = document_type in ("invoice", "order")
 
-    # Header background
-    c.setFillColorRGB(0.04, 0.04, 0.04)
-    c.rect(0, height - 100, width, 100, fill=1, stroke=0)
+    def detect_payment_method_label() -> str:
+        raw_method = str(booking.get("payment_method") or "").strip().lower()
+        raw_notes = str(booking.get("notes") or "").strip().lower()
+        source = raw_method or raw_notes
+        if any(token in source for token in ["cb", "carte", "card", "blue"]):
+            return "cb"
+        if any(token in source for token in ["cash", "espèce", "espece", "espèces", "especes"]):
+            return "cash"
+        if "virement" in source:
+            return "virement"
+        return "unknown"
+
+    distance_km = None
+    try:
+        raw_distance = booking.get("distance_km")
+        if raw_distance is not None:
+            parsed_distance = float(raw_distance)
+            if parsed_distance > 0:
+                distance_km = round_amount(parsed_distance)
+    except (TypeError, ValueError):
+        distance_km = None
+
+    unit_price_ht = None
+    try:
+        raw_price_per_km = booking.get("price_per_km")
+        if raw_price_per_km is not None and float(raw_price_per_km) > 0:
+            unit_price_ht = round_amount(float(raw_price_per_km))
+        elif distance_km:
+            unit_price_ht = round_amount(breakdown["price_ht"] / distance_km)
+    except (TypeError, ValueError, ZeroDivisionError):
+        unit_price_ht = None
+
+    line_price_ht = breakdown["price_ht"]
+    if distance_km and unit_price_ht:
+        line_price_ht = round_amount(distance_km * unit_price_ht)
+    payment_method = detect_payment_method_label()
 
     y = height - 40
     c.setFillColorRGB(0.83, 0.69, 0.22)
     c.setFont("Helvetica-Bold", 20)
     c.drawString(40, y, "ECONNECT VTC")
     c.setFont("Helvetica", 9)
-    c.setFillColorRGB(0.63, 0.63, 0.67)
+    c.setFillColorRGB(0.3, 0.3, 0.3)
     c.drawString(40, y - 18, "Service de Transport Privé Premium")
 
     c.setFillColorRGB(0.83, 0.69, 0.22)
@@ -517,7 +551,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
     due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%d/%m/%Y")
 
-    c.setFillColorRGB(0.63, 0.63, 0.67)
+    c.setFillColorRGB(0.3, 0.3, 0.3)
     c.setFont("Helvetica", 9)
     c.drawString(40, y, f"Date : {now_str}   |   Échéance : {due_date}   |   SIRET : {settings['company_siret']}")
     y -= 25
@@ -529,7 +563,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.drawString(300, y, "DESTINATAIRE" if document_type != "driver" else "CHAUFFEUR")
     y -= 14
 
-    c.setFillColorRGB(0.98, 0.98, 0.98)
+    c.setFillColorRGB(0.1, 0.1, 0.1)
     c.setFont("Helvetica-Bold", 10)
     c.drawString(40, y, settings["company_name"])
     if document_type == "driver":
@@ -538,7 +572,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(300, y, booking.get("client_name", "N/A"))
     y -= 13
 
-    c.setFillColorRGB(0.63, 0.63, 0.67)
+    c.setFillColorRGB(0.3, 0.3, 0.3)
     c.setFont("Helvetica", 9)
     c.drawString(40, y, settings["company_address"])
     if document_type == "driver":
@@ -564,7 +598,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.drawString(40, y, "DÉTAILS DU TRAJET")
     y -= 14
 
-    c.setFillColorRGB(0.63, 0.63, 0.67)
+    c.setFillColorRGB(0.3, 0.3, 0.3)
     c.setFont("Helvetica", 9)
     c.drawString(40, y, f"Départ : {booking.get('pickup_address', 'N/A')}")
     y -= 13
@@ -581,36 +615,66 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     # Table header
     c.setFillColorRGB(0.83, 0.69, 0.22)
     c.setFont("Helvetica-Bold", 9)
-    c.drawString(40, y, "DESCRIPTION")
-    c.drawRightString(width - 40, y, "MONTANT")
-    y -= 10
-    c.setStrokeColorRGB(0.83, 0.69, 0.22)
-    c.setLineWidth(1)
-    c.line(40, y, width - 40, y)
-    y -= 15
+    if is_client_invoice:
+        x_desc, x_km, x_rate, x_ht = 40, 365, 455, width - 40
+        c.drawString(x_desc, y, "DÉSIGNATION")
+        c.drawRightString(x_km, y, "NOMBRE DE KM")
+        c.drawRightString(x_rate, y, "TARIF AU KM HT")
+        c.drawRightString(x_ht, y, "PRIX HT")
+        y -= 10
+        c.setStrokeColorRGB(0.83, 0.69, 0.22)
+        c.setLineWidth(1)
+        c.line(40, y, width - 40, y)
+        y -= 15
 
-    c.setFillColorRGB(0.98, 0.98, 0.98)
-    c.setFont("Helvetica", 10)
-
-    if document_type in ("invoice", "order"):
-        c.drawString(40, y, f"Service de transport - {booking.get('transfer_type', 'VTC')}")
-        c.drawRightString(width - 40, y, f"{breakdown['price_ht']:.2f} EUR")
-        y -= 20
-        c.setFillColorRGB(0.63, 0.63, 0.67)
+        c.setFillColorRGB(0.1, 0.1, 0.1)
         c.setFont("Helvetica", 9)
-        c.drawString(40, y, "Sous-total HT")
+        c.drawString(x_desc, y, f"Adresse de départ : {booking.get('pickup_address', 'N/A')}")
+        c.drawRightString(x_km, y, "-")
+        c.drawRightString(x_rate, y, "-")
+        c.drawRightString(x_ht, y, "-")
+        y -= 15
+        c.drawString(x_desc, y, f"Adresse d'arrivée : {booking.get('dropoff_address', 'N/A')}")
+        c.drawRightString(x_km, y, f"{distance_km:.2f}" if distance_km else "-")
+        c.drawRightString(x_rate, y, f"{unit_price_ht:.2f} EUR" if unit_price_ht else "-")
+        c.drawRightString(x_ht, y, f"{line_price_ht:.2f} EUR")
+        y -= 15
+        c.setStrokeColorRGB(0.83, 0.69, 0.22, 0.3)
+        c.setLineWidth(0.5)
+        c.line(40, y, width - 40, y)
+        y -= 15
+
+        c.setFillColorRGB(0.1, 0.1, 0.1)
+        c.setFont("Helvetica", 9)
+        c.drawString(40, y, "Mode de paiement :")
+        c.drawString(140, y, f"{'[X]' if payment_method == 'cb' else '[ ]'} CB")
+        c.drawString(220, y, f"{'[X]' if payment_method == 'cash' else '[ ]'} Espèces")
+        c.drawString(325, y, f"{'[X]' if payment_method == 'virement' else '[ ]'} Virement bancaire")
+        y -= 18
+        c.drawString(40, y, "Montant HT")
         c.drawRightString(width - 40, y, f"{breakdown['price_ht']:.2f} EUR")
         y -= 13
-        c.drawString(40, y, f"TVA ({round_amount(settings['tva_client_rate'] * 100):.0f}%)")
+        c.drawString(40, y, f"Montant TVA ({round_amount(settings['tva_client_rate'] * 100):.0f}%)")
         c.drawRightString(width - 40, y, f"{breakdown['tva_client']:.2f} EUR")
-        y -= 20
+        y -= 13
         total_label = "TOTAL TTC"
         total_value = breakdown['price_ttc']
-    elif document_type == "driver":
+    else:
+        c.drawString(40, y, "DESCRIPTION")
+        c.drawRightString(width - 40, y, "MONTANT")
+        y -= 10
+        c.setStrokeColorRGB(0.83, 0.69, 0.22)
+        c.setLineWidth(1)
+        c.line(40, y, width - 40, y)
+        y -= 15
+        c.setFillColorRGB(0.1, 0.1, 0.1)
+        c.setFont("Helvetica", 10)
+
+    if document_type == "driver":
         c.drawString(40, y, f"Rémunération trajet - {booking.get('transfer_type', 'VTC')}")
         c.drawRightString(width - 40, y, f"{breakdown['driver_earning']:.2f} EUR HT")
         y -= 20
-        c.setFillColorRGB(0.63, 0.63, 0.67)
+        c.setFillColorRGB(0.3, 0.3, 0.3)
         c.setFont("Helvetica", 9)
         c.drawString(40, y, "Montant course client TTC")
         c.drawRightString(width - 40, y, f"{breakdown['price_ttc']:.2f} EUR")
@@ -620,11 +684,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         y -= 20
         total_label = "MONTANT À VERSER (HT)"
         total_value = breakdown['driver_earning']
-    else:  # commission
+    elif document_type == "commission":
         c.drawString(40, y, f"Commission de gestion - {booking.get('transfer_type', 'VTC')}")
         c.drawRightString(width - 40, y, f"{breakdown['commission_ht']:.2f} EUR")
         y -= 20
-        c.setFillColorRGB(0.63, 0.63, 0.67)
+        c.setFillColorRGB(0.3, 0.3, 0.3)
         c.setFont("Helvetica", 9)
         c.drawString(40, y, "Commission HT")
         c.drawRightString(width - 40, y, f"{breakdown['commission_ht']:.2f} EUR")
@@ -637,8 +701,6 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
     # Total box
     y -= 5
-    c.setFillColorRGB(0.83, 0.69, 0.22, 0.1)
-    c.rect(40, y - 10, width - 80, 28, fill=1, stroke=0)
     c.setStrokeColorRGB(0.83, 0.69, 0.22)
     c.setLineWidth(1)
     c.rect(40, y - 10, width - 80, 28, fill=0, stroke=1)
@@ -654,7 +716,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.setLineWidth(0.5)
     c.line(40, y, width - 40, y)
     y -= 15
-    c.setFillColorRGB(0.63, 0.63, 0.67)
+    c.setFillColorRGB(0.3, 0.3, 0.3)
     c.setFont("Helvetica", 8)
     c.drawString(40, y, "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.")
     y -= 12
@@ -1617,6 +1679,10 @@ async def get_completed_bookings_financial(request: Request):
             "pickup_date": b.get("pickup_date", ""),
             "pickup_time": b.get("pickup_time", ""),
             "transfer_type": b.get("transfer_type", ""),
+            "distance_km": b.get("distance_km"),
+            "price_per_km": b.get("price_per_km"),
+            "payment_method": b.get("payment_method"),
+            "notes": b.get("notes"),
             "created_at": b.get("created_at", datetime.now(timezone.utc)),
             "price_ttc": breakdown["price_ttc"],
             "price_ht": breakdown["price_ht"],
