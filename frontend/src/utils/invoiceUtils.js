@@ -16,6 +16,16 @@ export const formatInvoiceNumber = (seq) => {
 };
 
 /**
+ * Generate next 6-digit sequential invoice number from the last sequence
+ * @param {number|string} lastSeq
+ * @returns {string}
+ */
+export const generateInvoiceNumber = (lastSeq = 0) => {
+  const next = (parseInt(lastSeq, 10) || 0) + 1;
+  return formatInvoiceNumber(next);
+};
+
+/**
  * Validate that an invoice number respects the 6-digit format
  * @param {string} invoiceNumber
  * @returns {boolean}
@@ -75,6 +85,18 @@ export const computeHtFromTtc = (priceTtc, tvaRate) => {
     tva: Math.round((tva + Number.EPSILON) * 100) / 100,
     ttc: Math.round((ttc + Number.EPSILON) * 100) / 100,
   };
+};
+
+/**
+ * Calculate VAT amount from HT using French default VAT (20%)
+ * @param {number} amountHt
+ * @param {number} rate
+ * @returns {number}
+ */
+export const calculateVatAmount = (amountHt, rate = 0.2) => {
+  const ht = Number(amountHt) || 0;
+  const vat = ht * (Number(rate) || 0);
+  return Math.round((vat + Number.EPSILON) * 100) / 100;
 };
 
 /**

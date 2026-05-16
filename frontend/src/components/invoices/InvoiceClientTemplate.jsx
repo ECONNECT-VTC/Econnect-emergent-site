@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatDate, calculateDueDate, formatCurrency, formatInvoiceNumber } from '@/utils/invoiceUtils';
+import LogoDisplay from '@/components/LogoDisplay';
 
 /**
  * InvoiceClientTemplate
@@ -26,7 +27,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const companySiret = settings?.company_siret || 'À compléter';
   const companyVtc = settings?.company_vtc_number || 'À compléter';
   const companyEmail = settings?.company_email || 'contact@econnect-vtc.fr';
-  const tvaRate = Math.round((booking.tva_client_rate || 0.1) * 100);
+  const tvaRate = Math.round((booking.tva_client_rate || 0.2) * 100);
 
   return (
     <div className="bg-[#1E1E1E] border border-[#D4AF37]/20 rounded-lg shadow-2xl max-w-3xl mx-auto text-[#FAFAFA]">
@@ -34,9 +35,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
       <div className="bg-gradient-to-r from-[#0A0A0A] to-[#141414] px-8 py-6 border-b border-[#D4AF37]/30 rounded-t-lg">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold text-[#D4AF37]" style={{ fontFamily: 'Cormorant Garamond, serif' }}>
-              {companyName}
-            </h1>
+            <LogoDisplay className="h-[160px]" priority />
             <p className="text-[#A1A1AA] text-xs uppercase tracking-widest mt-1">Service de Transport Privé Premium</p>
           </div>
           <div className="text-right">

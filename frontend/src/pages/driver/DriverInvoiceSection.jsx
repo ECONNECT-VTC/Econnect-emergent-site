@@ -3,6 +3,7 @@ import { useDriverInvoices } from '@/hooks/useInvoices';
 import { formatCurrency, formatInvoiceNumber } from '@/utils/invoiceUtils';
 import { downloadDriverInvoicePdf } from '@/utils/invoiceGenerator';
 import API_URL from '@/config';
+import LogoDisplay from '@/components/LogoDisplay';
 
 const DriverInvoiceSection = () => {
   const { invoices, loading, error, totalEarned } = useDriverInvoices();
@@ -20,6 +21,13 @@ const DriverInvoiceSection = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
+      <div className="bg-[#141414] border border-[#D4AF37]/30 rounded-xl p-5 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <LogoDisplay className="h-[150px]" priority />
+          <p className="text-[#A1A1AA] text-sm mt-2">Section Chauffeur — Gestion de vos factures et paiements</p>
+        </div>
+      </div>
+
       {error && (
         <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">
           {error}
