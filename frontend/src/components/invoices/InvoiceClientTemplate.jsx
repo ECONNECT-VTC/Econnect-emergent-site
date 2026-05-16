@@ -27,7 +27,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const companySiret = settings?.company_siret || 'À compléter';
   const companyVtc = settings?.company_vtc_number || 'À compléter';
   const companyEmail = settings?.company_email || 'contact@econnect-vtc.fr';
-  const tvaRate = Math.round((booking.tva_client_rate || 0.2) * 100);
+  const tvaRate = Math.round((booking.tva_client_rate ?? 0.2) * 100);
 
   return (
     <div className="bg-[#1E1E1E] border border-[#D4AF37]/20 rounded-lg shadow-2xl max-w-3xl mx-auto text-[#FAFAFA]">
