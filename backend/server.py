@@ -495,7 +495,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         raw_method = str(booking.get("payment_method") or "").strip().lower()
         raw_notes = str(booking.get("notes") or "").strip().lower()
         source = raw_method or raw_notes
-        if any(token in source for token in ["cb", "carte", "card", "blue"]):
+        if any(token in source for token in ["cb", "carte", "card", "bleue"]):
             return "cb"
         if any(token in source for token in ["cash", "espèce", "espece", "espèces", "especes"]):
             return "cash"

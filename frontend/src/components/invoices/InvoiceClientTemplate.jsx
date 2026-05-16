@@ -116,7 +116,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
                 <td className="text-right">—</td>
               </tr>
               <tr className="border-b border-[#D4AF37]/40">
-                <td className="py-3">Adresse d&apos;arrivée : {booking.dropoff_address || 'N/A'}</td>
+                <td className="py-3">Adresse d'arrivée : {booking.dropoff_address || 'N/A'}</td>
                 <td className="text-right font-mono">{distanceKm != null ? distanceKm.toFixed(2) : '—'}</td>
                 <td className="text-right font-mono">{unitPriceHt != null ? formatCurrency(unitPriceHt) : '—'}</td>
                 <td className="text-right font-mono font-semibold">{formatCurrency(linePriceHt)}</td>
