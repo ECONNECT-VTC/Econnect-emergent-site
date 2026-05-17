@@ -34,7 +34,8 @@ const Services = () => {
       subtitleKey: 'trajetsPonctuelsSubtitle',
       descKey: 'trajetsPonctuelsDesc',
       icon: Car,
-      image: 'https://images.pexels.com/photos/15774577/pexels-photo-15774577.jpeg',
+      /*image: 'https://images.pexels.com/photos/15774577/pexels-photo-15774577.jpeg',*/
+      image:'/photo/trajet_instantane.png',
       colSpan: 'md:col-span-6',
       rowSpan: '',
     },
@@ -44,8 +45,8 @@ const Services = () => {
       subtitleKey: 'miseDispositionSubtitle',
       descKey: 'miseDispositionDesc',
       icon: Clock,
-      image: 'https://images.pexels.com/photos/8425052/pexels-photo-8425052.jpeg',
-      /*image:'/photo/mise_a_dispo.jpg',*/
+      /*image: 'https://images.pexels.com/photos/8425052/pexels-photo-8425052.jpeg',*/
+      image:'/photo/mise_a_dispo.png',
       colSpan: 'md:col-span-6',
       rowSpan: '',
     },
@@ -66,7 +67,7 @@ const Services = () => {
       subtitleKey: 'affairesSubtitle',
       descKey: 'affairesDesc',
       icon: Buildings,
-      image:'/photo/mise_a_dispo.jpg',
+      image:'/photo/affaire_event.jpg',
       /*image: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg',*/
       colSpan: 'md:col-span-8',
       rowSpan: '',
