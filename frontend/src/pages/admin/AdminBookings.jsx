@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarCheck, CarSimple, CheckCircle, MapPin, User } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import BookingComments from '@/components/BookingComments';
 
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
@@ -68,6 +69,10 @@ const AdminBookings = () => {
   const [adminCancelDialogOpen, setAdminCancelDialogOpen] = useState(false);
   const [adminCancelReason, setAdminCancelReason] = useState('');
   const [bookingToAdminCancel, setBookingToAdminCancel] = useState(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingBooking, setEditingBooking] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const [googleMapsReady, setGoogleMapsReady] = useState(Boolean(window.google?.maps?.places));
   const pickupRef = useRef(null);
   const dropoffRef = useRef(null);
@@ -269,6 +274,38 @@ const AdminBookings = () => {
     setAdminCancelDialogOpen(true);
   };
 
+  const openEditDialog = (booking) => {
+    setEditingBooking(booking);
+    setEditForm({
+      pickup_address: booking.pickup_address || '',
+      dropoff_address: booking.dropoff_address || '',
+      pickup_date: booking.pickup_date || '',
+      pickup_time: booking.pickup_time || '',
+      notes: booking.notes || '',
+      estimated_price: booking.estimated_price != null ? String(booking.estimated_price) : '',
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editingBooking) return;
+    setEditSubmitting(true);
+    setError('');
+    try {
+      const payload = { ...editForm };
+      if (payload.estimated_price !== '') payload.estimated_price = Number(payload.estimated_price);
+      else delete payload.estimated_price;
+      await axios.put(`${API_URL}/api/admin/bookings/${editingBooking.id}`, payload, { withCredentials: true });
+      setEditDialogOpen(false);
+      setEditingBooking(null);
+      fetchData();
+    } catch (err) {
+      setError(parseError(err));
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   const handleAdminCancellation = async () => {
     if (!bookingToAdminCancel) return;
     setError('');
@@ -435,6 +472,17 @@ const AdminBookings = () => {
                   )}
                 </div>
               )}
+
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-4 border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                onClick={() => openEditDialog(booking)}
+              >
+                ✏️ Modifier
+              </Button>
+
+              <BookingComments bookingId={booking.id} />
             </div>
           ))}
         </div>
@@ -635,6 +683,46 @@ const AdminBookings = () => {
               className="w-full bg-red-600 hover:bg-red-700 text-white"
             >
               Confirmer l'annulation
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="bg-[#141414] border-white/10 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-[#D4AF37]">Modifier la réservation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Adresse de départ</p>
+              <Input value={editForm.pickup_address || ''} onChange={(e) => setEditForm({ ...editForm, pickup_address: e.target.value })} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Adresse d'arrivée</p>
+              <Input value={editForm.dropoff_address || ''} onChange={(e) => setEditForm({ ...editForm, dropoff_address: e.target.value })} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-[#A1A1AA] mb-2">Date</p>
+                <Input value={editForm.pickup_date || ''} onChange={(e) => setEditForm({ ...editForm, pickup_date: e.target.value })} className="bg-[#1E1E1E] border-white/10" placeholder="dd/MM/yyyy" />
+              </div>
+              <div>
+                <p className="text-sm text-[#A1A1AA] mb-2">Heure</p>
+                <Input value={editForm.pickup_time || ''} onChange={(e) => setEditForm({ ...editForm, pickup_time: e.target.value })} className="bg-[#1E1E1E] border-white/10" placeholder="HH:MM" />
+              </div>
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Notes</p>
+              <Input value={editForm.notes || ''} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Prix estimé (€)</p>
+              <Input type="number" min="0" step="0.01" value={editForm.estimated_price || ''} onChange={(e) => setEditForm({ ...editForm, estimated_price: e.target.value })} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            {error && <p className="text-sm text-red-400">{error}</p>}
+            <Button onClick={handleEditSubmit} disabled={editSubmitting} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
+              {editSubmitting ? 'Enregistrement...' : 'Enregistrer les modifications'}
             </Button>
           </div>
         </DialogContent>

@@ -1099,6 +1099,62 @@ async def request_booking_cancellation(booking_id: str, payload: BookingCancelRe
     )
     return {"message": "Demande d'annulation envoyée"}
 
+@api_router.put("/bookings/{booking_id}")
+async def update_booking(booking_id: str, payload: dict, request: Request):
+    user = await get_current_user(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("client_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    if booking.get("status") not in ("pending", "received"):
+        raise HTTPException(status_code=400, detail="Impossible de modifier cette réservation")
+    allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", "transfer_type"]
+    update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
+    return await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+
+@api_router.get("/bookings/{booking_id}/comments")
+async def get_booking_comments(booking_id: str, request: Request):
+    user = await get_current_user(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Not found")
+    role = user.get("role")
+    if role == "client" and booking.get("client_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if role == "driver" and booking.get("driver_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    comments = await db.booking_comments.find({"booking_id": booking_id}, {"_id": 0}).sort("created_at", 1).to_list(200)
+    return comments
+
+@api_router.post("/bookings/{booking_id}/comments")
+async def add_booking_comment(booking_id: str, payload: dict, request: Request):
+    user = await get_current_user(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Not found")
+    role = user.get("role")
+    if role == "client" and booking.get("client_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if role == "driver" and booking.get("driver_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+    comment_text = payload.get("comment", "").strip()
+    if not comment_text:
+        raise HTTPException(status_code=400, detail="Empty comment")
+    comment = {
+        "id": str(uuid.uuid4()),
+        "booking_id": booking_id,
+        "author_id": user["id"],
+        "author_name": user.get("name", "Unknown"),
+        "author_role": role,
+        "comment": comment_text,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    await db.booking_comments.insert_one(comment)
+    comment.pop("_id", None)
+    return comment
+
 # ==================== DRIVER ROUTES ====================
 
 @api_router.get("/driver/bookings", response_model=List[BookingResponse])
@@ -1407,6 +1463,52 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
     )
 
     return {"message": "Statut mis à jour", "status": status_update.status}
+
+@api_router.put("/admin/bookings/{booking_id}")
+async def admin_update_booking(booking_id: str, payload: dict, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", "transfer_type", "estimated_price", "vehicle_category_id"]
+    update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
+    return await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+
+@api_router.get("/admin/disposition-rates")
+async def get_disposition_rates(request: Request):
+    await require_admin(request)
+    return await db.disposition_rates.find({}, {"_id": 0}).sort([("vehicle_category_name", 1), ("duration_hours", 1)]).to_list(1000)
+
+@api_router.post("/admin/disposition-rates")
+async def create_disposition_rate(payload: dict, request: Request):
+    await require_admin(request)
+    rate = {
+        "id": str(uuid.uuid4()),
+        "vehicle_category_name": payload.get("vehicle_category_name"),
+        "duration_hours": float(payload.get("duration_hours", 1)),
+        "price": float(payload.get("price", 0)),
+        "is_active": payload.get("is_active", True)
+    }
+    await db.disposition_rates.insert_one(rate)
+    rate.pop("_id", None)
+    return rate
+
+@api_router.put("/admin/disposition-rates/{rate_id}")
+async def update_disposition_rate(rate_id: str, payload: dict, request: Request):
+    await require_admin(request)
+    await db.disposition_rates.update_one({"id": rate_id}, {"$set": payload})
+    return await db.disposition_rates.find_one({"id": rate_id}, {"_id": 0})
+
+@api_router.delete("/admin/disposition-rates/{rate_id}")
+async def delete_disposition_rate(rate_id: str, request: Request):
+    await require_admin(request)
+    await db.disposition_rates.delete_one({"id": rate_id})
+    return {"message": "Deleted"}
+
+@api_router.get("/disposition-rates")
+async def get_public_disposition_rates():
+    return await db.disposition_rates.find({"is_active": True}, {"_id": 0}).sort([("vehicle_category_name", 1), ("duration_hours", 1)]).to_list(1000)
 
 @api_router.get("/admin/drivers", response_model=List[DriverResponse])
 async def get_all_drivers(request: Request):

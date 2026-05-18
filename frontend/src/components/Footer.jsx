@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Phone, Envelope, MapPin, InstagramLogo, FacebookLogo, LinkedinLogo } from '@phosphor-icons/react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import LogoDisplay from '@/components/LogoDisplay';
 
 const Footer = () => {
   const { t } = useLanguage();
@@ -19,14 +20,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
           {/* Brand */}
           <div className="md:col-span-2">
-            <motion.h2
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-4xl md:text-5xl font-bold font-['Cormorant_Garamond'] gold-text mb-6"
-            >
-              Econnect VTC
-            </motion.h2>
+            <LogoDisplay className="h-[80px]" priority />
             <p className="text-[#A1A1AA] max-w-md leading-relaxed mb-6">
               {t('footerBrandDesc')}
             </p>
