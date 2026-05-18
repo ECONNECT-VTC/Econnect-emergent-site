@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { CarSimple, CheckCircle, Clock, MapPin, Phone, Play, User } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import BookingComments from '@/components/BookingComments';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -248,6 +249,7 @@ const DriverDashboard = () => {
               >
                 Télécharger bon de commande
               </Button>
+              <BookingComments bookingId={booking.id} />
             </div>
           ))}
         </div>
