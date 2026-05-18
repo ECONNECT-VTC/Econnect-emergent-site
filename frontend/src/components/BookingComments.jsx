@@ -10,13 +10,15 @@ const BookingComments = ({ bookingId }) => {
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const fetchComments = useCallback(async () => {
     try {
       const res = await axios.get(`${API_URL}/api/bookings/${bookingId}/comments`, { withCredentials: true });
       setComments(res.data);
+      setLoadError('');
     } catch (e) {
-      // Ignore fetch errors silently in card rendering
+      setLoadError("Impossible de charger les commentaires");
     }
   }, [bookingId]);
 
@@ -59,6 +61,7 @@ const BookingComments = ({ bookingId }) => {
           ))}
         </div>
       )}
+      {loadError && <p className="text-xs text-red-400 mb-2">{loadError}</p>}
       {error && <p className="text-xs text-red-400 mb-2">{error}</p>}
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input

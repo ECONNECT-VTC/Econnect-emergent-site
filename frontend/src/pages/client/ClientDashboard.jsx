@@ -9,6 +9,7 @@ const ClientDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const { lang } = useParams();
+  const currentLang = lang || 'fr';
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -83,7 +84,7 @@ const ClientDashboard = () => {
 
       <div className="mb-8">
         <Button asChild className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold">
-          <Link to={`/${lang || 'fr'}/client/new-booking`} data-testid="new-booking-btn">
+          <Link to={`/${currentLang}/client/new-booking`} data-testid="new-booking-btn">
             <Car size={20} className="mr-2" />
             Nouvelle réservation
           </Link>
@@ -93,7 +94,7 @@ const ClientDashboard = () => {
       <div className="glass rounded-xl p-6" data-testid="recent-bookings">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold font-['Cormorant_Garamond']">Dernières réservations</h2>
-          <Link to={`/${lang || 'fr'}/client/bookings`} className="text-[#D4AF37] hover:underline text-sm">Voir tout</Link>
+          <Link to={`/${currentLang}/client/bookings`} className="text-[#D4AF37] hover:underline text-sm">Voir tout</Link>
         </div>
 
         {loading ? (

@@ -1085,7 +1085,8 @@ async def update_booking(booking_id: str, payload: dict, request: Request):
         raise HTTPException(status_code=404, detail="Reservation not found")
     if booking.get("client_id") != user["id"]:
         raise HTTPException(status_code=403, detail="Access denied")
-    if booking.get("status") not in ("pending", "received"):
+    editable_statuses = ("pending", "received")
+    if booking.get("status") not in editable_statuses:
         raise HTTPException(status_code=400, detail="Cannot modify booking in this status")
     allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", "transfer_type"]
     update_data = {k: v for k, v in payload.items() if k in allowed_fields}
@@ -1639,7 +1640,17 @@ async def create_disposition_rate(payload: dict, request: Request):
 @api_router.put("/admin/disposition-rates/{rate_id}")
 async def update_disposition_rate(rate_id: str, payload: dict, request: Request):
     await require_admin(request)
-    await db.disposition_rates.update_one({"id": rate_id}, {"$set": payload})
+    allowed_fields = {"vehicle_category_name", "duration_hours", "price", "is_active"}
+    update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    if "duration_hours" in update_data:
+        update_data["duration_hours"] = float(update_data["duration_hours"])
+    if "price" in update_data:
+        update_data["price"] = float(update_data["price"])
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No valid fields to update")
+    result = await db.disposition_rates.update_one({"id": rate_id}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Rate not found")
     rate = await db.disposition_rates.find_one({"id": rate_id}, {"_id": 0})
     return rate
 
@@ -1647,7 +1658,7 @@ async def update_disposition_rate(rate_id: str, payload: dict, request: Request)
 async def delete_disposition_rate(rate_id: str, request: Request):
     await require_admin(request)
     await db.disposition_rates.delete_one({"id": rate_id})
-    return {"message": "Deleted"}
+    return {"message": "Disposition rate deleted"}
 
 @api_router.get("/disposition-rates")
 async def get_public_disposition_rates():

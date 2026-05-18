@@ -51,10 +51,10 @@ const AdminPricing = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchData();
+    fetchPricingData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchPricingData = async () => {
     try {
       const [categoriesRes, ratesRes] = await Promise.all([
         axios.get(`${API_URL}/api/admin/vehicle-categories`, { withCredentials: true }),
@@ -130,7 +130,7 @@ const AdminPricing = () => {
         await axios.post(`${API_URL}/api/admin/vehicle-categories`, payload, { withCredentials: true });
       }
       setIsOpen(false);
-      fetchData();
+      fetchPricingData();
     } catch (err) {
       setError(err.response?.data?.detail || 'Erreur');
     } finally {
@@ -145,7 +145,7 @@ const AdminPricing = () => {
         { is_active: !category.is_active },
         { withCredentials: true }
       );
-      fetchData();
+      fetchPricingData();
     } catch (toggleError) {
       setError(toggleError.response?.data?.detail || 'Erreur');
     }
@@ -155,7 +155,7 @@ const AdminPricing = () => {
     if (!window.confirm('Supprimer cette catégorie ?')) return;
     try {
       await axios.delete(`${API_URL}/api/admin/vehicle-categories/${id}`, { withCredentials: true });
-      fetchData();
+      fetchPricingData();
     } catch (deleteError) {
       setError(deleteError.response?.data?.detail || 'Erreur');
     }
@@ -195,7 +195,7 @@ const AdminPricing = () => {
       }
       setRateDialogOpen(false);
       setEditingRate(null);
-      fetchData();
+      fetchPricingData();
     } catch (submitError) {
       setError(submitError.response?.data?.detail || 'Erreur');
     } finally {
@@ -207,7 +207,7 @@ const AdminPricing = () => {
     if (!window.confirm('Supprimer ce tarif ?')) return;
     try {
       await axios.delete(`${API_URL}/api/admin/disposition-rates/${rateId}`, { withCredentials: true });
-      fetchData();
+      fetchPricingData();
     } catch (deleteError) {
       setError(deleteError.response?.data?.detail || 'Erreur');
     }
@@ -446,7 +446,7 @@ const AdminPricing = () => {
                                     className="border-white/10 hover:bg-white/10"
                                     onClick={() => openEditRateDialog(rate)}
                                   >
-                                    <PencilSimple size={14} className="mr-1" />Edit
+                                    <PencilSimple size={14} className="mr-1" />Modifier
                                   </Button>
                                   <Button
                                     size="sm"
@@ -454,7 +454,7 @@ const AdminPricing = () => {
                                     className="border-red-500/40 text-red-400 hover:bg-red-500/10"
                                     onClick={() => deleteRate(rate.id)}
                                   >
-                                    <Trash size={14} className="mr-1" />Delete
+                                    <Trash size={14} className="mr-1" />Supprimer
                                   </Button>
                                 </div>
                               </td>
