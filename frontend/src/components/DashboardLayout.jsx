@@ -7,6 +7,7 @@ import {
   House, CalendarCheck, Car, Users, SignOut, List, X, ChartBar, CarSimple, UserCircle, CurrencyEur, ChartLineUp, Percent, FileText, Money
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
+import LogoDisplay from '@/components/LogoDisplay';
 
 const DashboardLayout = ({ children, title }) => {
   const { user, logout } = useAuth();
@@ -59,8 +60,8 @@ const DashboardLayout = ({ children, title }) => {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="p-6 border-b border-white/10">
-            <Link to={`/${language}`} className="text-2xl font-bold font-['Cormorant_Garamond'] gold-text">
-              Econnect VTC
+            <Link to={`/${language}`}>
+              <LogoDisplay className="h-[60px]" priority />
             </Link>
           </div>
 

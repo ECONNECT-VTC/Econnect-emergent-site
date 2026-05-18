@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { CalendarCheck, MapPin } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import BookingComments from '@/components/BookingComments';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -21,8 +22,17 @@ const ClientBookings = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [cancellationReason, setCancellationReason] = useState('');
+  const [editForm, setEditForm] = useState({
+    pickup_address: '',
+    dropoff_address: '',
+    pickup_date: '',
+    pickup_time: '',
+    notes: ''
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState('');
 
   const fetchBookings = async () => {
@@ -55,6 +65,34 @@ const ClientBookings = () => {
       fetchBookings();
     } catch (err) {
       setError(parseError(err));
+    }
+  };
+
+  const openEditDialog = (booking) => {
+    setSelectedBooking(booking);
+    setEditForm({
+      pickup_address: booking.pickup_address || '',
+      dropoff_address: booking.dropoff_address || '',
+      pickup_date: booking.pickup_date || '',
+      pickup_time: booking.pickup_time || '',
+      notes: booking.notes || ''
+    });
+    setEditDialogOpen(true);
+  };
+
+  const submitEdit = async () => {
+    if (!selectedBooking) return;
+    setSavingEdit(true);
+    setError('');
+    try {
+      await axios.put(`${API_URL}/api/bookings/${selectedBooking.id}`, editForm, { withCredentials: true });
+      setEditDialogOpen(false);
+      setSelectedBooking(null);
+      fetchBookings();
+    } catch (err) {
+      setError(parseError(err));
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -144,10 +182,22 @@ const ClientBookings = () => {
                 </div>
               )}
 
+              <BookingComments bookingId={booking.id} />
+
+              {(booking.status === 'pending' || booking.status === 'received') && (
+                <Button
+                  onClick={() => openEditDialog(booking)}
+                  variant="outline"
+                  className="mt-4 w-full border-[#D4AF37]/50 text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                >
+                  Modifier
+                </Button>
+              )}
+
               {(booking.status === 'pending' || booking.status === 'assigned') && (
                 <Button
                   onClick={() => { setSelectedBooking(booking); setCancellationReason(booking.cancellation_reason || ''); setDialogOpen(true); }}
-                  className="mt-4 w-full bg-red-600 hover:bg-red-700"
+                  className="mt-2 w-full bg-red-600 hover:bg-red-700"
                 >
                   Demander annulation
                 </Button>
@@ -178,6 +228,66 @@ const ClientBookings = () => {
               />
             </div>
             <Button onClick={requestCancellation} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">Envoyer la demande</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="bg-[#141414] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-[#D4AF37]">Modifier la réservation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-1">Adresse de départ</p>
+              <Input
+                value={editForm.pickup_address}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, pickup_address: e.target.value }))}
+                className="bg-[#1E1E1E] border-white/10"
+              />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-1">Adresse d'arrivée</p>
+              <Input
+                value={editForm.dropoff_address}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, dropoff_address: e.target.value }))}
+                className="bg-[#1E1E1E] border-white/10"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-sm text-[#A1A1AA] mb-1">Date</p>
+                <Input
+                  value={editForm.pickup_date}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, pickup_date: e.target.value }))}
+                  className="bg-[#1E1E1E] border-white/10"
+                />
+              </div>
+              <div>
+                <p className="text-sm text-[#A1A1AA] mb-1">Heure</p>
+                <Input
+                  value={editForm.pickup_time}
+                  onChange={(e) => setEditForm((prev) => ({ ...prev, pickup_time: e.target.value }))}
+                  className="bg-[#1E1E1E] border-white/10"
+                />
+              </div>
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-1">Notes</p>
+              <textarea
+                value={editForm.notes}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, notes: e.target.value }))}
+                rows={3}
+                className="w-full rounded-md bg-[#1E1E1E] border border-white/10 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+              />
+            </div>
+            <Button
+              onClick={submitEdit}
+              disabled={savingEdit}
+              className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]"
+            >
+              {savingEdit ? 'Enregistrement...' : 'Enregistrer'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
