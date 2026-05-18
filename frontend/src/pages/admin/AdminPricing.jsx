@@ -204,7 +204,7 @@ const AdminPricing = () => {
     }
   };
 
-  const DISP_CATEGORIES = ['Berline', 'Green', 'Luxe', 'Van'];
+  const DISP_CATEGORIES = Object.keys(CATEGORY_IMAGES);
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">

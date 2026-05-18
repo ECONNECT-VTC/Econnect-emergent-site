@@ -1497,7 +1497,9 @@ async def create_disposition_rate(payload: dict, request: Request):
 @api_router.put("/admin/disposition-rates/{rate_id}")
 async def update_disposition_rate(rate_id: str, payload: dict, request: Request):
     await require_admin(request)
-    await db.disposition_rates.update_one({"id": rate_id}, {"$set": payload})
+    allowed_fields = ["vehicle_category_name", "duration_hours", "price", "is_active"]
+    update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    await db.disposition_rates.update_one({"id": rate_id}, {"$set": update_data})
     return await db.disposition_rates.find_one({"id": rate_id}, {"_id": 0})
 
 @api_router.delete("/admin/disposition-rates/{rate_id}")

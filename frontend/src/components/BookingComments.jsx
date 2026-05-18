@@ -15,7 +15,9 @@ const BookingComments = ({ bookingId }) => {
     try {
       const res = await axios.get(`${API_URL}/api/bookings/${bookingId}/comments`, { withCredentials: true });
       setComments(res.data);
-    } catch (e) {}
+    } catch (e) {
+      console.error('Failed to fetch comments:', e);
+    }
   };
 
   useEffect(() => { fetchComments(); }, [bookingId]);
