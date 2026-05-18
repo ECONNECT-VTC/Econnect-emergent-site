@@ -8,7 +8,7 @@ import LogoDisplay from '@/components/LogoDisplay';
 const DRIVER_DOCS = [
   { type: 'order', label: 'Bon de commande', icon: '📋', color: 'text-purple-300' },
   { type: 'commission', label: 'Facture commission', icon: '💼', color: 'text-yellow-300' },
-  { type: 'activity', label: 'Relevé d\'activité', icon: '📊', color: 'text-blue-300' },
+  { type: 'activity', label: 'Relevé d’activité', icon: '📊', color: 'text-blue-300' },
 ];
 
 const DriverInvoiceSection = () => {
