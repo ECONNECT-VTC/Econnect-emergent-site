@@ -1338,8 +1338,9 @@ async def update_booking_admin(booking_id: str, payload: dict, request: Request)
     update_data = {k: v for k, v in payload.items() if k in allowed_fields}
     if "vehicle_category_id" in update_data and update_data["vehicle_category_id"]:
         category = await db.vehicle_categories.find_one({"id": update_data["vehicle_category_id"]}, {"_id": 0})
-        if category:
-            update_data["vehicle_category_name"] = category.get("name")
+        if not category:
+            raise HTTPException(status_code=404, detail="Catégorie de véhicule non trouvée")
+        update_data["vehicle_category_name"] = category.get("name")
     if "vehicle_category_id" in update_data and not update_data["vehicle_category_id"]:
         update_data["vehicle_category_name"] = None
 

@@ -15,8 +15,10 @@ const BookingComments = ({ bookingId }) => {
     try {
       const res = await axios.get(`${API_URL}/api/bookings/${bookingId}/comments`, { withCredentials: true });
       setComments(res.data);
+      setError('');
     } catch {
       setComments([]);
+      setError("Impossible de charger les commentaires");
     }
   }, [bookingId]);
 
@@ -39,7 +41,7 @@ const BookingComments = ({ bookingId }) => {
       setNewComment('');
       fetchComments();
     } catch {
-      setError("Impossible d'envoyer le commentaire");
+      setError("Impossible d'envoyer le commentaire. Veuillez réessayer.");
     } finally {
       setLoading(false);
     }
