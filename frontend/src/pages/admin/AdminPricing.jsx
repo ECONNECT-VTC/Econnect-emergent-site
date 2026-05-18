@@ -243,13 +243,13 @@ const AdminPricing = () => {
 
       <div className="flex flex-wrap gap-3 mb-6">
         <Button
-          onClick={() => setActiveTab('categories')}
+          onClick={() => { setActiveTab('categories'); setError(''); }}
           className={activeTab === 'categories' ? 'bg-[#D4AF37] text-[#0A0A0A]' : 'bg-[#1E1E1E] text-[#A1A1AA] hover:bg-white/10'}
         >
           🚗 Gammes de véhicules
         </Button>
         <Button
-          onClick={() => setActiveTab('disposition')}
+          onClick={() => { setActiveTab('disposition'); setError(''); }}
           className={activeTab === 'disposition' ? 'bg-[#D4AF37] text-[#0A0A0A]' : 'bg-[#1E1E1E] text-[#A1A1AA] hover:bg-white/10'}
         >
           ⏱️ Mise à Disposition

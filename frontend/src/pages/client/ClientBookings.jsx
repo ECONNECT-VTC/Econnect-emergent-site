@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { CalendarCheck, MapPin } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -19,7 +20,9 @@ const parseError = (error) => {
 };
 
 const ClientBookings = () => {
+  const { language } = useLanguage();
   const { lang } = useParams();
+  const localePrefix = lang || language || 'fr';
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
@@ -130,7 +133,7 @@ const ClientBookings = () => {
 
       <div className="flex justify-end mb-4">
         <Button asChild className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
-          <Link to={`/${lang}/client/new-booking`}>+ Nouvelle réservation</Link>
+          <Link to={`/${localePrefix}/client/new-booking`}>+ Nouvelle réservation</Link>
         </Button>
       </div>
 

@@ -19,7 +19,7 @@ const BookingComments = ({ bookingId }) => {
     } catch (err) {
       console.error('Failed to fetch comments:', err);
       setComments([]);
-      setError("Impossible de charger les commentaires");
+      setError(err?.response?.data?.detail || 'Impossible de charger les commentaires');
     }
   }, [bookingId]);
 
@@ -43,7 +43,7 @@ const BookingComments = ({ bookingId }) => {
       fetchComments();
     } catch (err) {
       console.error('Failed to submit comment:', err);
-      setError("Impossible d'envoyer le commentaire. Veuillez réessayer.");
+      setError(err?.response?.data?.detail || "Impossible d'envoyer le commentaire. Veuillez réessayer.");
     } finally {
       setLoading(false);
     }

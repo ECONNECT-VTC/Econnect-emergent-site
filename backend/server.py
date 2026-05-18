@@ -1090,6 +1090,8 @@ async def update_booking(booking_id: str, payload: dict, request: Request):
 
     allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", "transfer_type"]
     update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    if "transfer_type" in update_data and update_data["transfer_type"] not in ("standard", "business", "van"):
+        raise HTTPException(status_code=400, detail="Type de transfert invalide")
     if not update_data:
         raise HTTPException(status_code=400, detail="Aucun champ valide à modifier")
 
@@ -1340,6 +1342,14 @@ async def update_booking_admin(booking_id: str, payload: dict, request: Request)
 
     allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", "estimated_price", "vehicle_category_id"]
     update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    if "estimated_price" in update_data and update_data["estimated_price"] is not None:
+        try:
+            estimated_price = float(update_data["estimated_price"])
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail="Prix estimé invalide") from exc
+        if estimated_price < 0:
+            raise HTTPException(status_code=400, detail="Le prix estimé doit être positif")
+        update_data["estimated_price"] = estimated_price
     if "vehicle_category_id" in update_data and update_data["vehicle_category_id"]:
         category = await db.vehicle_categories.find_one({"id": update_data["vehicle_category_id"]}, {"_id": 0})
         if not category:
@@ -1652,7 +1662,15 @@ async def create_disposition_rate(payload: dict, request: Request):
 @api_router.put("/admin/disposition-rates/{rate_id}")
 async def update_disposition_rate(rate_id: str, payload: dict, request: Request):
     await require_admin(request)
-    await db.disposition_rates.update_one({"id": rate_id}, {"$set": payload})
+    allowed_fields = {"vehicle_category_name", "duration_hours", "price", "is_active"}
+    update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    if "duration_hours" in update_data:
+        update_data["duration_hours"] = float(update_data["duration_hours"])
+    if "price" in update_data:
+        update_data["price"] = float(update_data["price"])
+    if not update_data:
+        raise HTTPException(status_code=400, detail="Aucun champ valide à modifier")
+    await db.disposition_rates.update_one({"id": rate_id}, {"$set": update_data})
     rate = await db.disposition_rates.find_one({"id": rate_id}, {"_id": 0})
     return rate
 
