@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import LogoDisplay from '@/components/LogoDisplay';
 import {
   House, CalendarCheck, Car, Users, SignOut, List, X, ChartBar, CarSimple, UserCircle, CurrencyEur, ChartLineUp, Percent, FileText, Money
 } from '@phosphor-icons/react';
@@ -59,8 +60,8 @@ const DashboardLayout = ({ children, title }) => {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="p-6 border-b border-white/10">
-            <Link to={`/${language}`} className="text-2xl font-bold font-['Cormorant_Garamond'] gold-text">
-              Econnect VTC
+            <Link to={`/${language}`} className="block">
+              <LogoDisplay className="h-[60px]" priority />
             </Link>
           </div>
 

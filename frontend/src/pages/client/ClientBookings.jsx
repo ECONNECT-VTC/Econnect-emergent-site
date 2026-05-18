@@ -3,8 +3,9 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { CalendarCheck, MapPin } from '@phosphor-icons/react';
+import { CalendarCheck, MapPin, PencilSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import BookingComments from '@/components/BookingComments';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -24,6 +25,8 @@ const ClientBookings = () => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [error, setError] = useState('');
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editForm, setEditForm] = useState({});
 
   const fetchBookings = async () => {
     try {
@@ -52,6 +55,28 @@ const ClientBookings = () => {
       setDialogOpen(false);
       setSelectedBooking(null);
       setCancellationReason('');
+      fetchBookings();
+    } catch (err) {
+      setError(parseError(err));
+    }
+  };
+
+  const openEditDialog = (booking) => {
+    setSelectedBooking(booking);
+    setEditForm({
+      pickup_address: booking.pickup_address,
+      dropoff_address: booking.dropoff_address,
+      pickup_date: booking.pickup_date,
+      pickup_time: booking.pickup_time,
+      notes: booking.notes || '',
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    try {
+      await axios.put(`${API_URL}/api/bookings/${selectedBooking.id}`, editForm, { withCredentials: true });
+      setEditDialogOpen(false);
       fetchBookings();
     } catch (err) {
       setError(parseError(err));
@@ -144,6 +169,16 @@ const ClientBookings = () => {
                 </div>
               )}
 
+              {(booking.status === 'pending' || booking.status === 'received') && (
+                <Button
+                  onClick={() => openEditDialog(booking)}
+                  variant="outline"
+                  className="mt-4 w-full border-[#D4AF37]/50 text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                >
+                  <PencilSimple size={16} className="mr-2" />✏️ Modifier
+                </Button>
+              )}
+
               {(booking.status === 'pending' || booking.status === 'assigned') && (
                 <Button
                   onClick={() => { setSelectedBooking(booking); setCancellationReason(booking.cancellation_reason || ''); setDialogOpen(true); }}
@@ -156,10 +191,69 @@ const ClientBookings = () => {
               {booking.refund_amount != null && (
                 <p className="mt-3 text-sm text-green-400">Remboursement: {Number(booking.refund_amount).toFixed(2)}€</p>
               )}
+
+              <BookingComments bookingId={booking.id} />
             </div>
           ))}
         </div>
       )}
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="bg-[#141414] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-[#D4AF37]">✏️ Modifier la réservation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {error && <p className="text-sm text-red-400">{error}</p>}
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-1">Date</p>
+              <Input
+                value={editForm.pickup_date || ''}
+                onChange={(e) => setEditForm({ ...editForm, pickup_date: e.target.value })}
+                className="bg-[#1E1E1E] border-white/10"
+                placeholder="dd/MM/yyyy"
+              />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-1">Heure</p>
+              <Input
+                value={editForm.pickup_time || ''}
+                onChange={(e) => setEditForm({ ...editForm, pickup_time: e.target.value })}
+                className="bg-[#1E1E1E] border-white/10"
+                placeholder="HH:MM"
+              />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-1">Adresse de départ</p>
+              <Input
+                value={editForm.pickup_address || ''}
+                onChange={(e) => setEditForm({ ...editForm, pickup_address: e.target.value })}
+                className="bg-[#1E1E1E] border-white/10"
+              />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-1">Adresse d'arrivée</p>
+              <Input
+                value={editForm.dropoff_address || ''}
+                onChange={(e) => setEditForm({ ...editForm, dropoff_address: e.target.value })}
+                className="bg-[#1E1E1E] border-white/10"
+              />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-1">Notes</p>
+              <textarea
+                value={editForm.notes || ''}
+                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                rows={3}
+                className="w-full rounded-md bg-[#1E1E1E] border border-white/10 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+              />
+            </div>
+            <Button onClick={handleEditSubmit} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
+              Enregistrer les modifications
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="bg-[#141414] border-white/10">
