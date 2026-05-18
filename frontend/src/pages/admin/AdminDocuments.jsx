@@ -110,7 +110,7 @@ const AdminDocuments = () => {
           <tbody>
             {!loading && rows.map((row) => (
               <tr key={row.id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                <td className="py-3 font-mono text-[#D4AF37] text-xs">{`${row.id?.slice(0, 8) ?? '—'}…`}</td>
+                <td className="py-3 font-mono text-[#D4AF37] text-xs">{row.id ? `${row.id.slice(0, 8)}…` : '—'}</td>
                 <td>{row.client_name}</td>
                 <td>{row.driver_name || '—'}</td>
                 <td className="text-xs text-[#A1A1AA]">

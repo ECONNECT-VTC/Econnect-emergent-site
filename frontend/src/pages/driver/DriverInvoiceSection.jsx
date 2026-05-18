@@ -83,7 +83,7 @@ const DriverInvoiceSection = () => {
           <tbody>
             {!loading && filtered.map((inv) => (
               <tr key={inv.booking_id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                <td className="py-3 font-mono text-[#D4AF37] text-xs">{`${inv.booking_id?.slice(0, 8) ?? '—'}…`}</td>
+                <td className="py-3 font-mono text-[#D4AF37] text-xs">{inv.booking_id ? `${inv.booking_id.slice(0, 8)}…` : '—'}</td>
                 <td>{inv.client_name}</td>
                 <td className="text-xs text-[#A1A1AA]">
                   {inv.pickup_address}<br />
