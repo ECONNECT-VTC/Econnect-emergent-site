@@ -488,9 +488,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         "order": "BON DE COMMANDE",
         "driver": "FACTURE CHAUFFEUR",
         "commission": "FACTURE COMMISSION",
+        "activity": "RELEVÉ D'ACTIVITÉ",
     }
     title = title_map.get(document_type, "DOCUMENT")
     is_client_invoice = document_type in ("invoice", "order")
+    is_driver_statement = document_type in ("driver", "activity")
 
     def detect_payment_method_label() -> str:
         raw_method = str(booking.get("payment_method") or "").strip().lower()
@@ -564,13 +566,13 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.setFillColorRGB(0.83, 0.69, 0.22)
     c.setFont("Helvetica-Bold", 10)
     c.drawString(40, y, "ÉMETTEUR")
-    c.drawString(300, y, "DESTINATAIRE" if document_type != "driver" else "CHAUFFEUR")
+    c.drawString(300, y, "DESTINATAIRE" if not is_driver_statement else "CHAUFFEUR")
     y -= 14
 
     c.setFillColorRGB(0.1, 0.1, 0.1)
     c.setFont("Helvetica-Bold", 10)
     c.drawString(40, y, settings["company_name"])
-    if document_type == "driver":
+    if is_driver_statement:
         c.drawString(300, y, booking.get("driver_name", "N/A"))
     else:
         c.drawString(300, y, booking.get("client_name", "N/A"))
@@ -579,7 +581,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.setFillColorRGB(0.3, 0.3, 0.3)
     c.setFont("Helvetica", 9)
     c.drawString(40, y, settings["company_address"])
-    if document_type == "driver":
+    if is_driver_statement:
         c.drawString(300, y, "Chauffeur VTC Partenaire")
     else:
         c.drawString(300, y, booking.get("client_email", "N/A"))
@@ -674,8 +676,9 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.setFillColorRGB(0.1, 0.1, 0.1)
         c.setFont("Helvetica", 10)
 
-    if document_type == "driver":
-        c.drawString(40, y, f"Rémunération trajet - {booking.get('transfer_type', 'VTC')}")
+    if is_driver_statement:
+        description = "Relevé d'activité" if document_type == "activity" else "Rémunération trajet"
+        c.drawString(40, y, f"{description} - {booking.get('transfer_type', 'VTC')}")
         c.drawRightString(width - 40, y, f"{breakdown['driver_earning']:.2f} EUR HT")
         y -= 20
         c.setFillColorRGB(0.3, 0.3, 0.3)
@@ -686,7 +689,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(40, y, f"Commission prélevée TTC ({round_amount(settings['commission_rate'] * 100):.0f}%)")
         c.drawRightString(width - 40, y, f"- {breakdown['commission_ttc']:.2f} EUR")
         y -= 20
-        total_label = "MONTANT À VERSER (HT)"
+        total_label = "TOTAL ACTIVITÉ (HT)" if document_type == "activity" else "MONTANT À VERSER (HT)"
         total_value = breakdown['driver_earning']
     elif document_type == "commission":
         c.drawString(40, y, f"Commission de gestion - {booking.get('transfer_type', 'VTC')}")
@@ -757,7 +760,7 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         booking.get("commission_override")
     )
 
-    if document_type == "driver":
+    if document_type in ("driver", "activity"):
         amount_ttc = breakdown["driver_earning"]
         amount_ht = breakdown["driver_earning"]
         tva_amount = 0.0
@@ -1786,6 +1789,22 @@ async def download_admin_commission_pdf(booking_id: str, request: Request):
         headers={"Content-Disposition": f"attachment; filename=facture-commission-{booking_id}.pdf"}
     )
 
+@api_router.get("/admin/invoices/{booking_id}/activity-pdf")
+async def download_admin_activity_pdf(booking_id: str, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "activity")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=releve-activite-{booking_id}.pdf"}
+    )
+
 @api_router.get("/admin/orders/{booking_id}/pdf")
 async def download_admin_order_pdf(booking_id: str, request: Request):
     await require_admin(request)
@@ -1856,6 +1875,60 @@ async def download_driver_invoice_pdf(booking_id: str, request: Request):
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=facture-chauffeur-{booking_id}.pdf"}
+    )
+
+@api_router.get("/driver/invoices/{booking_id}/order-pdf")
+async def download_driver_order_pdf(booking_id: str, request: Request):
+    driver = await require_driver(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("driver_id") != driver["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "order")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=bon-commande-{booking_id}.pdf"}
+    )
+
+@api_router.get("/driver/invoices/{booking_id}/commission-pdf")
+async def download_driver_commission_pdf(booking_id: str, request: Request):
+    driver = await require_driver(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("driver_id") != driver["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "commission")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=facture-commission-{booking_id}.pdf"}
+    )
+
+@api_router.get("/driver/invoices/{booking_id}/activity-pdf")
+async def download_driver_activity_pdf(booking_id: str, request: Request):
+    driver = await require_driver(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("driver_id") != driver["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "activity")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=releve-activite-{booking_id}.pdf"}
     )
 
 @api_router.get("/client/invoices/{booking_id}/pdf")

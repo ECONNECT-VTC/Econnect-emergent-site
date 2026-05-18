@@ -1,45 +1,28 @@
 import { useMemo, useState } from 'react';
 import { useInvoices } from '@/hooks/useInvoices';
-import { formatCurrency, formatInvoiceNumber, invoiceTypeLabel } from '@/utils/invoiceUtils';
+import { formatCurrency } from '@/utils/invoiceUtils';
 import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
 import API_URL from '@/config';
 import LogoDisplay from '@/components/LogoDisplay';
 
-const TABS = [
-  { key: 'all', label: 'Tous' },
-  { key: 'invoice', label: 'Factures Client' },
-  { key: 'driver', label: 'Factures Chauffeur' },
-  { key: 'commission', label: 'Commissions' },
+const ADMIN_DOCS = [
+  { type: 'order', label: 'Bon de commande', icon: '📋', color: 'text-purple-300' },
+  { type: 'commission', label: 'Facture commission', icon: '💼', color: 'text-yellow-300' },
+  { type: 'activity', label: 'Relevé d’activité', icon: '📊', color: 'text-blue-300' },
+  { type: 'invoice', label: 'Facture client', icon: '🧾', color: 'text-green-300' },
 ];
 
 const AdminDocuments = () => {
   const { bookings, loading, error, stats } = useInvoices();
-  const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [openId, setOpenId] = useState(null);
 
   const rows = useMemo(() => {
     const lower = search.toLowerCase();
 
-    return bookings.flatMap((b) => {
-      const types = tab === 'all'
-        ? ['invoice', 'driver', 'commission']
-        : [tab];
-
-      return types.map((type) => ({
-        ...b,
-        invoiceType: type,
-        invoiceNumber:
-          type === 'invoice' ? b.client_invoice_number :
-          type === 'driver' ? b.driver_invoice_number :
-          b.commission_invoice_number,
-        displayAmount:
-          type === 'invoice' ? b.price_ttc :
-          type === 'driver' ? b.driver_earning :
-          b.commission_ttc,
-      }));
-    }).filter((row) => {
+    return bookings.filter((row) => {
       if (lower) {
         const haystack = `${row.client_name} ${row.driver_name || ''} ${row.pickup_address} ${row.dropoff_address}`.toLowerCase();
         if (!haystack.includes(lower)) return false;
@@ -54,7 +37,7 @@ const AdminDocuments = () => {
       }
       return true;
     });
-  }, [bookings, tab, search, dateFrom, dateTo]);
+  }, [bookings, search, dateFrom, dateTo]);
 
   const statCards = [
     { label: '💰 Total facturé (TTC)', value: formatCurrency(stats.totalClient) },
@@ -65,11 +48,9 @@ const AdminDocuments = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
-      <div className="bg-[#141414] border border-[#D4AF37]/30 rounded-xl p-5 mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <LogoDisplay className="h-[150px]" priority />
-          <p className="text-[#A1A1AA] text-sm mt-2">Section Admin — Gestion documentaire complète</p>
-        </div>
+      <div className="bg-[#141414] border border-[#D4AF37]/30 rounded-xl p-5 mb-6">
+        <LogoDisplay className="h-[150px]" priority />
+        <p className="text-[#A1A1AA] text-sm mt-2">Section Admin — Gestion documentaire complète</p>
       </div>
 
       {error && (
@@ -90,19 +71,6 @@ const AdminDocuments = () => {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4 items-center">
-        <div className="flex gap-2">
-          {TABS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                tab === key ? 'bg-[#D4AF37] text-[#0A0A0A]' : 'bg-[#141414] text-[#A1A1AA] hover:bg-[#1E1E1E]'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
         <input
           type="text"
           value={search}
@@ -130,56 +98,59 @@ const AdminDocuments = () => {
         <table className="w-full min-w-[960px] text-sm">
           <thead>
             <tr className="text-left text-[#A1A1AA] border-b border-white/10">
-              <th className="py-3">N° Facture</th>
-              <th>Type</th>
+              <th className="py-3">Course</th>
               <th>Client</th>
               <th>Chauffeur</th>
               <th>Trajet</th>
               <th>Date</th>
-              <th>Montant</th>
-              <th>PDF</th>
+              <th>Montant TTC</th>
+              <th>Documents</th>
             </tr>
           </thead>
           <tbody>
-            {!loading && rows.map((row, idx) => (
-              <tr key={`${row.id}-${row.invoiceType}-${idx}`} className="border-b border-white/5 hover:bg-white/[0.02]">
-                <td className="py-3 font-mono text-[#D4AF37]">
-                  {row.invoiceNumber ? formatInvoiceNumber(row.invoiceNumber) : '—'}
-                </td>
-                <td>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    row.invoiceType === 'invoice' ? 'bg-blue-500/20 text-blue-300' :
-                    row.invoiceType === 'driver' ? 'bg-green-500/20 text-green-300' :
-                    'bg-yellow-500/20 text-yellow-300'
-                  }`}>
-                    {invoiceTypeLabel(row.invoiceType)}
-                  </span>
-                </td>
+            {!loading && rows.map((row) => (
+              <tr key={row.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                <td className="py-3 font-mono text-[#D4AF37] text-xs">{row.id ? `${row.id.slice(0, 8)}…` : '—'}</td>
                 <td>{row.client_name}</td>
                 <td>{row.driver_name || '—'}</td>
                 <td className="text-xs text-[#A1A1AA]">
                   {row.pickup_address}<br /><span className="text-[#FAFAFA]">→ {row.dropoff_address}</span>
                 </td>
                 <td className="text-[#A1A1AA]">{new Date(row.created_at).toLocaleDateString('fr-FR')}</td>
-                <td className="font-mono font-semibold">{formatCurrency(row.displayAmount)}</td>
-                <td>
+                <td className="font-mono font-semibold">{formatCurrency(row.price_ttc)}</td>
+                <td className="relative">
                   <button
-                    onClick={() => downloadInvoicePdf(API_URL, row.id, row.invoiceType)}
-                    className="px-3 py-1 rounded bg-[#D4AF37] text-[#0A0A0A] text-xs font-medium hover:bg-[#F0C74A]"
+                    onClick={() => setOpenId(openId === row.id ? null : row.id)}
+                    className="px-3 py-1.5 rounded bg-[#D4AF37] text-[#0A0A0A] text-xs font-semibold hover:bg-[#F0C74A] flex items-center gap-1 whitespace-nowrap"
                   >
-                    📥 PDF
+                    📂 Consulter les documents {openId === row.id ? '▲' : '▾'}
                   </button>
+                  {openId === row.id && (
+                    <div className="absolute right-0 top-full mt-1 z-50 w-52 rounded-lg border border-white/10 bg-[#1E1E1E] py-1 shadow-xl">
+                      {ADMIN_DOCS.map((doc) => (
+                        <button
+                          key={doc.type}
+                          onClick={() => downloadInvoicePdf(API_URL, row.id, doc.type)}
+                          className={`flex w-full items-center gap-2 px-4 py-2.5 text-left text-xs hover:bg-white/5 ${doc.color}`}
+                        >
+                          <span>{doc.icon}</span>
+                          <span>{doc.label}</span>
+                          <span className="ml-auto text-[#A1A1AA]">📥</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}
             {!loading && rows.length === 0 && (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-[#A1A1AA]">Aucun document trouvé</td>
+                <td colSpan={7} className="py-8 text-center text-[#A1A1AA]">Aucun document trouvé</td>
               </tr>
             )}
             {loading && (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-[#A1A1AA]">Chargement…</td>
+                <td colSpan={7} className="py-8 text-center text-[#A1A1AA]">Chargement…</td>
               </tr>
             )}
           </tbody>

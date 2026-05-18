@@ -15,7 +15,7 @@ export const printInvoice = () => {
  * Open the backend-generated PDF for a given booking in a new tab.
  * @param {string} apiUrl  - Base API URL (e.g. from config.js)
  * @param {string} bookingId
- * @param {'invoice'|'driver'|'commission'|'order'} type
+ * @param {'invoice'|'driver'|'commission'|'order'|'activity'} type
  */
 export const downloadInvoicePdf = (apiUrl, bookingId, type = 'invoice') => {
   const pathMap = {
@@ -23,6 +23,7 @@ export const downloadInvoicePdf = (apiUrl, bookingId, type = 'invoice') => {
     driver: `/api/admin/invoices/${bookingId}/driver-pdf`,
     commission: `/api/admin/invoices/${bookingId}/commission-pdf`,
     order: `/api/admin/orders/${bookingId}/pdf`,
+    activity: `/api/admin/invoices/${bookingId}/activity-pdf`,
   };
   const path = pathMap[type] || pathMap.invoice;
   window.open(`${apiUrl}${path}`, '_blank');
@@ -35,4 +36,15 @@ export const downloadInvoicePdf = (apiUrl, bookingId, type = 'invoice') => {
  */
 export const downloadDriverInvoicePdf = (apiUrl, bookingId) => {
   window.open(`${apiUrl}/api/driver/invoices/${bookingId}/pdf`, '_blank');
+};
+
+export const downloadDriverDocPdf = (apiUrl, bookingId, type) => {
+  const pathMap = {
+    driver: `/api/driver/invoices/${bookingId}/pdf`,
+    order: `/api/driver/invoices/${bookingId}/order-pdf`,
+    commission: `/api/driver/invoices/${bookingId}/commission-pdf`,
+    activity: `/api/driver/invoices/${bookingId}/activity-pdf`,
+  };
+
+  window.open(`${apiUrl}${pathMap[type] || pathMap.driver}`, '_blank');
 };
