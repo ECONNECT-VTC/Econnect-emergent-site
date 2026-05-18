@@ -16,7 +16,8 @@ const BookingComments = ({ bookingId }) => {
       const res = await axios.get(`${API_URL}/api/bookings/${bookingId}/comments`, { withCredentials: true });
       setComments(res.data);
       setError('');
-    } catch {
+    } catch (err) {
+      console.error('Failed to fetch comments:', err);
       setComments([]);
       setError("Impossible de charger les commentaires");
     }
@@ -40,7 +41,8 @@ const BookingComments = ({ bookingId }) => {
       );
       setNewComment('');
       fetchComments();
-    } catch {
+    } catch (err) {
+      console.error('Failed to submit comment:', err);
       setError("Impossible d'envoyer le commentaire. Veuillez réessayer.");
     } finally {
       setLoading(false);

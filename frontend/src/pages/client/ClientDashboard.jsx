@@ -4,9 +4,12 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { CalendarCheck, Car, CheckCircle, Clock } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const ClientDashboard = () => {
+  const { language } = useLanguage();
   const { lang } = useParams();
+  const localePrefix = lang || language || 'fr';
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -83,7 +86,7 @@ const ClientDashboard = () => {
 
       <div className="mb-8">
         <Button asChild className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold">
-          <Link to={`/${lang}/client/new-booking`} data-testid="new-booking-btn">
+          <Link to={`/${localePrefix}/client/new-booking`} data-testid="new-booking-btn">
             <Car size={20} className="mr-2" />
             Nouvelle réservation
           </Link>
@@ -93,7 +96,7 @@ const ClientDashboard = () => {
       <div className="glass rounded-xl p-6" data-testid="recent-bookings">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold font-['Cormorant_Garamond']">Dernières réservations</h2>
-          <Link to={`/${lang}/client/bookings`} className="text-[#D4AF37] hover:underline text-sm">Voir tout</Link>
+          <Link to={`/${localePrefix}/client/bookings`} className="text-[#D4AF37] hover:underline text-sm">Voir tout</Link>
         </div>
 
         {loading ? (

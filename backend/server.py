@@ -1083,7 +1083,7 @@ async def update_booking(booking_id: str, payload: dict, request: Request):
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    if booking.get("client_id") != user["id"]:
+    if booking.get("client_id") != user.get("id"):
         raise HTTPException(status_code=403, detail="Accès refusé")
     if booking.get("status") not in ("pending", "received"):
         raise HTTPException(status_code=400, detail="Impossible de modifier une course en cours ou terminée")
@@ -1126,9 +1126,11 @@ async def add_booking_comment(booking_id: str, payload: dict, request: Request):
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
     role = user.get("role")
-    if role == "client" and booking.get("client_id") != user["id"]:
+    if role == "client" and booking.get("client_id") != user.get("id"):
         raise HTTPException(status_code=403, detail="Accès refusé")
-    if role == "driver" and booking.get("driver_id") != user["id"]:
+    if role == "driver" and booking.get("driver_id") != user.get("id"):
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    if role not in ("admin", "client", "driver"):
         raise HTTPException(status_code=403, detail="Accès refusé")
 
     comment_text = payload.get("comment", "").strip()
@@ -1155,9 +1157,11 @@ async def get_booking_comments(booking_id: str, request: Request):
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
     role = user.get("role")
-    if role == "client" and booking.get("client_id") != user["id"]:
+    if role == "client" and booking.get("client_id") != user.get("id"):
         raise HTTPException(status_code=403, detail="Accès refusé")
-    if role == "driver" and booking.get("driver_id") != user["id"]:
+    if role == "driver" and booking.get("driver_id") != user.get("id"):
+        raise HTTPException(status_code=403, detail="Accès refusé")
+    if role not in ("admin", "client", "driver"):
         raise HTTPException(status_code=403, detail="Accès refusé")
 
     comments = await db.booking_comments.find({"booking_id": booking_id}, {"_id": 0}).sort("created_at", 1).to_list(200)
