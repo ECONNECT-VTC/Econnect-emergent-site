@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { CalendarCheck, MapPin } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import BookingComments from '@/components/BookingComments';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -17,12 +19,23 @@ const parseError = (error) => {
 };
 
 const ClientBookings = () => {
+  const { lang } = useParams();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [cancellationReason, setCancellationReason] = useState('');
+  const [editForm, setEditForm] = useState({
+    pickup_date: '',
+    pickup_time: '',
+    pickup_address: '',
+    dropoff_address: '',
+    notes: '',
+    transfer_type: 'standard'
+  });
   const [error, setError] = useState('');
 
   const fetchBookings = async () => {
@@ -58,6 +71,35 @@ const ClientBookings = () => {
     }
   };
 
+  const openEditDialog = (booking) => {
+    setSelectedBooking(booking);
+    setEditForm({
+      pickup_date: booking.pickup_date || '',
+      pickup_time: booking.pickup_time || '',
+      pickup_address: booking.pickup_address || '',
+      dropoff_address: booking.dropoff_address || '',
+      notes: booking.notes || '',
+      transfer_type: booking.transfer_type || 'standard'
+    });
+    setEditDialogOpen(true);
+  };
+
+  const submitBookingEdit = async () => {
+    if (!selectedBooking) return;
+    setSavingEdit(true);
+    setError('');
+    try {
+      await axios.put(`${API_URL}/api/bookings/${selectedBooking.id}`, editForm, { withCredentials: true });
+      setEditDialogOpen(false);
+      setSelectedBooking(null);
+      fetchBookings();
+    } catch (err) {
+      setError(parseError(err));
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const filteredBookings = filter === 'all' ? bookings : bookings.filter((b) => b.status === filter);
 
   const getStatusBadge = (status) => {
@@ -85,6 +127,12 @@ const ClientBookings = () => {
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
+
+      <div className="flex justify-end mb-4">
+        <Button asChild className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
+          <Link to={`/${lang}/client/new-booking`}>+ Nouvelle réservation</Link>
+        </Button>
+      </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
         {['all', 'pending', 'received', 'assigned', 'in_progress', 'completed', 'cancellation_requested', 'cancelled'].map((s) => (
@@ -153,9 +201,21 @@ const ClientBookings = () => {
                 </Button>
               )}
 
+              {(booking.status === 'pending' || booking.status === 'received') && (
+                <Button
+                  onClick={() => openEditDialog(booking)}
+                  variant="outline"
+                  className="mt-2 w-full border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                >
+                  ✏️ Modifier
+                </Button>
+              )}
+
               {booking.refund_amount != null && (
                 <p className="mt-3 text-sm text-green-400">Remboursement: {Number(booking.refund_amount).toFixed(2)}€</p>
               )}
+
+              <BookingComments bookingId={booking.id} />
             </div>
           ))}
         </div>
@@ -178,6 +238,66 @@ const ClientBookings = () => {
               />
             </div>
             <Button onClick={requestCancellation} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">Envoyer la demande</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="bg-[#141414] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-[#D4AF37]">Modifier la réservation</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Date</p>
+              <Input
+                type="date"
+                value={editForm.pickup_date}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, pickup_date: e.target.value }))}
+                className="bg-[#1E1E1E] border-white/10"
+              />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Heure</p>
+              <Input
+                type="time"
+                value={editForm.pickup_time}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, pickup_time: e.target.value }))}
+                className="bg-[#1E1E1E] border-white/10"
+              />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Adresse départ</p>
+              <Input
+                value={editForm.pickup_address}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, pickup_address: e.target.value }))}
+                className="bg-[#1E1E1E] border-white/10"
+              />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Adresse arrivée</p>
+              <Input
+                value={editForm.dropoff_address}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, dropoff_address: e.target.value }))}
+                className="bg-[#1E1E1E] border-white/10"
+              />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Notes</p>
+              <textarea
+                value={editForm.notes}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, notes: e.target.value }))}
+                rows={3}
+                className="w-full rounded-md bg-[#1E1E1E] border border-white/10 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+              />
+            </div>
+            <Button
+              onClick={submitBookingEdit}
+              disabled={savingEdit}
+              className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]"
+            >
+              {savingEdit ? 'Enregistrement...' : 'Enregistrer'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
