@@ -22,7 +22,13 @@ const BookingComments = ({ bookingId }) => {
     }
   };
 
-  useEffect(() => { fetchComments(); }, [bookingId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    let cancelled = false;
+    axios.get(`${API_URL}/api/bookings/${bookingId}/comments`, { withCredentials: true })
+      .then((res) => { if (!cancelled) setComments(res.data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [bookingId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
