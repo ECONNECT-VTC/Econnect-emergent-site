@@ -4,6 +4,7 @@ import { List, X, CaretDown } from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageDropdown from '@/components/LanguageDropdown';
+import LogoDisplay from '@/components/LogoDisplay';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -46,9 +47,7 @@ const Navbar = () => {
       <nav className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
         {/* Logo */}
         <a href="#accueil" className="flex items-center gap-2" data-testid="logo">
-          <span className="text-2xl md:text-3xl font-bold font-['Cormorant_Garamond'] gold-text">
-            Econnect VTC
-          </span>
+          <LogoDisplay className="h-[50px]" priority />
         </a>
 
         {/* Desktop Navigation */}
