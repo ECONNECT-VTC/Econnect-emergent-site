@@ -1149,7 +1149,7 @@ async def update_booking_status_driver(booking_id: str, status_update: BookingSt
 
 @api_router.put("/driver/availability")
 async def update_driver_availability(request: Request, is_available: bool = True):
-    user = await require_driver(request)
+    user = await require_driver(request) 
     await db.users.update_one({"id": user["id"]}, {"$set": {"is_available": is_available}})
     return {"message": "Disponibilité mise à jour", "is_available": is_available}
 
