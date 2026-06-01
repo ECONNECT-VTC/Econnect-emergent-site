@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams, useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -32,7 +33,8 @@ const getInitialCreateForm = () => ({
   transfer_type: 'standard',
   vehicle_category_id: '',
   notes: '',
-  estimated_price: ''
+  estimated_price: '',
+  disposition_hours: ''
 });
 
 const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
@@ -42,12 +44,14 @@ const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
 });
 
 const AdminBookings = () => {
+  const { lang = 'fr' } = useParams();
+  const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState([]);
   const [clients, setClients] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [vehicleCategories, setVehicleCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState(searchParams.get('status') || 'all');
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createForm, setCreateForm] = useState(getInitialCreateForm);
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -187,7 +191,8 @@ const AdminBookings = () => {
         {
           ...createForm,
           vehicle_category_id: createForm.vehicle_category_id || null,
-          estimated_price: createForm.estimated_price === '' ? null : Number(createForm.estimated_price)
+          estimated_price: createForm.estimated_price === '' ? null : Number(createForm.estimated_price),
+          disposition_hours: createForm.disposition_hours === '' ? null : Number(createForm.disposition_hours)
         },
         { withCredentials: true }
       );
@@ -204,6 +209,16 @@ const AdminBookings = () => {
     setError('');
     try {
       await axios.put(`${API_URL}/api/admin/bookings/${bookingId}/receive`, {}, { withCredentials: true });
+      fetchData();
+    } catch (err) {
+      setError(parseError(err));
+    }
+  };
+
+  const assignSelf = async (bookingId) => {
+    setError('');
+    try {
+      await axios.post(`${API_URL}/api/admin/bookings/${bookingId}/assign-self`, {}, { withCredentials: true });
       fetchData();
     } catch (err) {
       setError(parseError(err));
@@ -396,10 +411,19 @@ const AdminBookings = () => {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                   {getStatusBadge(booking.status)}
+                  {booking.fulfilled_by_admin && (
+                    <span className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-300">Admin</span>
+                  )}
 
                   {booking.status === 'pending' && (
                     <Button size="sm" className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => receiveBooking(booking.id)}>
                       <CheckCircle size={16} className="mr-1" />Réceptionner
+                    </Button>
+                  )}
+
+                  {(booking.status === 'pending' || booking.status === 'received') && (
+                    <Button size="sm" variant="outline" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/10" onClick={() => assignSelf(booking.id)}>
+                      <CheckCircle size={16} className="mr-1" />S'affecter (admin)
                     </Button>
                   )}
 
@@ -450,8 +474,14 @@ const AdminBookings = () => {
                 </div>
               </div>
 
-              {(booking.driver_name || booking.cancellation_reason || booking.refund_amount != null) && (
+              {(booking.driver_name || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin) && (
                 <div className="mt-4 pt-4 border-t border-white/10 space-y-1 text-sm">
+                  {booking.disposition_hours != null && (
+                    <p className="text-[#A1A1AA]">⏱ Mise à disposition: <span className="text-white">{booking.disposition_hours}h</span></p>
+                  )}
+                  {booking.fulfilled_by_admin && (
+                    <p className="text-purple-300">✓ Réalisée par admin — sans commission</p>
+                  )}
                   {booking.driver_name && (
                     <p>
                       <CarSimple size={16} className="inline mr-2 text-[#D4AF37]" />
@@ -467,14 +497,22 @@ const AdminBookings = () => {
                 </div>
               )}
 
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-4 border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10"
-                onClick={() => openEditDialog(booking)}
-              >
-                ✏️ Modifier
-              </Button>
+              <div className="flex gap-2 flex-wrap mt-4">
+                <Link
+                  to={`/${lang}/admin/bookings/${booking.id}`}
+                  className="inline-flex items-center text-xs px-3 py-1.5 rounded border border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors"
+                >
+                  🔍 Voir détail
+                </Link>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                  onClick={() => openEditDialog(booking)}
+                >
+                  ✏️ Modifier
+                </Button>
+              </div>
 
               <BookingComments bookingId={booking.id} />
             </div>
@@ -548,12 +586,26 @@ const AdminBookings = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1E1E1E] border-white/10">
-                  <SelectItem value="standard">standard</SelectItem>
-                  <SelectItem value="business">business</SelectItem>
-                  <SelectItem value="van">van</SelectItem>
+                  <SelectItem value="simple">Sens unique</SelectItem>
+                  <SelectItem value="retour">Aller-retour</SelectItem>
+                  <SelectItem value="disposition">Mise à disposition</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            {createForm.transfer_type === 'disposition' && (
+              <div>
+                <p className="text-sm text-[#A1A1AA] mb-2">Nombre d'heures</p>
+                <Input
+                  type="number"
+                  min="1"
+                  step="0.5"
+                  value={createForm.disposition_hours}
+                  onChange={(e) => updateCreateField('disposition_hours', e.target.value)}
+                  placeholder="Ex: 4"
+                  className="bg-[#1E1E1E] border-white/10"
+                />
+              </div>
+            )}
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Gamme de véhicule</p>
               <Select value={createForm.vehicle_category_id || 'none'} onValueChange={(v) => updateCreateField('vehicle_category_id', v === 'none' ? '' : v)}>

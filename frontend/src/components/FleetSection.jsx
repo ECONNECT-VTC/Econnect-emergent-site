@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Car } from '@phosphor-icons/react';
+import { Car, Users, Briefcase, WifiHigh } from '@phosphor-icons/react';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const containerVariants = {
@@ -29,35 +29,44 @@ const FleetSection = () => {
       nameKey: 'comfortClassique',
       descKey: 'comfortClassiqueDesc',
       price: '30\u20ac',
-      /*image: 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg',*/
       image:'/photo/chr.png',
+      passengers: 3,
+      luggage: 2,
+      wifi: false,
     },
     {
       nameKey: 'comfortPremium',
       descKey: 'comfortPremiumDesc',
       price: '55\u20ac',
-      /*image: 'https://images.pexels.com/photos/3802510/pexels-photo-3802510.jpeg',*/
       image:'/photo/classe_c.png',
+      passengers: 3,
+      luggage: 2,
+      wifi: true,
     },
     {
       nameKey: 'prestige',
       descKey: 'prestigeDesc',
       price: '90\u20ac',
-      /*image: 'https://images.pexels.com/photos/1545743/pexels-photo-1545743.jpeg',*/
       image:'/photo/range_rover.png',
+      passengers: 3,
+      luggage: 2,
+      wifi: true,
     },
     {
       nameKey: 'van',
       descKey: 'vanDesc',
       price: '70\u20ac',
-      /*image: 'https://images.pexels.com/photos/15774577/pexels-photo-15774577.jpeg',*/
       image:'/photo/classe_v.png',
+      passengers: 7,
+      luggage: 5,
+      wifi: false,
     },
   ];
 
   return (
     <section id="gammes" className="py-24 md:py-32 bg-[#141414]" data-testid="fleet-section">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
+
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -110,6 +119,23 @@ const FleetSection = () => {
                 <p className="text-[#A1A1AA] text-sm leading-relaxed mb-4">
                   {t(gamme.descKey)}
                 </p>
+                {/* Premium feature icons */}
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="flex items-center gap-1.5 text-xs text-[#D4AF37]" title="Passagers">
+                    <Users size={15} weight="fill" className="text-[#D4AF37]" />
+                    {gamme.passengers}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs text-[#D4AF37]" title="Bagages">
+                    <Briefcase size={15} weight="fill" className="text-[#D4AF37]" />
+                    {gamme.luggage}
+                  </span>
+                  {gamme.wifi && (
+                    <span className="flex items-center gap-1.5 text-xs text-[#D4AF37]" title="WiFi">
+                      <WifiHigh size={15} weight="fill" className="text-[#D4AF37]" />
+                      WiFi
+                    </span>
+                  )}
+                </div>
                 <span className="text-[#D4AF37] text-sm font-semibold">
                   {t('aPartirDe')} {gamme.price}
                 </span>

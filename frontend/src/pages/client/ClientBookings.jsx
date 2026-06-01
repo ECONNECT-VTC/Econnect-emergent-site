@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -18,9 +19,11 @@ const parseError = (error) => {
 };
 
 const ClientBookings = () => {
+  const { lang = 'fr' } = useParams();
+  const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState(searchParams.get('status') || 'all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [cancellationReason, setCancellationReason] = useState('');
@@ -199,6 +202,15 @@ const ClientBookings = () => {
               {booking.refund_amount != null && (
                 <p className="mt-3 text-sm text-green-400">Remboursement: {Number(booking.refund_amount).toFixed(2)}€</p>
               )}
+
+              <div className="mt-3">
+                <Link
+                  to={`/${lang}/client/bookings/${booking.id}`}
+                  className="inline-flex items-center text-xs px-3 py-1.5 rounded border border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors"
+                >
+                  🔍 Voir détail
+                </Link>
+              </div>
 
               <BookingComments bookingId={booking.id} />
             </div>

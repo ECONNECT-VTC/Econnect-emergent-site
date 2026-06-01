@@ -61,7 +61,7 @@ const DashboardLayout = ({ children, title }) => {
           {/* Logo */}
           <div className="p-6 border-b border-white/10">
             <Link to={`/${language}`}>
-              <LogoDisplay className="h-[60px]" priority />
+              <LogoDisplay className="h-[44px]" priority />
             </Link>
           </div>
 

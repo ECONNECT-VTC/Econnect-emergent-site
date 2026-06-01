@@ -23,6 +23,7 @@ const NewBooking = () => {
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
   const [transferType, setTransferType] = useState('');
+  const [dispositionHours, setDispositionHours] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -144,6 +145,12 @@ const NewBooking = () => {
       return;
     }
 
+    if (transferType === 'disposition' && !dispositionHours) {
+      setError('Veuillez indiquer le nombre d\'heures de mise à disposition');
+      setLoading(false);
+      return;
+    }
+
     const selectedPrice = getSelectedPrice();
 
     try {
@@ -157,7 +164,8 @@ const NewBooking = () => {
         distance_km: distance ? parseFloat(distance) : null,
         duration_minutes: duration ? parseFloat(duration) : null,
         estimated_price: selectedPrice?.final_price || null,
-        notes: notes
+        notes: notes,
+        disposition_hours: dispositionHours ? parseFloat(dispositionHours) : null
       }, { withCredentials: true });
 
       setSuccess(true);
@@ -284,6 +292,23 @@ const NewBooking = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Disposition hours — shown and required when transferType === 'disposition' */}
+            {transferType === 'disposition' && (
+              <div className="space-y-2">
+                <Label className="text-[#A1A1AA]">Nombre d'heures <span className="text-red-400">*</span></Label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="0.5"
+                  value={dispositionHours}
+                  onChange={(e) => setDispositionHours(e.target.value)}
+                  placeholder="Ex: 4 (peut dépasser 24h)"
+                  className="bg-[#1E1E1E] border-white/10"
+                  data-testid="disposition-hours-input"
+                />
+              </div>
+            )}
 
             {/* Vehicle Category Selection */}
             {priceEstimates.length > 0 && (
