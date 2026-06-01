@@ -49,7 +49,7 @@ const AdminDocuments = () => {
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
       <div className="bg-[#141414] border border-[#D4AF37]/30 rounded-xl p-5 mb-6">
-        <LogoDisplay className="h-[44px]" priority />
+        <LogoDisplay className="h-[46px] w-[180px]" priority />
         <p className="text-[#A1A1AA] text-sm mt-2">Section Admin — Gestion documentaire complète</p>
       </div>
 

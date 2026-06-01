@@ -49,6 +49,7 @@ const BookingDetail = () => {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -70,6 +71,35 @@ const BookingDetail = () => {
     };
     if (user) fetchBooking();
   }, [bookingId, user]);
+
+  const refreshBooking = async () => {
+    let response;
+    if (user?.role === 'admin') {
+      response = await axios.get(`${API_URL}/api/admin/bookings/${bookingId}`, { withCredentials: true });
+    } else if (user?.role === 'driver') {
+      response = await axios.get(`${API_URL}/api/driver/bookings/${bookingId}`, { withCredentials: true });
+    } else {
+      response = await axios.get(`${API_URL}/api/bookings/${bookingId}`, { withCredentials: true });
+    }
+    setBooking(response.data);
+  };
+
+  const updateAdminTripStatus = async (status) => {
+    setStatusUpdating(true);
+    setError('');
+    try {
+      await axios.put(
+        `${API_URL}/api/admin/bookings/${bookingId}/status`,
+        { status },
+        { withCredentials: true }
+      );
+      await refreshBooking();
+    } catch (err) {
+      setError(err?.response?.data?.detail || 'Impossible de mettre à jour le statut.');
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
 
   const backPath = () => {
     if (user?.role === 'admin') return `/${lang}/admin/bookings`;
@@ -122,6 +152,28 @@ const BookingDetail = () => {
                 <CheckCircle size={16} />
                 Course réalisée par l'admin — exonérée de commission
               </div>
+            )}
+
+            {user?.role === 'admin' && booking.fulfilled_by_admin && booking.status === 'assigned' && (
+              <button
+                type="button"
+                className="mb-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                onClick={() => updateAdminTripStatus('in_progress')}
+                disabled={statusUpdating}
+              >
+                Démarrer la course
+              </button>
+            )}
+
+            {user?.role === 'admin' && booking.fulfilled_by_admin && booking.status === 'in_progress' && (
+              <button
+                type="button"
+                className="mb-4 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-medium text-[#0A0A0A] hover:bg-[#F0C74A] disabled:opacity-60"
+                onClick={() => updateAdminTripStatus('completed')}
+                disabled={statusUpdating}
+              >
+                Clôturer la course
+              </button>
             )}
 
             {/* Date / Time */}
@@ -229,9 +281,12 @@ const BookingDetail = () => {
             <div className="glass rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <CurrencyEur size={20} className="text-[#D4AF37]" />
-                Prix estimé
+                {booking.transfer_type === 'disposition' ? 'Tarif mise à disposition' : 'Prix estimé'}
               </h3>
               <p className="text-3xl font-bold text-[#D4AF37]">{Number(booking.estimated_price).toFixed(2)}€</p>
+              {booking.transfer_type === 'disposition' && booking.disposition_hours != null && (
+                <p className="text-xs text-[#A1A1AA] mt-2">Tarification calculée sur {booking.disposition_hours}h réservées.</p>
+              )}
               {booking.fulfilled_by_admin && (
                 <p className="text-xs text-purple-300 mt-2">Commission: 0€ (réalisée par admin)</p>
               )}

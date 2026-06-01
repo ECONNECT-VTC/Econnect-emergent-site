@@ -20,7 +20,9 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
           {/* Brand */}
           <div className="md:col-span-2">
-            <LogoDisplay className="h-[52px]" priority />
+            <div className="mb-4 inline-flex rounded-2xl border border-[#D4AF37]/15 bg-[#101010] px-4 py-3">
+              <LogoDisplay className="h-[50px] w-[190px]" priority />
+            </div>
             <p className="text-[#A1A1AA] max-w-md leading-relaxed mb-6">
               {t('footerBrandDesc')}
             </p>

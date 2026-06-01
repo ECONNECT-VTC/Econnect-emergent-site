@@ -249,10 +249,20 @@ class PriceEstimate(BaseModel):
     final_price: float
     min_fare: float
     price_per_km: float
+    pricing_basis: str = "distance"
+    disposition_hours: Optional[float] = None
+    rate_label: Optional[str] = None
 
 # ==================== FINANCIAL MODELS ====================
 
 DEFAULT_CATEGORY_METADATA = {
+    "Berline": {"has_wifi": True, "max_passengers": 4, "max_luggage": 2},
+    "Van": {"has_wifi": False, "max_passengers": 7, "max_luggage": 5},
+    "Luxe": {"has_wifi": True, "max_passengers": 4, "max_luggage": 3},
+    "Green": {"has_wifi": True, "max_passengers": 4, "max_luggage": 2},
+}
+
+LEGACY_CATEGORY_METADATA = {
     "Berline": {"has_wifi": True, "max_passengers": 3, "max_luggage": 2},
     "Van": {"has_wifi": True, "max_passengers": 7, "max_luggage": 7},
     "Luxe": {"has_wifi": True, "max_passengers": 3, "max_luggage": 3},
@@ -274,6 +284,49 @@ def serialize_vehicle_category(category: dict) -> VehicleCategory:
         is_active=category.get("is_active", True),
         order=category.get("order", 0),
     )
+
+
+def select_disposition_rate(rates: List[dict], requested_hours: float) -> Optional[dict]:
+    active_rates = sorted(
+        [rate for rate in rates if rate.get("is_active", True)],
+        key=lambda rate: rate.get("duration_hours", 0),
+    )
+    if not active_rates:
+        return None
+
+    exact_rate = next(
+        (
+            rate
+            for rate in active_rates
+            if abs(float(rate.get("duration_hours", 0)) - requested_hours) < 1e-9
+        ),
+        None,
+    )
+    if exact_rate:
+        return exact_rate
+
+    next_rate = next(
+        (rate for rate in active_rates if float(rate.get("duration_hours", 0)) >= requested_hours),
+        None,
+    )
+    return next_rate or active_rates[-1]
+
+
+def validate_booking_status_transition(current_status: str, new_status: str) -> None:
+    allowed_transitions = {
+        "assigned": {"in_progress"},
+        "in_progress": {"completed"},
+    }
+
+    valid_next_statuses = allowed_transitions.get(current_status, set())
+    if new_status not in valid_next_statuses:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Transition de statut invalide: {current_status} → {new_status}. "
+                f"Valeurs acceptées: {sorted(valid_next_statuses)}"
+            ),
+        )
 
 class CommissionSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -1226,9 +1279,7 @@ async def update_booking_status_driver(booking_id: str, status_update: BookingSt
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
 
-    valid_statuses = ["in_progress", "completed"]
-    if status_update.status not in valid_statuses:
-        raise HTTPException(status_code=400, detail=f"Statut invalide. Valeurs acceptées: {valid_statuses}")
+    validate_booking_status_transition(booking.get("status"), status_update.status)
 
     await db.bookings.update_one(
         {"id": booking_id},
@@ -1337,6 +1388,30 @@ async def admin_assign_self(booking_id: str, request: Request):
     )
     updated = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     return BookingResponse(**updated)
+
+
+@api_router.put("/admin/bookings/{booking_id}/status")
+async def update_booking_status_admin(booking_id: str, status_update: BookingStatusUpdate, request: Request):
+    admin = await require_admin(request)
+
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    if booking.get("driver_id") != admin["id"] or booking.get("fulfilled_by_admin") is not True:
+        raise HTTPException(
+            status_code=403,
+            detail="Seul l'admin affecté à cette course peut la démarrer ou la clôturer",
+        )
+
+    validate_booking_status_transition(booking.get("status"), status_update.status)
+
+    await db.bookings.update_one(
+        {"id": booking_id},
+        {"$set": {"status": status_update.status}}
+    )
+
+    return {"message": "Statut mis à jour", "status": status_update.status}
 
 @api_router.post("/admin/bookings", response_model=BookingResponse)
 async def create_admin_booking(booking: AdminBookingCreate, request: Request):
@@ -1713,15 +1788,52 @@ async def delete_vehicle_category(category_id: str, request: Request):
 # ==================== PRICE ESTIMATION ROUTE ====================
 
 @api_router.post("/estimate-price", response_model=List[PriceEstimate])
-async def estimate_price(distance_km: float, duration_minutes: float = 0):
+async def estimate_price(
+    distance_km: float = 0,
+    duration_minutes: float = 0,
+    transfer_type: str = "simple",
+    disposition_hours: Optional[float] = None,
+):
     """
-    Calculate price estimates for all vehicle categories based on distance.
-    Returns price for each category with minimum fare applied.
+    Calculate price estimates for all vehicle categories.
+    Standard transfers are based on distance; disposition transfers use hourly rates.
     """
+    categories = await db.vehicle_categories.find({"is_active": True}, {"_id": 0}).sort("order", 1).to_list(100)
+
+    if transfer_type == "disposition":
+        if disposition_hours is None or disposition_hours <= 0:
+            raise HTTPException(status_code=400, detail="Le nombre d'heures de mise à disposition doit être positif")
+
+        rates = await db.disposition_rates.find({"is_active": True}, {"_id": 0}).to_list(1000)
+        rates_by_category = {}
+        for rate in rates:
+            rates_by_category.setdefault(rate.get("vehicle_category_name"), []).append(rate)
+
+        estimates = []
+        for cat in categories:
+            selected_rate = select_disposition_rate(rates_by_category.get(cat["name"], []), disposition_hours)
+            if not selected_rate:
+                continue
+
+            final_price = round(float(selected_rate["price"]), 2)
+            estimates.append(PriceEstimate(
+                category_id=cat["id"],
+                category_name=cat["name"],
+                distance_km=0,
+                duration_minutes=round(disposition_hours * 60, 0),
+                base_price=final_price,
+                final_price=final_price,
+                min_fare=final_price,
+                price_per_km=cat["price_per_km"],
+                pricing_basis="hourly",
+                disposition_hours=round(disposition_hours, 2),
+                rate_label=f"Tarif {selected_rate['duration_hours']}h",
+            ))
+
+        return estimates
+
     if distance_km <= 0:
         raise HTTPException(status_code=400, detail="La distance doit être positive")
-
-    categories = await db.vehicle_categories.find({"is_active": True}, {"_id": 0}).sort("order", 1).to_list(100)
 
     estimates = []
     for cat in categories:
@@ -1736,7 +1848,10 @@ async def estimate_price(distance_km: float, duration_minutes: float = 0):
             base_price=round(base_price, 2),
             final_price=round(final_price, 2),
             min_fare=cat["min_fare"],
-            price_per_km=cat["price_per_km"]
+            price_per_km=cat["price_per_km"],
+            pricing_basis="distance",
+            disposition_hours=None,
+            rate_label=f"{cat['price_per_km']:.2f}€/km",
         ))
 
     return estimates
@@ -2200,7 +2315,7 @@ async def startup_event():
                 "price_per_km": 2.50,
                 "min_fare": 25.00,
                 "has_wifi": True,
-                "max_passengers": 3,
+                "max_passengers": 4,
                 "max_luggage": 2,
                 "image_url": "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=400",
                 "is_active": True,
@@ -2212,9 +2327,9 @@ async def startup_event():
                 "description": "Ideal pour les groupes jusqu'a 7 personnes. Mercedes Classe V, Volkswagen Caravelle.",
                 "price_per_km": 3.00,
                 "min_fare": 35.00,
-                "has_wifi": True,
+                "has_wifi": False,
                 "max_passengers": 7,
-                "max_luggage": 7,
+                "max_luggage": 5,
                 "image_url": "https://images.unsplash.com/photo-1559416523-140ddc3d238c?w=400",
                 "is_active": True,
                 "order": 2
@@ -2226,7 +2341,7 @@ async def startup_event():
                 "price_per_km": 4.00,
                 "min_fare": 50.00,
                 "has_wifi": True,
-                "max_passengers": 3,
+                "max_passengers": 4,
                 "max_luggage": 3,
                 "image_url": "https://images.unsplash.com/photo-1563720360172-67b8f3dce741?w=400",
                 "is_active": True,
@@ -2240,7 +2355,7 @@ async def startup_event():
                 "min_fare": 30.00,
                 "has_wifi": True,
                 "max_passengers": 4,
-                "max_luggage": 3,
+                "max_luggage": 2,
                 "image_url": "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=400",
                 "is_active": True,
                 "order": 4
@@ -2264,16 +2379,20 @@ async def startup_event():
         for category in categories:
             category_name = category.get("name") or ""
             expected_metadata = DEFAULT_CATEGORY_METADATA.get(category_name)
+            legacy_metadata = LEGACY_CATEGORY_METADATA.get(category_name, {})
             if not expected_metadata:
                 continue
 
-            missing_fields = {}
+            fields_to_update = {}
             for field_name, expected_value in expected_metadata.items():
-                if field_name not in category or category.get(field_name) is None:
-                    missing_fields[field_name] = expected_value
+                current_value = category.get(field_name)
+                legacy_value = legacy_metadata.get(field_name)
+                should_update = current_value is None or current_value == legacy_value
+                if should_update and current_value != expected_value:
+                    fields_to_update[field_name] = expected_value
 
-            if missing_fields:
-                await db.vehicle_categories.update_one({"id": category["id"]}, {"$set": missing_fields})
+            if fields_to_update:
+                await db.vehicle_categories.update_one({"id": category["id"]}, {"$set": fields_to_update})
                 updated_categories += 1
 
         if updated_categories:

@@ -1,6 +1,8 @@
 import { motion } from 'framer-motion';
-import { Car, Users, Briefcase, WifiHigh } from '@phosphor-icons/react';
+import { Car } from '@phosphor-icons/react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import VehicleFeatureBadges from '@/components/VehicleFeatureBadges';
+import { VEHICLE_CATEGORY_CONFIG } from '@/utils/vehicleCategories';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -24,44 +26,12 @@ const itemVariants = {
 const FleetSection = () => {
   const { t } = useLanguage();
 
-  const gammes = [
-    {
-      nameKey: 'comfortClassique',
-      descKey: 'comfortClassiqueDesc',
-      price: '30\u20ac',
-      image:'/photo/chr.png',
-      passengers: 4,
-      luggage: 2,
-      wifi: false,
-    },
-    {
-      nameKey: 'comfortPremium',
-      descKey: 'comfortPremiumDesc',
-      price: '55\u20ac',
-      image:'/photo/classe_c.png',
-      passengers: 4,
-      luggage: 2,
-      wifi: true,
-    },
-    {
-      nameKey: 'prestige',
-      descKey: 'prestigeDesc',
-      price: '90\u20ac',
-      image:'/photo/range_rover.png',
-      passengers: 4,
-      luggage: 3,
-      wifi: true,
-    },
-    {
-      nameKey: 'van',
-      descKey: 'vanDesc',
-      price: '70\u20ac',
-      image:'/photo/classe_v.png',
-      passengers: 7,
-      luggage: 5,
-      wifi: false,
-    },
-  ];
+  const gammes = VEHICLE_CATEGORY_CONFIG.map((category) => ({
+    ...category,
+    nameKey: category.translationKey,
+    descKey: `${category.translationKey}Desc`,
+    price: category.startingPrice,
+  }));
 
   return (
     <section id="gammes" className="py-24 md:py-32 bg-[#141414]" data-testid="fleet-section">
@@ -120,22 +90,14 @@ const FleetSection = () => {
                   {t(gamme.descKey)}
                 </p>
                 {/* Premium feature icons */}
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="flex items-center gap-1.5 text-xs text-[#D4AF37]" title="Passagers">
-                    <Users size={15} weight="fill" className="text-[#D4AF37]" />
-                    {gamme.passengers}
-                  </span>
-                  <span className="flex items-center gap-1.5 text-xs text-[#D4AF37]" title="Bagages">
-                    <Briefcase size={15} weight="fill" className="text-[#D4AF37]" />
-                    {gamme.luggage}
-                  </span>
-                  {gamme.wifi && (
-                    <span className="flex items-center gap-1.5 text-xs text-[#D4AF37]" title="WiFi">
-                      <WifiHigh size={15} weight="fill" className="text-[#D4AF37]" />
-                      WiFi
-                    </span>
-                  )}
-                </div>
+                <VehicleFeatureBadges
+                  passengers={gamme.passengers}
+                  luggage={gamme.luggage}
+                  hasWifi={gamme.hasWifi}
+                  iconSize={15}
+                  className="mb-4"
+                  itemClassName="text-xs text-[#D4AF37]"
+                />
                 <span className="text-[#D4AF37] text-sm font-semibold">
                   {t('aPartirDe')} {gamme.price}
                 </span>

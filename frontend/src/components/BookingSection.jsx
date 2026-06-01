@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer, Users, Briefcase, WifiHigh } from '@phosphor-icons/react';
+import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,13 +21,16 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import InteractiveMap from './InteractiveMap';
 import { useLanguage } from '@/contexts/LanguageContext';
+import VehicleFeatureBadges from '@/components/VehicleFeatureBadges';
+import { VEHICLE_CATEGORY_CONFIG } from '@/utils/vehicleCategories';
 
-const VEHICLE_CATEGORIES = [
-  { id: 'berline', name: 'Berline', passengers: 3, luggage: 2, wifi: false },
-  { id: 'van', name: 'Van', passengers: 7, luggage: 5, wifi: false },
-  { id: 'business', name: 'Business', passengers: 3, luggage: 2, wifi: true },
-  { id: 'prestige', name: 'Prestige', passengers: 3, luggage: 2, wifi: true },
-];
+const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
+  id: category.backendName,
+  name: category.displayName,
+  passengers: category.passengers,
+  luggage: category.luggage,
+  hasWifi: category.hasWifi,
+}));
 
 const BookingSection = () => {
   const [date, setDate] = useState();
@@ -239,20 +242,14 @@ const BookingSection = () => {
                       >
                         <p className="font-semibold text-sm text-white">{cat.name}</p>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                          <span className="flex items-center gap-1 text-[10px] text-[#D4AF37]">
-                            <Users size={11} weight="fill" className="text-[#D4AF37]" />
-                            {cat.passengers}
-                          </span>
-                          <span className="flex items-center gap-1 text-[10px] text-[#D4AF37]">
-                            <Briefcase size={11} weight="fill" className="text-[#D4AF37]" />
-                            {cat.luggage}
-                          </span>
-                          {cat.wifi && (
-                            <span className="flex items-center gap-1 text-[10px] text-[#D4AF37]">
-                              <WifiHigh size={11} weight="fill" className="text-[#D4AF37]" />
-                              WiFi
-                            </span>
-                          )}
+                          <VehicleFeatureBadges
+                            passengers={cat.passengers}
+                            luggage={cat.luggage}
+                            hasWifi={cat.hasWifi}
+                            iconSize={11}
+                            itemClassName="text-[10px] text-[#D4AF37]"
+                            showWifiLabel={false}
+                          />
                         </div>
                       </button>
                     ))}
