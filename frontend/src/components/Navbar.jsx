@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { List, X, CaretDown } from '@phosphor-icons/react';
+import { List, X, CaretDown, Phone } from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageDropdown from '@/components/LanguageDropdown';
@@ -47,7 +47,7 @@ const Navbar = () => {
       <nav className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
         {/* Logo */}
         <a href="#accueil" className="flex items-center gap-2" data-testid="logo">
-          <LogoDisplay className="h-[52px] sm:h-[56px] md:h-[60px]" priority />
+          <LogoDisplay className="h-[56px] sm:h-[62px] md:h-[66px]" priority />
         </a>
 
         {/* Desktop Navigation */}
@@ -134,17 +134,17 @@ const Navbar = () => {
             {t('connexion')}
           </Link>
 
-          {/* S'inscrire button */}
-          <Link
-            to={`/${language}/register`}
-            className="font-semibold px-5 py-2 rounded-lg transition-all duration-300 text-sm"
+          <a
+            href="tel:+33753418833"
+            className="font-semibold px-5 py-2 rounded-lg transition-all duration-300 text-sm inline-flex items-center gap-2"
             style={{ background: '#D4AF37', color: '#232323' }}
             onMouseEnter={e => { e.currentTarget.style.background = '#F0C74A'; }}
             onMouseLeave={e => { e.currentTarget.style.background = '#D4AF37'; }}
-            data-testid="btn-sinscrire"
+            data-testid="cta-phone"
           >
-            {t('sinscrire')}
-          </Link>
+            <Phone size={16} weight="fill" />
+            +337 53 41 88 33
+          </a>
         </div>
 
         {/* Mobile Menu Button */}
@@ -222,15 +222,14 @@ const Navbar = () => {
                 {t('connexion')}
               </Link>
 
-              {/* S'inscrire */}
-              <Link
-                to={`/${language}/register`}
+              <a
+                href="tel:+33753418833"
                 className="font-semibold w-full text-center py-3 rounded-lg transition-all duration-300"
                 style={{ background: '#D4AF37', color: '#232323' }}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                {t('sinscrire')}
-              </Link>
+                +337 53 41 88 33
+              </a>
             </div>
           </motion.div>
         )}
