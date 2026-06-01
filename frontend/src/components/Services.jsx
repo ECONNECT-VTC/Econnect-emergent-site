@@ -2,8 +2,7 @@ import { motion } from 'framer-motion';
 import { Car, Clock, Airplane, Buildings } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { image } from 'framer-motion/client';
-//import mise_a_dispoImg from '@/public/photo/mise_a_dispo.jpg';
+import { DISPOSITION_SERVICE_CATEGORY_KEYS } from '@/utils/vehicleCategories';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -49,6 +48,7 @@ const Services = () => {
       image:'/photo/mise_a_dispo.png',
       colSpan: 'md:col-span-6',
       rowSpan: '',
+      categoryKeys: DISPOSITION_SERVICE_CATEGORY_KEYS,
     },
     {
       id: 'transferts',
@@ -132,6 +132,18 @@ const Services = () => {
                 <p className="text-[#A1A1AA] text-sm leading-relaxed mb-4 max-w-md">
                   {t(service.descKey)}
                 </p>
+                {service.categoryKeys?.length ? (
+                  <div className="flex flex-wrap gap-2 mb-5 max-w-md">
+                    {service.categoryKeys.map((gammeKey) => (
+                      <span
+                        key={gammeKey}
+                        className="rounded-full border border-[#D4AF37]/30 bg-[#0A0A0A]/60 px-3 py-1 text-xs text-[#F5E7AF]"
+                      >
+                        {t(gammeKey)}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
                 <Button
                   asChild
                   variant="outline"
