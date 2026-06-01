@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowRight, Calendar, Car, CheckCircle, CircleNotch, Clock, CurrencyEur, MapPin } from '@phosphor-icons/react';
+import { ArrowRight, Calendar, Car, CheckCircle, CircleNotch, Clock, CurrencyEur, MapPin, Users, Briefcase, WifiHigh } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import { parseBookingError } from './newBookingUtils';
 
@@ -36,6 +36,15 @@ const NewBooking = () => {
   const [duration, setDuration] = useState('');
   const [priceEstimates, setPriceEstimates] = useState([]);
   const [estimatingPrice, setEstimatingPrice] = useState(false);
+
+  const gammeDisplay = {
+    'comfort classique': { order: 1, passengers: 4, luggage: 2, wifi: false, image: '/photo/chr.png' },
+    'comfort premium': { order: 2, passengers: 4, luggage: 2, wifi: true, image: '/photo/premium.png' },
+    prestige: { order: 3, passengers: 4, luggage: 3, wifi: true, image: '/photo/luxe.png' },
+    van: { order: 4, passengers: 7, luggage: 5, wifi: true, image: '/photo/van.png' },
+  };
+
+  const getGammeKey = (name) => (name || '').trim().toLowerCase();
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -113,6 +122,26 @@ const NewBooking = () => {
       hasWifi: category.has_wifi === true,
       passengers: parseNumberOrNull(category.max_passengers),
       luggage: parseNumberOrNull(category.max_luggage)
+    };
+  };
+
+  const getDisplayMeta = (categoryName, categoryMeta) => {
+    const preset = gammeDisplay[getGammeKey(categoryName)];
+    if (preset) {
+      return {
+        passengers: preset.passengers,
+        luggage: preset.luggage,
+        hasWifi: preset.wifi,
+        image: preset.image,
+        order: preset.order,
+      };
+    }
+    return {
+      passengers: categoryMeta.passengers ?? 4,
+      luggage: categoryMeta.luggage ?? 2,
+      hasWifi: categoryMeta.hasWifi,
+      image: null,
+      order: 99,
     };
   };
 
@@ -313,9 +342,14 @@ const NewBooking = () => {
               <div className="space-y-3">
                 <Label className="text-[#A1A1AA]">Choisir votre vehicule</Label>
                 <div className="grid sm:grid-cols-2 gap-3" data-testid="vehicle-selection">
-                  {priceEstimates.map((estimate) => {
+                  {[...priceEstimates].sort((a, b) => {
+                    const aKey = getGammeKey(a.category_name);
+                    const bKey = getGammeKey(b.category_name);
+                    return (gammeDisplay[aKey]?.order ?? 99) - (gammeDisplay[bKey]?.order ?? 99);
+                  }).map((estimate) => {
                     const category = categories.find(c => c.id === estimate.category_id || c.name === estimate.category_name);
                     const categoryMeta = getCategoryMeta(category);
+                    const displayMeta = getDisplayMeta(estimate.category_name, categoryMeta);
                     const isSelected = selectedCategory === estimate.category_id;
                     return (
                       <div 
@@ -329,21 +363,27 @@ const NewBooking = () => {
                         data-testid={`vehicle-${estimate.category_id}`}
                       >
                         <div className="flex items-start gap-3">
-                          {category?.image_url ? (
-                            <img src={category.image_url} alt={estimate.category_name} className="w-16 h-12 object-cover rounded" />
+                          {category?.image_url || displayMeta.image ? (
+                            <img src={category?.image_url || displayMeta.image} alt={estimate.category_name} className="w-16 h-12 object-cover rounded" />
                           ) : (
                             <Car size={32} className="text-[#D4AF37]" />
                           )}
                           <div className="flex-1">
                             <p className="font-bold">{estimate.category_name}</p>
                             <p className="text-xs text-[#A1A1AA]">{estimate.price_per_km.toFixed(2)}€/km</p>
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-[#A1A1AA]">
-                              {categoryMeta.hasWifi && <span className="bg-white/5 rounded px-2 py-1" aria-label="WiFi disponible">📶 WiFi</span>}
-                              {categoryMeta.passengers != null && (
-                                <span className="bg-white/5 rounded px-2 py-1" aria-label={`Capacité passagers: ${categoryMeta.passengers}`}>👥 {categoryMeta.passengers}</span>
-                              )}
-                              {categoryMeta.luggage != null && (
-                                <span className="bg-white/5 rounded px-2 py-1" aria-label={`Capacité bagages: ${categoryMeta.luggage}`}>🧳 {categoryMeta.luggage}</span>
+                            <div className="mt-2 flex items-center gap-3 text-xs text-[#D4AF37]">
+                              <span className="inline-flex items-center gap-1" aria-label={`Capacité passagers: ${displayMeta.passengers}`}>
+                                <Users size={14} weight="fill" />
+                                {displayMeta.passengers}
+                              </span>
+                              <span className="inline-flex items-center gap-1" aria-label={`Capacité bagages: ${displayMeta.luggage}`}>
+                                <Briefcase size={14} weight="fill" />
+                                {displayMeta.luggage}
+                              </span>
+                              {displayMeta.hasWifi && (
+                                <span className="inline-flex items-center gap-1" aria-label="WiFi disponible">
+                                  <WifiHigh size={14} weight="fill" />
+                                </span>
                               )}
                             </div>
                           </div>
