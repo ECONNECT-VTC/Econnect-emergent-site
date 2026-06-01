@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CalendarCheck, CarSimple, CheckCircle, MapPin, User } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
+import { CATEGORY_DISPLAY_NAMES } from '@/utils/vehicleCategories';
 
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
@@ -39,13 +40,6 @@ const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
   const minutes = i % 2 === 0 ? '00' : '30';
   return `${hours}:${minutes}`;
 });
-
-const CATEGORY_DISPLAY_NAMES = {
-  Berline: 'Confort Classique',
-  Green: 'Confort Premium',
-  Luxe: 'Prestige',
-  Van: 'Van'
-};
 
 const AdminBookings = () => {
   const [bookings, setBookings] = useState([]);

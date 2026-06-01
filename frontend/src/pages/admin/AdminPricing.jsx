@@ -9,20 +9,11 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Car, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
 import API_URL from '@/config';
-
-const CATEGORY_IMAGES = {
-  Berline: '/photo/chr.png',
-  Green: '/photo/classe_c.png',
-  Luxe: '/photo/range_rover.png',
-  Van: '/photo/classe_v.png',
-};
-
-const CATEGORY_DISPLAY_NAMES = {
-  Berline: 'Confort Classique',
-  Green: 'Confort Premium',
-  Luxe: 'Prestige',
-  Van: 'Van',
-};
+import {
+  CATEGORY_IMAGES,
+  getCategoryDisplayName,
+  getOrderedDispositionCategoryNames,
+} from '@/utils/vehicleCategories';
 
 const DISPOSITION_DURATIONS = [1, 2, 3, 4, 6, 8, 10, 12];
 
@@ -204,7 +195,7 @@ const AdminPricing = () => {
     }
   };
 
-  const DISP_CATEGORIES = Object.keys(CATEGORY_IMAGES);
+  const DISP_CATEGORIES = getOrderedDispositionCategoryNames(categories);
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
@@ -346,14 +337,14 @@ const AdminPricing = () => {
                   <div className="h-48 overflow-hidden">
                     <img
                       src={CATEGORY_IMAGES[category.name] || category.image_url || '/photo/chr.png'}
-                      alt={CATEGORY_DISPLAY_NAMES[category.name] || category.name}
+                      alt={getCategoryDisplayName(category.name)}
                       className="w-full h-full object-cover"
                     />
                   </div>
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
                       <div>
-                        <h3 className="font-bold text-xl">{CATEGORY_DISPLAY_NAMES[category.name] || category.name}</h3>
+                        <h3 className="font-bold text-xl">{getCategoryDisplayName(category.name)}</h3>
                         <p className="text-sm text-[#A1A1AA] mt-1">{category.description}</p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -414,10 +405,14 @@ const AdminPricing = () => {
                 return (
                   <div key={catName} className="glass rounded-xl overflow-hidden">
                     <div className="h-36 overflow-hidden">
-                      <img src={CATEGORY_IMAGES[catName]} alt={catName} className="w-full h-full object-cover" />
+                      <img
+                        src={CATEGORY_IMAGES[catName] || categories.find((category) => category.name === catName)?.image_url || '/photo/chr.png'}
+                        alt={getCategoryDisplayName(catName)}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                     <div className="p-4">
-                      <h3 className="font-bold text-lg mb-3">{CATEGORY_DISPLAY_NAMES[catName]}</h3>
+                      <h3 className="font-bold text-lg mb-3">{getCategoryDisplayName(catName)}</h3>
                       {rates.length === 0 ? (
                         <p className="text-xs text-[#A1A1AA] mb-3">Aucun tarif</p>
                       ) : (
@@ -468,7 +463,7 @@ const AdminPricing = () => {
         <DialogContent className="bg-[#141414] border-white/10 max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-[#D4AF37]">
-              {dispEditId ? 'Modifier le tarif' : 'Ajouter un tarif'} — {CATEGORY_DISPLAY_NAMES[dispDialogCategory] || dispDialogCategory}
+              {dispEditId ? 'Modifier le tarif' : 'Ajouter un tarif'} — {getCategoryDisplayName(dispDialogCategory)}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -512,4 +507,3 @@ const AdminPricing = () => {
 };
 
 export default AdminPricing;
-
