@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -195,7 +195,21 @@ const AdminPricing = () => {
     }
   };
 
-  const DISP_CATEGORIES = getOrderedDispositionCategoryNames(categories);
+  const categoriesByName = useMemo(
+    () =>
+      categories.reduce((acc, category) => {
+        if (category?.name) {
+          acc[category.name] = category;
+        }
+        return acc;
+      }, {}),
+    [categories]
+  );
+
+  const DISP_CATEGORIES = useMemo(
+    () => getOrderedDispositionCategoryNames(categories),
+    [categories]
+  );
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
@@ -406,7 +420,7 @@ const AdminPricing = () => {
                   <div key={catName} className="glass rounded-xl overflow-hidden">
                     <div className="h-36 overflow-hidden">
                       <img
-                        src={CATEGORY_IMAGES[catName] || categories.find((category) => category.name === catName)?.image_url || '/photo/chr.png'}
+                        src={CATEGORY_IMAGES[catName] || categoriesByName[catName]?.image_url || '/photo/chr.png'}
                         alt={getCategoryDisplayName(catName)}
                         className="w-full h-full object-cover"
                       />

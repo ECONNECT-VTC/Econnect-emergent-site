@@ -38,21 +38,23 @@ export const DISPOSITION_SERVICE_CATEGORY_KEYS = VEHICLE_CATEGORY_CONFIG.map(
 );
 
 const CATEGORY_ORDER = VEHICLE_CATEGORY_CONFIG.map(({ backendName }) => backendName);
+const CATEGORY_ORDER_SET = new Set(CATEGORY_ORDER);
 
 export const getCategoryDisplayName = (categoryName) =>
   CATEGORY_DISPLAY_NAMES[categoryName] || categoryName;
 
 export const getOrderedDispositionCategoryNames = (categories = []) => {
   const categoryNames = [
-    ...new Set((categories || []).map((category) => category?.name).filter(Boolean)),
+    ...new Set(categories.map((category) => category?.name).filter(Boolean)),
   ];
 
   if (categoryNames.length === 0) {
     return CATEGORY_ORDER;
   }
 
-  const knownCategories = CATEGORY_ORDER.filter((categoryName) => categoryNames.includes(categoryName));
-  const remainingCategories = categoryNames.filter((categoryName) => !CATEGORY_ORDER.includes(categoryName));
+  const categoryNameSet = new Set(categoryNames);
+  const knownCategories = CATEGORY_ORDER.filter((categoryName) => categoryNameSet.has(categoryName));
+  const remainingCategories = categoryNames.filter((categoryName) => !CATEGORY_ORDER_SET.has(categoryName));
 
   return [...knownCategories, ...remainingCategories];
 };

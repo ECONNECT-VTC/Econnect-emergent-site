@@ -48,7 +48,7 @@ const Services = () => {
       image:'/photo/mise_a_dispo.png',
       colSpan: 'md:col-span-6',
       rowSpan: '',
-      gammeKeys: DISPOSITION_SERVICE_CATEGORY_KEYS,
+      categoryKeys: DISPOSITION_SERVICE_CATEGORY_KEYS,
     },
     {
       id: 'transferts',
@@ -132,9 +132,9 @@ const Services = () => {
                 <p className="text-[#A1A1AA] text-sm leading-relaxed mb-4 max-w-md">
                   {t(service.descKey)}
                 </p>
-                {service.gammeKeys?.length ? (
+                {service.categoryKeys?.length ? (
                   <div className="flex flex-wrap gap-2 mb-5 max-w-md">
-                    {service.gammeKeys.map((gammeKey) => (
+                    {service.categoryKeys.map((gammeKey) => (
                       <span
                         key={gammeKey}
                         className="rounded-full border border-[#D4AF37]/30 bg-[#0A0A0A]/60 px-3 py-1 text-xs text-[#F5E7AF]"
