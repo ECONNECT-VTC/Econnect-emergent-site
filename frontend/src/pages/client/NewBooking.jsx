@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -37,11 +37,7 @@ const NewBooking = () => {
   const [priceEstimates, setPriceEstimates] = useState([]);
   const [estimatingPrice, setEstimatingPrice] = useState(false);
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await axios.get(`${API_URL}/api/vehicle-categories`, {
         withCredentials: true
@@ -61,9 +57,13 @@ const NewBooking = () => {
       setCategories([]);
       setError(parseBookingError(err, 'Erreur lors du chargement des catégories de véhicules'));
     }
-  };
+  }, [enableDebugLogging]);
 
-  const estimatePrice = async () => {
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  const estimatePrice = useCallback(async () => {
     if (!distance || parseFloat(distance) <= 0) return;
     
     setEstimatingPrice(true);
@@ -80,7 +80,7 @@ const NewBooking = () => {
     } finally {
       setEstimatingPrice(false);
     }
-  };
+  }, [distance, duration]);
 
   useEffect(() => {
     if (distance && parseFloat(distance) > 0) {
@@ -89,7 +89,7 @@ const NewBooking = () => {
     } else {
       setPriceEstimates([]);
     }
-  }, [distance, duration]);
+  }, [distance, estimatePrice]);
 
   const timeSlots = Array.from({ length: 48 }, (_, i) => {
     const hours = String(Math.floor(i / 2)).padStart(2, '0');
