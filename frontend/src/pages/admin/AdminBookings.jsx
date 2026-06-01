@@ -71,6 +71,7 @@ const AdminBookings = () => {
   const [editingBooking, setEditingBooking] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [statusUpdatingId, setStatusUpdatingId] = useState('');
   const [googleMapsReady, setGoogleMapsReady] = useState(Boolean(window.google?.maps?.places));
   const pickupRef = useRef(null);
   const dropoffRef = useRef(null);
@@ -222,6 +223,23 @@ const AdminBookings = () => {
       fetchData();
     } catch (err) {
       setError(parseError(err));
+    }
+  };
+
+  const updateAdminTripStatus = async (bookingId, status) => {
+    setStatusUpdatingId(bookingId);
+    setError('');
+    try {
+      await axios.put(
+        `${API_URL}/api/admin/bookings/${bookingId}/status`,
+        { status },
+        { withCredentials: true }
+      );
+      fetchData();
+    } catch (err) {
+      setError(parseError(err));
+    } finally {
+      setStatusUpdatingId('');
     }
   };
 
@@ -427,6 +445,28 @@ const AdminBookings = () => {
                     </Button>
                   )}
 
+                  {booking.fulfilled_by_admin && booking.status === 'assigned' && (
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={() => updateAdminTripStatus(booking.id, 'in_progress')}
+                      disabled={statusUpdatingId === booking.id}
+                    >
+                      Démarrer la course
+                    </Button>
+                  )}
+
+                  {booking.fulfilled_by_admin && booking.status === 'in_progress' && (
+                    <Button
+                      size="sm"
+                      className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]"
+                      onClick={() => updateAdminTripStatus(booking.id, 'completed')}
+                      disabled={statusUpdatingId === booking.id}
+                    >
+                      Clôturer la course
+                    </Button>
+                  )}
+
                   {booking.status === 'received' && (
                     <Button size="sm" className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => openAssignDialog(booking)} data-testid={`assign-btn-${booking.id}`}>
                       <CarSimple size={16} className="mr-1" />Assigner à un chauffeur
@@ -478,6 +518,9 @@ const AdminBookings = () => {
                 <div className="mt-4 pt-4 border-t border-white/10 space-y-1 text-sm">
                   {booking.disposition_hours != null && (
                     <p className="text-[#A1A1AA]">⏱ Mise à disposition: <span className="text-white">{booking.disposition_hours}h</span></p>
+                  )}
+                  {booking.transfer_type === 'disposition' && booking.estimated_price != null && (
+                    <p className="text-[#D4AF37]">Tarif horaire réservé: {Number(booking.estimated_price).toFixed(2)}€</p>
                   )}
                   {booking.fulfilled_by_admin && (
                     <p className="text-purple-300">✓ Réalisée par admin — sans commission</p>

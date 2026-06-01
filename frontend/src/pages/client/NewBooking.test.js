@@ -1,4 +1,4 @@
-import { parseBookingError } from './newBookingUtils';
+import { buildEstimatePriceQuery, parseBookingError } from './newBookingUtils';
 
 describe('NewBooking parseBookingError', () => {
   it('returns string detail', () => {
@@ -22,5 +22,26 @@ describe('NewBooking parseBookingError', () => {
   it('uses fallback for unknown shapes', () => {
     expect(parseBookingError({ response: { data: { detail: { foo: 'bar' } } } }, 'Fallback')).toBe('Fallback');
     expect(parseBookingError(null, 'Fallback')).toBe('Fallback');
+  });
+
+  it('builds hourly estimate params for disposition bookings', () => {
+    expect(
+      buildEstimatePriceQuery({
+        transferType: 'disposition',
+        distance: '22',
+        duration: '40',
+        dispositionHours: '4.5',
+      })
+    ).toBe('transfer_type=disposition&disposition_hours=4.5');
+  });
+
+  it('builds distance estimate params for non-disposition bookings', () => {
+    expect(
+      buildEstimatePriceQuery({
+        transferType: 'simple',
+        distance: '18.2',
+        duration: '35',
+      })
+    ).toBe('transfer_type=simple&distance_km=18.2&duration_minutes=35');
   });
 });

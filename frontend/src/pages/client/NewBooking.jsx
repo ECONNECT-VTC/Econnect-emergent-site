@@ -10,9 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowRight, Calendar, Car, CheckCircle, CircleNotch, Clock, CurrencyEur, MapPin, Users, Briefcase, WifiHigh } from '@phosphor-icons/react';
+import { ArrowRight, Calendar, Car, CheckCircle, CircleNotch, Clock, CurrencyEur, MapPin } from '@phosphor-icons/react';
 import API_URL from '@/config';
-import { parseBookingError } from './newBookingUtils';
+import VehicleFeatureBadges from '@/components/VehicleFeatureBadges';
+import { getCategoryDisplayName, getVehicleCategoryPresentation } from '@/utils/vehicleCategories';
+import { buildEstimatePriceQuery, parseBookingError } from './newBookingUtils';
 
 const NewBooking = () => {
   const enableDebugLogging = process.env.NODE_ENV !== 'production';
@@ -36,15 +38,6 @@ const NewBooking = () => {
   const [duration, setDuration] = useState('');
   const [priceEstimates, setPriceEstimates] = useState([]);
   const [estimatingPrice, setEstimatingPrice] = useState(false);
-
-  const gammeDisplay = {
-    'comfort classique': { order: 1, passengers: 4, luggage: 2, wifi: false, image: '/photo/chr.png' },
-    'comfort premium': { order: 2, passengers: 4, luggage: 2, wifi: true, image: '/photo/premium.png' },
-    prestige: { order: 3, passengers: 4, luggage: 3, wifi: true, image: '/photo/luxe.png' },
-    van: { order: 4, passengers: 7, luggage: 5, wifi: true, image: '/photo/van.png' },
-  };
-
-  const getGammeKey = (name) => (name || '').trim().toLowerCase();
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -73,12 +66,18 @@ const NewBooking = () => {
   }, [fetchCategories]);
 
   const estimatePrice = useCallback(async () => {
-    if (!distance || parseFloat(distance) <= 0) return;
+    const queryString = buildEstimatePriceQuery({
+      transferType,
+      distance,
+      duration,
+      dispositionHours,
+    });
+    if (!queryString) return;
     
     setEstimatingPrice(true);
     try {
       const response = await axios.post(
-        `${API_URL}/api/estimate-price?distance_km=${parseFloat(distance)}&duration_minutes=${parseFloat(duration) || 0}`,
+        `${API_URL}/api/estimate-price?${queryString}`,
         {},
         { withCredentials: true }
       );
@@ -89,16 +88,19 @@ const NewBooking = () => {
     } finally {
       setEstimatingPrice(false);
     }
-  }, [distance, duration]);
+  }, [distance, dispositionHours, duration, transferType]);
 
   useEffect(() => {
-    if (distance && parseFloat(distance) > 0) {
+    const shouldEstimateDisposition = transferType === 'disposition' && dispositionHours && parseFloat(dispositionHours) > 0;
+    const shouldEstimateDistance = transferType !== 'disposition' && distance && parseFloat(distance) > 0;
+
+    if (shouldEstimateDisposition || shouldEstimateDistance) {
       const timer = setTimeout(() => estimatePrice(), 500);
       return () => clearTimeout(timer);
     } else {
       setPriceEstimates([]);
     }
-  }, [distance, duration, estimatePrice]);
+  }, [distance, dispositionHours, duration, estimatePrice, transferType]);
 
   const timeSlots = Array.from({ length: 48 }, (_, i) => {
     const hours = String(Math.floor(i / 2)).padStart(2, '0');
@@ -126,17 +128,19 @@ const NewBooking = () => {
   };
 
   const getDisplayMeta = (categoryName, categoryMeta) => {
-    const preset = gammeDisplay[getGammeKey(categoryName)];
+    const preset = getVehicleCategoryPresentation(categoryName);
     if (preset) {
       return {
+        displayName: preset.displayName,
         passengers: preset.passengers,
         luggage: preset.luggage,
-        hasWifi: preset.wifi,
+        hasWifi: preset.hasWifi,
         image: preset.image,
         order: preset.order,
       };
     }
     return {
+      displayName: getCategoryDisplayName(categoryName),
       passengers: categoryMeta.passengers ?? 4,
       luggage: categoryMeta.luggage ?? 2,
       hasWifi: categoryMeta.hasWifi,
@@ -163,6 +167,13 @@ const NewBooking = () => {
     console.info('Vehicle card badge data:', badgeDebug);
   }, [categories, priceEstimates, enableDebugLogging]);
 
+  useEffect(() => {
+    if (!selectedCategory) return;
+    if (!priceEstimates.some((estimate) => estimate.category_id === selectedCategory)) {
+      setSelectedCategory(null);
+    }
+  }, [priceEstimates, selectedCategory]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -188,8 +199,8 @@ const NewBooking = () => {
         pickup_time: time,
         transfer_type: transferType,
         vehicle_category_id: selectedCategory,
-        distance_km: distance ? parseFloat(distance) : null,
-        duration_minutes: duration ? parseFloat(duration) : null,
+        distance_km: transferType === 'disposition' ? null : (distance ? parseFloat(distance) : null),
+        duration_minutes: transferType === 'disposition' ? null : (duration ? parseFloat(duration) : null),
         estimated_price: selectedPrice?.final_price || null,
         notes: notes,
         disposition_hours: dispositionHours ? parseFloat(dispositionHours) : null
@@ -276,35 +287,6 @@ const NewBooking = () => {
               </div>
             </div>
 
-            {/* Distance & Duration (manual input for now, can be auto with Google Maps) */}
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-[#A1A1AA]">Distance estimee (km)</Label>
-                <Input 
-                  type="number" 
-                  step="0.1"
-                  min="0"
-                  value={distance} 
-                  onChange={(e) => setDistance(e.target.value)} 
-                  placeholder="Ex: 15.5" 
-                  className="bg-[#1E1E1E] border-white/10" 
-                  data-testid="distance-input"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[#A1A1AA]">Duree estimee (min)</Label>
-                <Input 
-                  type="number"
-                  min="0"
-                  value={duration} 
-                  onChange={(e) => setDuration(e.target.value)} 
-                  placeholder="Ex: 30" 
-                  className="bg-[#1E1E1E] border-white/10"
-                  data-testid="duration-input"
-                />
-              </div>
-            </div>
-
             {/* Transfer Type */}
             <div className="space-y-2">
               <Label className="text-[#A1A1AA]">Type de transfert *</Label>
@@ -320,20 +302,55 @@ const NewBooking = () => {
               </Select>
             </div>
 
+            {transferType !== 'disposition' && (
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[#A1A1AA]">Distance estimee (km)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.1"
+                    min="0"
+                    value={distance} 
+                    onChange={(e) => setDistance(e.target.value)} 
+                    placeholder="Ex: 15.5" 
+                    className="bg-[#1E1E1E] border-white/10" 
+                    data-testid="distance-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[#A1A1AA]">Duree estimee (min)</Label>
+                  <Input 
+                    type="number"
+                    min="0"
+                    value={duration} 
+                    onChange={(e) => setDuration(e.target.value)} 
+                    placeholder="Ex: 30" 
+                    className="bg-[#1E1E1E] border-white/10"
+                    data-testid="duration-input"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Disposition hours — shown and required when transferType === 'disposition' */}
             {transferType === 'disposition' && (
-              <div className="space-y-2">
-                <Label className="text-[#A1A1AA]">Nombre d'heures <span className="text-red-400">*</span></Label>
-                <Input
-                  type="number"
-                  min="1"
-                  step="0.5"
-                  value={dispositionHours}
-                  onChange={(e) => setDispositionHours(e.target.value)}
-                  placeholder="Ex: 4 (peut dépasser 24h)"
-                  className="bg-[#1E1E1E] border-white/10"
-                  data-testid="disposition-hours-input"
-                />
+              <div className="space-y-3 rounded-xl border border-[#D4AF37]/20 bg-[#141414] p-4">
+                <div className="space-y-2">
+                  <Label className="text-[#A1A1AA]">Nombre d'heures <span className="text-red-400">*</span></Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="0.5"
+                    value={dispositionHours}
+                    onChange={(e) => setDispositionHours(e.target.value)}
+                    placeholder="Ex: 4 (peut dépasser 24h)"
+                    className="bg-[#1E1E1E] border-white/10"
+                    data-testid="disposition-hours-input"
+                  />
+                </div>
+                <p className="text-xs text-[#A1A1AA]">
+                  Le tarif de mise à disposition est calculé selon la durée réservée, pas selon les kilomètres.
+                </p>
               </div>
             )}
 
@@ -343,9 +360,9 @@ const NewBooking = () => {
                 <Label className="text-[#A1A1AA]">Choisir votre vehicule</Label>
                 <div className="grid sm:grid-cols-2 gap-3" data-testid="vehicle-selection">
                   {[...priceEstimates].sort((a, b) => {
-                    const aKey = getGammeKey(a.category_name);
-                    const bKey = getGammeKey(b.category_name);
-                    return (gammeDisplay[aKey]?.order ?? 99) - (gammeDisplay[bKey]?.order ?? 99);
+                    const aPresentation = getVehicleCategoryPresentation(a.category_name);
+                    const bPresentation = getVehicleCategoryPresentation(b.category_name);
+                    return (aPresentation?.order ?? 99) - (bPresentation?.order ?? 99);
                   }).map((estimate) => {
                     const category = categories.find(c => c.id === estimate.category_id || c.name === estimate.category_name);
                     const categoryMeta = getCategoryMeta(category);
@@ -355,44 +372,47 @@ const NewBooking = () => {
                       <div 
                         key={estimate.category_id}
                         onClick={() => setSelectedCategory(estimate.category_id)}
-                        className={`p-4 rounded-xl cursor-pointer transition-all ${
+                        className={`overflow-hidden rounded-2xl cursor-pointer transition-all ${
                           isSelected 
                             ? 'bg-[#D4AF37]/20 border-2 border-[#D4AF37]' 
                             : 'bg-[#1E1E1E] border-2 border-transparent hover:border-white/20'
                         }`}
                         data-testid={`vehicle-${estimate.category_id}`}
                       >
-                        <div className="flex items-start gap-3">
-                          {category?.image_url || displayMeta.image ? (
-                            <img src={category?.image_url || displayMeta.image} alt={estimate.category_name} className="w-16 h-12 object-cover rounded" />
-                          ) : (
-                            <Car size={32} className="text-[#D4AF37]" />
-                          )}
-                          <div className="flex-1">
-                            <p className="font-bold">{estimate.category_name}</p>
-                            <p className="text-xs text-[#A1A1AA]">{estimate.price_per_km.toFixed(2)}€/km</p>
-                            <div className="mt-2 flex items-center gap-3 text-xs text-[#D4AF37]">
-                              <span className="inline-flex items-center gap-1" aria-label={`Capacité passagers: ${displayMeta.passengers}`}>
-                                <Users size={14} weight="fill" />
-                                {displayMeta.passengers}
-                              </span>
-                              <span className="inline-flex items-center gap-1" aria-label={`Capacité bagages: ${displayMeta.luggage}`}>
-                                <Briefcase size={14} weight="fill" />
-                                {displayMeta.luggage}
-                              </span>
-                              {displayMeta.hasWifi && (
-                                <span className="inline-flex items-center gap-1" aria-label="WiFi disponible">
-                                  <WifiHigh size={14} weight="fill" />
-                                </span>
+                        {(displayMeta.image || category?.image_url) ? (
+                          <img
+                            src={displayMeta.image || category?.image_url}
+                            alt={displayMeta.displayName}
+                            className="h-36 w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-36 items-center justify-center bg-[#111111]">
+                            <Car size={36} className="text-[#D4AF37]" />
+                          </div>
+                        )}
+                        <div className="space-y-3 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-bold text-base">{displayMeta.displayName}</p>
+                              <p className="text-xs text-[#A1A1AA]">
+                                {estimate.rate_label || (estimate.pricing_basis === 'hourly' ? `Tarif ${estimate.disposition_hours}h` : `${estimate.price_per_km.toFixed(2)}€/km`)}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-2xl font-bold text-[#D4AF37]">{estimate.final_price.toFixed(2)}€</p>
+                              {estimate.final_price === estimate.min_fare && estimate.pricing_basis !== 'hourly' && (
+                                <p className="text-xs text-[#A1A1AA]">Tarif min.</p>
                               )}
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-xl font-bold text-[#D4AF37]">{estimate.final_price.toFixed(2)}€</p>
-                            {estimate.final_price === estimate.min_fare && (
-                              <p className="text-xs text-[#A1A1AA]">Tarif min.</p>
-                            )}
-                          </div>
+                          <VehicleFeatureBadges
+                            passengers={displayMeta.passengers}
+                            luggage={displayMeta.luggage}
+                            hasWifi={displayMeta.hasWifi}
+                            iconSize={14}
+                            itemClassName="text-xs text-[#D4AF37]"
+                            showWifiLabel={false}
+                          />
                         </div>
                       </div>
                     );
@@ -420,7 +440,9 @@ const NewBooking = () => {
             Estimation tarifaire
           </h3>
 
-          {!distance ? (
+          {transferType === 'disposition' && !dispositionHours ? (
+            <p className="text-[#A1A1AA] text-sm">Indiquez le nombre d'heures pour afficher les tarifs de mise à disposition.</p>
+          ) : transferType !== 'disposition' && !distance ? (
             <p className="text-[#A1A1AA] text-sm">Entrez la distance pour voir les tarifs.</p>
           ) : estimatingPrice ? (
             <div className="flex items-center gap-2 text-[#A1A1AA]">
@@ -432,16 +454,20 @@ const NewBooking = () => {
           ) : (
             <div className="space-y-4">
               <div className="bg-[#1E1E1E] rounded-lg p-4">
-                <p className="text-sm text-[#A1A1AA]">Distance</p>
-                <p className="text-xl font-bold">{parseFloat(distance).toFixed(1)} km</p>
+                <p className="text-sm text-[#A1A1AA]">{transferType === 'disposition' ? 'Durée réservée' : 'Distance'}</p>
+                <p className="text-xl font-bold">
+                  {transferType === 'disposition'
+                    ? `${parseFloat(dispositionHours).toFixed(parseFloat(dispositionHours) % 1 === 0 ? 0 : 1)} h`
+                    : `${parseFloat(distance).toFixed(1)} km`}
+                </p>
               </div>
 
               {selectedCategory && getSelectedPrice() && (
                 <div className="bg-[#D4AF37]/10 border border-[#D4AF37]/50 rounded-lg p-4">
-                  <p className="text-sm text-[#A1A1AA]">Vehicule selectionne</p>
-                  <p className="font-bold">{getSelectedPrice().category_name}</p>
+                  <p className="text-sm text-[#A1A1AA]">{transferType === 'disposition' ? 'Gamme sélectionnée' : 'Vehicule selectionne'}</p>
+                  <p className="font-bold">{getCategoryDisplayName(getSelectedPrice().category_name)}</p>
                   <div className="mt-2 pt-2 border-t border-[#D4AF37]/30">
-                    <p className="text-sm text-[#A1A1AA]">Prix estime</p>
+                    <p className="text-sm text-[#A1A1AA]">{transferType === 'disposition' ? 'Tarif mise à disposition' : 'Prix estime'}</p>
                     <p className="text-3xl font-bold text-[#D4AF37]">{getSelectedPrice().final_price.toFixed(2)}€</p>
                   </div>
                 </div>

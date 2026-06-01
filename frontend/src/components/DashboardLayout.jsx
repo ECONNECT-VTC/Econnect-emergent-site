@@ -61,7 +61,9 @@ const DashboardLayout = ({ children, title }) => {
           {/* Logo */}
           <div className="p-6 border-b border-white/10">
             <Link to={`/${language}`}>
-              <LogoDisplay className="h-[52px]" priority />
+              <div className="inline-flex rounded-2xl border border-[#D4AF37]/15 bg-[#101010] px-3 py-3">
+                <LogoDisplay className="h-[42px] w-[170px]" priority />
+              </div>
             </Link>
           </div>
 
