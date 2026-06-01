@@ -20,7 +20,7 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
           {/* Brand */}
           <div className="md:col-span-2">
-            <LogoDisplay className="h-[80px]" priority />
+            <LogoDisplay className="h-[150px]" priority />
             <p className="text-[#A1A1AA] max-w-md leading-relaxed mb-6">
               {t('footerBrandDesc')}
             </p>
@@ -73,7 +73,7 @@ const Footer = () => {
               <li className="flex items-start gap-3">
                 <Phone size={20} className="text-[#D4AF37] mt-1" />
                 <a href="tel:+33XXXXXXXXX" className="text-[#A1A1AA] hover:text-[#D4AF37] transition-colors" data-testid="contact-phone">
-                  +33 X XX XX XX XX
+                  +33 659
                 </a>
               </li>
               <li className="flex items-start gap-3">

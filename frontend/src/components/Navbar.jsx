@@ -47,7 +47,8 @@ const Navbar = () => {
       <nav className="max-w-7xl mx-auto px-6 md:px-12 py-4 flex items-center justify-between">
         {/* Logo */}
         <a href="#accueil" className="flex items-center gap-2" data-testid="logo">
-          <LogoDisplay className="h-[50px]" priority />
+          <LogoDisplay className="h-[80px] w-[130px]" priority />
+          {/* <LogoDisplay className="h-[50px]" priority /> */}
         </a>
 
         {/* Desktop Navigation */}
