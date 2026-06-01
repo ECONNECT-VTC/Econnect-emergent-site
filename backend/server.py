@@ -262,6 +262,13 @@ DEFAULT_CATEGORY_METADATA = {
     "Green": {"has_wifi": True, "max_passengers": 4, "max_luggage": 2},
 }
 
+LEGACY_CATEGORY_METADATA = {
+    "Berline": {"has_wifi": True, "max_passengers": 3, "max_luggage": 2},
+    "Van": {"has_wifi": True, "max_passengers": 7, "max_luggage": 7},
+    "Luxe": {"has_wifi": True, "max_passengers": 3, "max_luggage": 3},
+    "Green": {"has_wifi": True, "max_passengers": 4, "max_luggage": 3},
+}
+
 
 def serialize_vehicle_category(category: dict) -> VehicleCategory:
     return VehicleCategory(
@@ -2372,12 +2379,16 @@ async def startup_event():
         for category in categories:
             category_name = category.get("name") or ""
             expected_metadata = DEFAULT_CATEGORY_METADATA.get(category_name)
+            legacy_metadata = LEGACY_CATEGORY_METADATA.get(category_name, {})
             if not expected_metadata:
                 continue
 
             fields_to_update = {}
             for field_name, expected_value in expected_metadata.items():
-                if category.get(field_name) != expected_value:
+                current_value = category.get(field_name)
+                legacy_value = legacy_metadata.get(field_name)
+                should_update = current_value is None or current_value == legacy_value
+                if should_update and current_value != expected_value:
                     fields_to_update[field_name] = expected_value
 
             if fields_to_update:

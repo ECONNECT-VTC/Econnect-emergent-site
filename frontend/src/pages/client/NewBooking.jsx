@@ -113,6 +113,19 @@ const NewBooking = () => {
     return priceEstimates.find(e => e.category_id === selectedCategory);
   };
 
+  const getEstimateRateLabel = (estimate) => (
+    estimate.rate_label
+    || (estimate.pricing_basis === 'hourly'
+      ? `Tarif ${estimate.disposition_hours}h`
+      : `${estimate.price_per_km.toFixed(2)}€/km`)
+  );
+
+  const formatReservedHours = (hoursValue) => {
+    const parsedHours = parseFloat(hoursValue);
+    if (!Number.isFinite(parsedHours)) return '';
+    return `${parsedHours.toFixed(parsedHours % 1 === 0 ? 0 : 1)} h`;
+  };
+
   const getCategoryMeta = (category) => {
     const parseNumberOrNull = (value) => {
       const parsed = Number(value);
@@ -395,7 +408,7 @@ const NewBooking = () => {
                             <div>
                               <p className="font-bold text-base">{displayMeta.displayName}</p>
                               <p className="text-xs text-[#A1A1AA]">
-                                {estimate.rate_label || (estimate.pricing_basis === 'hourly' ? `Tarif ${estimate.disposition_hours}h` : `${estimate.price_per_km.toFixed(2)}€/km`)}
+                                {getEstimateRateLabel(estimate)}
                               </p>
                             </div>
                             <div className="text-right">
@@ -457,7 +470,7 @@ const NewBooking = () => {
                 <p className="text-sm text-[#A1A1AA]">{transferType === 'disposition' ? 'Durée réservée' : 'Distance'}</p>
                 <p className="text-xl font-bold">
                   {transferType === 'disposition'
-                    ? `${parseFloat(dispositionHours).toFixed(parseFloat(dispositionHours) % 1 === 0 ? 0 : 1)} h`
+                    ? formatReservedHours(dispositionHours)
                     : `${parseFloat(distance).toFixed(1)} km`}
                 </p>
               </div>
