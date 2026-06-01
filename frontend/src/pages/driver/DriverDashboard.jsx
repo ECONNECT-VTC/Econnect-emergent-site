@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -19,6 +20,7 @@ const parseError = (error) => {
 };
 
 const DriverDashboard = () => {
+  const { lang = 'fr' } = useParams();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAvailable, setIsAvailable] = useState(true);
@@ -132,19 +134,19 @@ const DriverDashboard = () => {
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="glass rounded-xl p-4 text-center">
+        <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('assigned')}>
           <p className="text-2xl font-bold text-blue-400">
             {bookings.filter((b) => b.status === 'assigned').length}
           </p>
           <p className="text-sm text-[#A1A1AA]">Assignées</p>
         </div>
-        <div className="glass rounded-xl p-4 text-center">
+        <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('in_progress')}>
           <p className="text-2xl font-bold text-purple-400">
             {bookings.filter((b) => b.status === 'in_progress').length}
           </p>
           <p className="text-sm text-[#A1A1AA]">En cours</p>
         </div>
-        <div className="glass rounded-xl p-4 text-center">
+        <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('completed')}>
           <p className="text-2xl font-bold text-green-400">
             {bookings.filter((b) => b.status === 'completed').length}
           </p>
@@ -251,6 +253,12 @@ const DriverDashboard = () => {
               </Button>
 
               <BookingComments bookingId={booking.id} />
+              <Link
+                to={`/${lang}/driver/bookings/${booking.id}`}
+                className="mt-3 inline-flex items-center text-xs px-3 py-1.5 rounded border border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors"
+              >
+                🔍 Voir détail
+              </Link>
             </div>
           ))}
         </div>

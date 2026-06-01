@@ -59,26 +59,26 @@ const ClientDashboard = () => {
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" data-testid="client-stats">
-        <div className="glass rounded-xl p-6">
+        <Link to={`/${lang}/client/bookings`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
           <CalendarCheck size={32} className="text-[#D4AF37] mb-3" />
           <p className="text-3xl font-bold">{stats.total}</p>
           <p className="text-[#A1A1AA] text-sm">Total courses</p>
-        </div>
-        <div className="glass rounded-xl p-6">
+        </Link>
+        <Link to={`/${lang}/client/bookings?status=pending`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
           <Clock size={32} className="text-yellow-400 mb-3" />
           <p className="text-3xl font-bold">{stats.pending}</p>
           <p className="text-[#A1A1AA] text-sm">En attente</p>
-        </div>
-        <div className="glass rounded-xl p-6">
+        </Link>
+        <Link to={`/${lang}/client/bookings?status=in_progress`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
           <Car size={32} className="text-blue-400 mb-3" />
           <p className="text-3xl font-bold">{stats.assigned}</p>
           <p className="text-[#A1A1AA] text-sm">En cours</p>
-        </div>
-        <div className="glass rounded-xl p-6">
+        </Link>
+        <Link to={`/${lang}/client/bookings?status=completed`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
           <CheckCircle size={32} className="text-green-400 mb-3" />
           <p className="text-3xl font-bold">{stats.completed}</p>
           <p className="text-[#A1A1AA] text-sm">Terminées</p>
-        </div>
+        </Link>
       </div>
 
       <div className="mb-8">
@@ -103,7 +103,7 @@ const ClientDashboard = () => {
         ) : (
           <div className="space-y-4">
             {recentBookings.map((booking) => (
-              <div key={booking.id} className="bg-[#1E1E1E] rounded-lg p-4 border border-white/5">
+              <Link key={booking.id} to={`/${lang}/client/bookings/${booking.id}`} className="block bg-[#1E1E1E] rounded-lg p-4 border border-white/5 hover:bg-[#252525] transition-colors">
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <p className="font-medium">{booking.pickup_date} à {booking.pickup_time}</p>
@@ -115,7 +115,7 @@ const ClientDashboard = () => {
                 {booking.driver_name && (
                   <p className="text-sm text-[#D4AF37] mt-2">Chauffeur: {booking.driver_name}</p>
                 )}
-              </div>
+              </Link>
             ))}
           </div>
         )}

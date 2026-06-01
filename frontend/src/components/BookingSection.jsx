@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, Calendar, Clock, ArrowRight } from '@phosphor-icons/react';
+import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer, Users, Briefcase, WifiHigh } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,12 +22,21 @@ import { fr } from 'date-fns/locale';
 import InteractiveMap from './InteractiveMap';
 import { useLanguage } from '@/contexts/LanguageContext';
 
+const VEHICLE_CATEGORIES = [
+  { id: 'berline', name: 'Berline', passengers: 3, luggage: 2, wifi: false },
+  { id: 'van', name: 'Van', passengers: 7, luggage: 5, wifi: false },
+  { id: 'business', name: 'Business', passengers: 3, luggage: 2, wifi: true },
+  { id: 'prestige', name: 'Prestige', passengers: 3, luggage: 2, wifi: true },
+];
+
 const BookingSection = () => {
   const [date, setDate] = useState();
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
   const [time, setTime] = useState('');
   const [transferType, setTransferType] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [dispositionHours, setDispositionHours] = useState('');
   const { t } = useLanguage();
 
   const timeSlots = [];
@@ -41,7 +50,13 @@ const BookingSection = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const message = `Bonjour, je souhaite réserver un VTC:\n- Date: ${date ? format(date, 'dd/MM/yyyy', { locale: fr }) : 'Non spécifiée'}\n- Heure: ${time || 'Non spécifiée'}\n- Départ: ${pickup || 'Non spécifié'}\n- Arrivée: ${dropoff || 'Non spécifié'}\n- Type: ${transferType || 'Non spécifié'}`;
+    if (transferType === 'disposition' && !dispositionHours) {
+      alert('Veuillez indiquer le nombre d\'heures de mise à disposition.');
+      return;
+    }
+    const categoryLabel = VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name || 'Non spécifiée';
+    const hoursLine = transferType === 'disposition' ? `\n- Durée: ${dispositionHours}h` : '';
+    const message = `Bonjour, je souhaite réserver un VTC:\n- Date: ${date ? format(date, 'dd/MM/yyyy', { locale: fr }) : 'Non spécifiée'}\n- Heure: ${time || 'Non spécifiée'}\n- Départ: ${pickup || 'Non spécifié'}\n- Arrivée: ${dropoff || 'Non spécifié'}\n- Type: ${transferType || 'Non spécifié'}${hoursLine}\n- Gamme: ${categoryLabel}`;
     window.open(`https://wa.me/33XXXXXXXXX?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -181,6 +196,69 @@ const BookingSection = () => {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Disposition hours — required when transferType === 'disposition' */}
+                {transferType === 'disposition' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="disposition-hours" className="text-[#A1A1AA] text-sm flex items-center gap-2">
+                      <Timer size={16} className="text-[#D4AF37]" />
+                      Nombre d'heures <span className="text-red-400">*</span>
+                    </Label>
+                    <Input
+                      id="disposition-hours"
+                      type="number"
+                      min="1"
+                      step="0.5"
+                      value={dispositionHours}
+                      onChange={(e) => setDispositionHours(e.target.value)}
+                      placeholder="Ex: 4 (peut dépasser 24h)"
+                      className="bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
+                      required
+                      data-testid="disposition-hours-input"
+                    />
+                  </div>
+                )}
+
+                {/* Vehicle Category */}
+                <div className="space-y-3">
+                  <Label className="text-[#A1A1AA] text-sm flex items-center gap-2">
+                    <CarSimple size={16} className="text-[#D4AF37]" />
+                    Gamme de véhicule
+                  </Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {VEHICLE_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setSelectedCategory(cat.id)}
+                        className={`p-3 rounded-xl border text-left transition-all ${
+                          selectedCategory === cat.id
+                            ? 'border-[#D4AF37] bg-[#D4AF37]/10'
+                            : 'border-white/10 bg-[#1E1E1E] hover:border-[#D4AF37]/50'
+                        }`}
+                      >
+                        <p className="font-semibold text-sm text-white">{cat.name}</p>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <span className="flex items-center gap-1 text-[10px] text-[#D4AF37]">
+                            <Users size={11} weight="fill" className="text-[#D4AF37]" />
+                            {cat.passengers}
+                          </span>
+                          <span className="flex items-center gap-1 text-[10px] text-[#D4AF37]">
+                            <Briefcase size={11} weight="fill" className="text-[#D4AF37]" />
+                            {cat.luggage}
+                          </span>
+                          {cat.wifi && (
+                            <span className="flex items-center gap-1 text-[10px] text-[#D4AF37]">
+                              <WifiHigh size={11} weight="fill" className="text-[#D4AF37]" />
+                              WiFi
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
               </div>
 
               {/* Submit Button */}

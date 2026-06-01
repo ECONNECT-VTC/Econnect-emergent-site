@@ -16,6 +16,7 @@ import AdminDocuments from '@/pages/admin/AdminDocuments';
 import AdminDrivers from '@/pages/admin/AdminDrivers';
 import AdminFinancialDashboard from '@/pages/admin/AdminFinancialDashboard';
 import AdminPricing from '@/pages/admin/AdminPricing.jsx';
+import BookingDetail from '@/pages/BookingDetail';
 import ClientBookings from '@/pages/client/ClientBookings';
 import ClientDashboard from '@/pages/client/ClientDashboard';
 import NewBooking from '@/pages/client/NewBooking';
@@ -61,6 +62,16 @@ function AppRoutes() {
           <ProtectedRoute role="admin">
             <DashboardLayout title="Réservations">
               <AdminBookings />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="admin/bookings/:bookingId"
+        element={
+          <ProtectedRoute role="admin">
+            <DashboardLayout title="Détail de la course">
+              <BookingDetail />
             </DashboardLayout>
           </ProtectedRoute>
         }
@@ -148,6 +159,16 @@ function AppRoutes() {
         }
       />
       <Route
+        path="client/bookings/:bookingId"
+        element={
+          <ProtectedRoute role="client">
+            <DashboardLayout title="Détail de la course">
+              <BookingDetail />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="client/new-booking"
         element={
           <ProtectedRoute role="client">
@@ -185,6 +206,16 @@ function AppRoutes() {
           <ProtectedRoute role="driver">
             <DashboardLayout title="Mes Factures">
               <DriverInvoiceSection />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="driver/bookings/:bookingId"
+        element={
+          <ProtectedRoute role="driver">
+            <DashboardLayout title="Détail de la course">
+              <BookingDetail />
             </DashboardLayout>
           </ProtectedRoute>
         }

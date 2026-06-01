@@ -108,6 +108,7 @@ class BookingBase(BaseModel):
     duration_minutes: Optional[float] = None
     estimated_price: Optional[float] = None
     notes: Optional[str] = None
+    disposition_hours: Optional[float] = None
 
 class BookingCreate(BookingBase):
     pass
@@ -124,6 +125,7 @@ class AdminBookingCreate(BaseModel):
     notes: Optional[str] = None
     estimated_price: Optional[float] = None
     vehicle_category_id: Optional[str] = None
+    disposition_hours: Optional[float] = None
 
 class BookingResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -147,10 +149,12 @@ class BookingResponse(BaseModel):
     duration_minutes: Optional[float] = None
     estimated_price: Optional[float] = None
     notes: Optional[str] = None
+    disposition_hours: Optional[float] = None
     status: str  # pending, received, assigned, in_progress, completed, cancellation_requested, cancelled
     driver_id: Optional[str] = None
     driver_name: Optional[str] = None
     commission_override: Optional[float] = None
+    fulfilled_by_admin: Optional[bool] = None
     cancellation_reason: Optional[str] = None
     driver_cancellation_reason: Optional[str] = None
     cancellation_previous_status: Optional[str] = None
@@ -429,10 +433,16 @@ def compute_financial_breakdown(
     commission_rate: float,
     tva_client_rate: float,
     tva_commission_rate: float,
-    commission_override: Optional[float] = None
+    commission_override: Optional[float] = None,
+    fulfilled_by_admin: bool = False
 ) -> dict:
     safe_price_ttc = float(price_ttc or 0)
-    commission_ttc = float(commission_override) if commission_override is not None else (safe_price_ttc * commission_rate)
+    if fulfilled_by_admin:
+        commission_ttc = 0.0
+    elif commission_override is not None:
+        commission_ttc = float(commission_override)
+    else:
+        commission_ttc = safe_price_ttc * commission_rate
     driver_earning = safe_price_ttc - commission_ttc
 
     price_ht = safe_price_ttc / (1 + tva_client_rate) if (1 + tva_client_rate) > 0 else safe_price_ttc
@@ -480,7 +490,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         settings["commission_rate"],
         settings["tva_client_rate"],
         settings["tva_commission_rate"],
-        booking.get("commission_override")
+        booking.get("commission_override"),
+        bool(booking.get("fulfilled_by_admin"))
     )
 
     title_map = {
@@ -757,7 +768,8 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         settings["commission_rate"],
         settings["tva_client_rate"],
         settings["tva_commission_rate"],
-        booking.get("commission_override")
+        booking.get("commission_override"),
+        bool(booking.get("fulfilled_by_admin"))
     )
 
     if document_type in ("driver", "activity"):
@@ -1054,10 +1066,12 @@ async def create_booking(booking: BookingCreate, request: Request):
         "duration_minutes": booking.duration_minutes,
         "estimated_price": booking.estimated_price,
         "notes": booking.notes,
+        "disposition_hours": booking.disposition_hours,
         "status": "pending",
         "driver_id": None,
         "driver_name": None,
         "commission_override": None,
+        "fulfilled_by_admin": None,
         "cancellation_reason": None,
         "driver_cancellation_reason": None,
         "cancellation_previous_status": None,
@@ -1076,6 +1090,16 @@ async def get_my_bookings(request: Request):
     user = await get_current_user(request)
     bookings = await db.bookings.find({"client_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
     return [BookingResponse(**b) for b in bookings]
+
+@api_router.get("/bookings/{booking_id}", response_model=BookingResponse)
+async def get_booking_detail_client(booking_id: str, request: Request):
+    user = await get_current_user(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("client_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réservation")
+    return BookingResponse(**booking)
 
 @api_router.post("/bookings/{booking_id}/cancel-request")
 async def request_booking_cancellation(booking_id: str, payload: BookingCancelRequest, request: Request):
@@ -1165,6 +1189,16 @@ async def get_driver_bookings(request: Request):
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     return [BookingResponse(**b) for b in bookings]
+
+@api_router.get("/driver/bookings/{booking_id}", response_model=BookingResponse)
+async def get_driver_booking_detail(booking_id: str, request: Request):
+    driver = await require_driver(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("driver_id") != driver["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réservation")
+    return BookingResponse(**booking)
 
 @api_router.get("/driver/bookings/{booking_id}/order-pdf")
 async def download_driver_order_pdf(booking_id: str, request: Request):
@@ -1271,6 +1305,39 @@ async def get_all_bookings(request: Request, status: Optional[str] = None):
     bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return [BookingResponse(**b) for b in bookings]
 
+@api_router.get("/admin/bookings/{booking_id}", response_model=BookingResponse)
+async def get_admin_booking_detail(booking_id: str, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    return BookingResponse(**booking)
+
+@api_router.post("/admin/bookings/{booking_id}/assign-self")
+async def admin_assign_self(booking_id: str, request: Request):
+    """Admin assigns themselves to a booking and marks it as fulfilled_by_admin (no commission)."""
+    admin = await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("status") not in ["pending", "received"]:
+        raise HTTPException(status_code=400, detail="L'auto-affectation admin est uniquement possible lorsque la course est en attente ou réceptionnée (non encore assignée à un chauffeur)")
+
+    assigned_at = datetime.now(timezone.utc)
+    await db.bookings.update_one(
+        {"id": booking_id},
+        {"$set": {
+            "driver_id": admin["id"],
+            "driver_name": admin["name"],
+            "status": "assigned",
+            "assigned_at": assigned_at,
+            "fulfilled_by_admin": True,
+            "commission_override": 0.0,
+        }}
+    )
+    updated = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    return BookingResponse(**updated)
+
 @api_router.post("/admin/bookings", response_model=BookingResponse)
 async def create_admin_booking(booking: AdminBookingCreate, request: Request):
     await require_admin(request)
@@ -1302,10 +1369,12 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "duration_minutes": None,
         "estimated_price": booking.estimated_price,
         "notes": booking.notes,
+        "disposition_hours": booking.disposition_hours,
         "status": "received",
         "driver_id": None,
         "driver_name": None,
         "commission_override": None,
+        "fulfilled_by_admin": None,
         "cancellation_reason": None,
         "driver_cancellation_reason": None,
         "cancellation_previous_status": None,
@@ -1704,7 +1773,8 @@ async def get_financial_stats(request: Request, driver_id: Optional[str] = None)
             settings["commission_rate"],
             settings["tva_client_rate"],
             settings["tva_commission_rate"],
-            booking.get("commission_override")
+            booking.get("commission_override"),
+            bool(booking.get("fulfilled_by_admin"))
         )
         totals["total_revenue_ttc"] += breakdown["price_ttc"]
         totals["total_revenue_ht"] += breakdown["price_ht"]
@@ -1773,7 +1843,8 @@ async def get_completed_bookings_financial(request: Request):
             settings["commission_rate"],
             settings["tva_client_rate"],
             settings["tva_commission_rate"],
-            b.get("commission_override")
+            b.get("commission_override"),
+            bool(b.get("fulfilled_by_admin"))
         )
         client_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "invoice"}, {"_id": 0})
         driver_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "driver"}, {"_id": 0})
@@ -1828,7 +1899,8 @@ async def get_driver_earnings(request: Request):
             settings["commission_rate"],
             settings["tva_client_rate"],
             settings["tva_commission_rate"],
-            booking.get("commission_override")
+            booking.get("commission_override"),
+            bool(booking.get("fulfilled_by_admin"))
         )
         earnings.append(DriverEarning(
             booking_id=booking["id"],
@@ -1943,7 +2015,8 @@ async def get_driver_invoices(request: Request):
             settings["commission_rate"],
             settings["tva_client_rate"],
             settings["tva_commission_rate"],
-            b.get("commission_override")
+            b.get("commission_override"),
+            bool(b.get("fulfilled_by_admin"))
         )
         driver_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "driver"}, {"_id": 0})
 
