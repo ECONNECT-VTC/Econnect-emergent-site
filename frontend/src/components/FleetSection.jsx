@@ -49,7 +49,7 @@ const FleetSection = () => {
       price: '90\u20ac',
       image:'/photo/range_rover.png',
       passengers: 4,
-      luggage: 2,
+      luggage: 3,
       wifi: true,
     },
     {
