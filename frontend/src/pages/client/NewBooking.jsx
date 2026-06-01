@@ -137,20 +137,18 @@ const NewBooking = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
     if (!date || !time || !pickup || !dropoff || !transferType) {
       setError('Veuillez remplir tous les champs obligatoires');
-      setLoading(false);
       return;
     }
 
     if (transferType === 'disposition' && !dispositionHours) {
       setError('Veuillez indiquer le nombre d\'heures de mise à disposition');
-      setLoading(false);
       return;
     }
 
+    setLoading(true);
     const selectedPrice = getSelectedPrice();
 
     try {

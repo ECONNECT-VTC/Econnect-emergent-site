@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -253,6 +253,12 @@ const DriverDashboard = () => {
               </Button>
 
               <BookingComments bookingId={booking.id} />
+              <Link
+                to={`/${lang}/driver/bookings/${booking.id}`}
+                className="mt-3 inline-flex items-center text-xs px-3 py-1.5 rounded border border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors"
+              >
+                🔍 Voir détail
+              </Link>
             </div>
           ))}
         </div>

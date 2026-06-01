@@ -1321,7 +1321,7 @@ async def admin_assign_self(booking_id: str, request: Request):
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
     if booking.get("status") not in ["pending", "received"]:
-        raise HTTPException(status_code=400, detail="La course doit être en attente ou réceptionnée pour être auto-assignée")
+        raise HTTPException(status_code=400, detail="L'auto-affectation admin est uniquement possible lorsque la course est en attente ou réceptionnée (non encore assignée à un chauffeur)")
 
     assigned_at = datetime.now(timezone.utc)
     await db.bookings.update_one(

@@ -186,7 +186,7 @@ const BookingDetail = () => {
                   <Tag size={20} className="text-[#D4AF37]" />
                   <div>
                     <p className="text-xs text-[#A1A1AA]">Distance</p>
-                    <p className="font-medium">{parseFloat(booking.distance_km).toFixed(1)} km</p>
+                    <p className="font-medium">{Number(booking.distance_km).toFixed(1)} km</p>
                   </div>
                 </div>
               )}
