@@ -18,6 +18,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, EmailStr
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -26,6 +27,11 @@ from starlette.middleware.cors import CORSMiddleware
 # Load environment variables before accessing os.environ
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# Logo path for PDF generation — prefer backend/assets/, fallback to frontend/public/photo/
+LOGO_PATH = ROOT_DIR / "assets" / "logo.png"
+if not LOGO_PATH.exists():
+    LOGO_PATH = ROOT_DIR.parent / "frontend" / "public" / "photo" / "logo-cropped.png"
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -645,6 +651,20 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
+    # ---- colour palette ----
+    GOLD      = (0.83, 0.69, 0.22)
+    GOLD_LIGHT = (0.98, 0.95, 0.80)   # very light gold for fills
+    DARK      = (0.08, 0.08, 0.08)
+    MID_GREY  = (0.30, 0.30, 0.30)
+    LIGHT_BG  = (0.96, 0.96, 0.96)    # light grey panel background
+    WHITE     = (1.0,  1.0,  1.0)
+
+    def set_fill(rgb):
+        c.setFillColorRGB(*rgb)
+
+    def set_stroke(rgb):
+        c.setStrokeColorRGB(*rgb)
+
     if booking.get("estimated_price") is None:
         raise HTTPException(status_code=400, detail="Montant de course indisponible")
 
@@ -718,261 +738,353 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         line_price_ht = round_amount(distance_km * unit_price_ht)
     payment_method = detect_payment_method_label()
 
-    y = height - 40
-    c.setFillColorRGB(0.83, 0.69, 0.22)
-    c.setFont("Helvetica-Bold", 20)
-    c.drawString(40, y, "ECONNECT VTC")
-    c.setFont("Helvetica", 9)
-    c.setFillColorRGB(0.3, 0.3, 0.3)
-    c.drawString(40, y - 18, "Service de Transport Privé Premium")
+    # ================================================================
+    # HEADER BAND  (top 90 pt — white background with logo + title)
+    # ================================================================
+    header_top = height - 20
+    header_bot = height - 105
 
-    c.setFillColorRGB(0.83, 0.69, 0.22)
-    c.setFont("Helvetica-Bold", 14)
-    c.drawRightString(width - 40, y, title)
-    c.setFont("Helvetica", 11)
-    c.drawRightString(width - 40, y - 18, f"N° {document_number}")
+    # White header background
+    set_fill(WHITE)
+    c.rect(0, header_bot, width, header_top - header_bot, fill=1, stroke=0)
 
-    # Gold separator line
-    c.setStrokeColorRGB(0.83, 0.69, 0.22)
-    c.setLineWidth(1.5)
-    c.line(40, height - 110, width - 40, height - 110)
+    # --- Logo (left side, height ~55 pt) ---
+    logo_drawn = False
+    logo_h = 55
+    logo_x = 36
+    logo_y = header_bot + (header_top - header_bot - logo_h) / 2
+    try:
+        img = ImageReader(str(LOGO_PATH))
+        img_w, img_h = img.getSize()
+        logo_w = logo_h * img_w / img_h
+        c.drawImage(img, logo_x, logo_y, width=logo_w, height=logo_h,
+                    mask='auto')
+        logo_drawn = True
+    except Exception as exc:
+        logger.warning("PDF logo could not be drawn (%s); using text fallback.", exc)
 
-    y = height - 135
+    if not logo_drawn:
+        set_fill(GOLD)
+        c.setFont("Helvetica-Bold", 20)
+        c.drawString(logo_x, logo_y + 28, "ECONNECT VTC")
+        set_fill(MID_GREY)
+        c.setFont("Helvetica", 9)
+        c.drawString(logo_x, logo_y + 14, "Service de Transport Privé Premium")
+
+    # --- Document title (right side) ---
+    set_fill(GOLD)
+    c.setFont("Helvetica-Bold", 16)
+    c.drawRightString(width - 36, header_bot + 54, title)
+    set_fill(MID_GREY)
+    c.setFont("Helvetica", 10)
+    c.drawRightString(width - 36, header_bot + 36, f"N° {document_number}")
+
+    # Gold separator line under header
+    set_stroke(GOLD)
+    c.setLineWidth(2)
+    c.line(36, header_bot, width - 36, header_bot)
+
+    y = header_bot - 18
+
+    # ================================================================
+    # META BAR  (date / échéance / siret)
+    # ================================================================
     now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
     due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%d/%m/%Y")
 
-    c.setFillColorRGB(0.3, 0.3, 0.3)
-    c.setFont("Helvetica", 9)
-    c.drawString(40, y, f"Date : {now_str}   |   Échéance : {due_date}   |   SIRET : {issuer['siret']}")
-    y -= 25
+    # Subtle panel
+    set_fill(LIGHT_BG)
+    c.rect(36, y - 6, width - 72, 18, fill=1, stroke=0)
+    set_fill(MID_GREY)
+    c.setFont("Helvetica", 8)
+    c.drawString(42, y + 3, f"Date : {now_str}   |   Échéance : {due_date}   |   SIRET : {issuer['siret']}")
+    y -= 22
 
-    # Parties section
-    c.setFillColorRGB(0.83, 0.69, 0.22)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(40, y, "ÉMETTEUR")
-    c.drawString(300, y, "DESTINATAIRE" if not is_driver_statement else "CHAUFFEUR")
-    y -= 14
+    # ================================================================
+    # PARTIES  (émetteur / destinataire) — two-column panel
+    # ================================================================
+    col_w = (width - 72 - 8) / 2   # each column width
+    col1_x = 36
+    col2_x = 36 + col_w + 8
 
-    c.setFillColorRGB(0.1, 0.1, 0.1)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(40, y, issuer["name"])
+    # Panel background for both columns
+    panel_h = 58
+    set_fill(LIGHT_BG)
+    c.rect(col1_x, y - panel_h + 12, col_w, panel_h, fill=1, stroke=0)
+    c.rect(col2_x, y - panel_h + 12, col_w, panel_h, fill=1, stroke=0)
+
+    # Column labels
+    set_fill(GOLD)
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(col1_x + 4, y + 6, "ÉMETTEUR")
+    c.drawString(col2_x + 4, y + 6, "DESTINATAIRE" if not is_driver_statement else "CHAUFFEUR")
+    y -= 4
+
+    set_fill(DARK)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(col1_x + 4, y, issuer["name"])
     if is_driver_statement:
-        c.drawString(300, y, booking.get("driver_name", "N/A"))
+        c.drawString(col2_x + 4, y, booking.get("driver_name", "N/A"))
     else:
-        c.drawString(300, y, booking.get("client_name", "N/A"))
-    y -= 13
+        c.drawString(col2_x + 4, y, booking.get("client_name", "N/A"))
+    y -= 12
 
-    c.setFillColorRGB(0.3, 0.3, 0.3)
-    c.setFont("Helvetica", 9)
-    c.drawString(40, y, issuer["address"])
+    set_fill(MID_GREY)
+    c.setFont("Helvetica", 8)
+    c.drawString(col1_x + 4, y, issuer["address"])
     if is_driver_statement:
-        c.drawString(300, y, "Chauffeur VTC Partenaire")
+        c.drawString(col2_x + 4, y, "Chauffeur VTC Partenaire")
     else:
-        c.drawString(300, y, booking.get("client_email", "N/A"))
-    y -= 13
+        c.drawString(col2_x + 4, y, booking.get("client_email", "N/A"))
+    y -= 11
 
-    c.drawString(40, y, issuer["email"])
-    y -= 13
-    c.drawString(40, y, f"N° VTC : {issuer['vtc_number']}  |  Tél : {issuer['phone']}")
-    y -= 25
-
-    # Separator
-    c.setStrokeColorRGB(0.83, 0.69, 0.22)
-    c.setLineWidth(0.5)
-    c.line(40, y, width - 40, y)
+    c.drawString(col1_x + 4, y, issuer["email"])
+    y -= 11
+    c.drawString(col1_x + 4, y, f"N° VTC : {issuer['vtc_number']}  |  Tél : {issuer['phone']}")
     y -= 20
 
-    # Trip details
-    c.setFillColorRGB(0.83, 0.69, 0.22)
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(40, y, "DÉTAILS DU TRAJET")
-    y -= 14
+    # Gold divider
+    set_stroke(GOLD)
+    c.setLineWidth(0.8)
+    c.line(36, y, width - 36, y)
+    y -= 16
 
-    c.setFillColorRGB(0.3, 0.3, 0.3)
+    # ================================================================
+    # TRIP DETAILS
+    # ================================================================
+    set_fill(GOLD)
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(36, y, "DÉTAILS DU TRAJET")
+    y -= 12
+
+    set_fill(MID_GREY)
     c.setFont("Helvetica", 9)
-    c.drawString(40, y, f"Départ : {booking.get('pickup_address', 'N/A')}")
-    y -= 13
-    c.drawString(40, y, f"Arrivée : {booking.get('dropoff_address', 'N/A')}")
-    y -= 13
-    c.drawString(40, y, f"Date : {booking.get('pickup_date', 'N/A')} à {booking.get('pickup_time', 'N/A')}")
+    c.drawString(36, y, f"Départ : {booking.get('pickup_address', 'N/A')}")
+    y -= 12
+    c.drawString(36, y, f"Arrivée : {booking.get('dropoff_address', 'N/A')}")
+    y -= 12
+    c.drawString(36, y, f"Date : {booking.get('pickup_date', 'N/A')} à {booking.get('pickup_time', 'N/A')}")
     if document_type == "order":
-        y -= 13
-        c.drawString(40, y, f"Service : {'Mise à disposition' if is_disposition_transfer(booking.get('transfer_type')) else 'Course'}")
+        y -= 12
+        c.drawString(36, y, f"Service : {'Mise à disposition' if is_disposition_transfer(booking.get('transfer_type')) else 'Course'}")
     if document_type == "invoice" and issuer.get("is_driver_issuer"):
-        y -= 13
-        c.setFillColorRGB(0.45, 0.33, 0.0)
+        y -= 12
+        set_fill((0.45, 0.33, 0.0))
         c.setFont("Helvetica-Oblique", 8)
         c.drawString(
-            40,
+            36,
             y,
             f"Facture éditée par la société {settings['company_name']} pour la société à laquelle le chauffeur est rattaché."
         )
-    y -= 25
+    y -= 16
 
-    # Separator
-    c.setStrokeColorRGB(0.83, 0.69, 0.22)
-    c.line(40, y, width - 40, y)
-    y -= 20
+    # Gold divider
+    set_stroke(GOLD)
+    c.setLineWidth(0.8)
+    c.line(36, y, width - 36, y)
+    y -= 14
 
-    # Table header
-    c.setFillColorRGB(0.83, 0.69, 0.22)
-    c.setFont("Helvetica-Bold", 9)
+    # ================================================================
+    # TABLE
+    # ================================================================
+    table_row_h = 13
+
+    def draw_table_header_band(cols_text: list, xs: list, band_h: int = 18):
+        """Draw a gold-band table header row. Modifies the nonlocal `y` in-place."""
+        nonlocal y
+        set_fill(GOLD_LIGHT)
+        c.rect(36, y - band_h + 12, width - 72, band_h, fill=1, stroke=0)
+        set_stroke(GOLD)
+        c.setLineWidth(0.5)
+        c.rect(36, y - band_h + 12, width - 72, band_h, fill=0, stroke=1)
+        set_fill(DARK)
+        c.setFont("Helvetica-Bold", 8)
+        for text, x in zip(cols_text, xs):
+            if x < 0:   # negative x means right-aligned at |x|
+                c.drawRightString(-x, y + 2, text)
+            else:
+                c.drawString(x, y + 2, text)
+        y -= band_h
+
     if is_client_invoice:
-        x_desc, x_km, x_rate, x_ht = 40, 365, 455, width - 40
-        c.drawString(x_desc, y, "DÉSIGNATION")
-        c.drawRightString(x_km, y, "NOMBRE DE KM")
-        c.drawRightString(x_rate, y, "TARIF AU KM HT")
-        c.drawRightString(x_ht, y, "PRIX HT")
-        y -= 10
-        c.setStrokeColorRGB(0.83, 0.69, 0.22)
-        c.setLineWidth(1)
-        c.line(40, y, width - 40, y)
-        y -= 15
+        x_desc, x_km, x_rate, x_ht = 40, 365, 455, width - 36
+        draw_table_header_band(
+            ["DÉSIGNATION", "KM", "TARIF/KM HT", "PRIX HT"],
+            [x_desc, -x_km, -x_rate, -x_ht]
+        )
+        y -= 3
 
-        c.setFillColorRGB(0.1, 0.1, 0.1)
+        set_fill(MID_GREY)
         c.setFont("Helvetica", 9)
-        c.drawString(x_desc, y, f"Adresse de départ : {booking.get('pickup_address', 'N/A')}")
+        c.drawString(x_desc, y, f"Départ : {booking.get('pickup_address', 'N/A')}")
         c.drawRightString(x_km, y, "-")
         c.drawRightString(x_rate, y, "-")
         c.drawRightString(x_ht, y, "-")
-        y -= 15
-        c.drawString(x_desc, y, f"Adresse d'arrivée : {booking.get('dropoff_address', 'N/A')}")
+        y -= table_row_h
+
+        c.drawString(x_desc, y, f"Arrivée : {booking.get('dropoff_address', 'N/A')}")
         c.drawRightString(x_km, y, f"{distance_km:.2f}" if distance_km else "-")
         c.drawRightString(x_rate, y, f"{unit_price_ht:.2f} EUR" if unit_price_ht else "-")
         c.drawRightString(x_ht, y, f"{line_price_ht:.2f} EUR")
-        y -= 15
-        c.setStrokeColorRGB(0.83, 0.69, 0.22)
-        c.setLineWidth(0.5)
-        c.line(40, y, width - 40, y)
-        y -= 15
+        y -= table_row_h
 
-        c.setFillColorRGB(0.1, 0.1, 0.1)
+        set_stroke(GOLD)
+        c.setLineWidth(0.5)
+        c.line(36, y, width - 36, y)
+        y -= 12
+
+        # Payment method row
+        set_fill(DARK)
         c.setFont("Helvetica", 9)
-        c.drawString(40, y, "Mode de paiement :")
-        c.drawString(140, y, f"{'[X]' if payment_method == 'cb' else '[ ]'} CB")
-        c.drawString(220, y, f"{'[X]' if payment_method == 'cash' else '[ ]'} Espèces")
-        c.drawString(325, y, f"{'[X]' if payment_method == 'virement' else '[ ]'} Virement bancaire")
-        y -= 18
-        c.drawString(40, y, "Montant HT")
-        c.drawRightString(width - 40, y, f"{breakdown['price_ht']:.2f} EUR")
-        y -= 13
-        c.drawString(40, y, f"Montant TVA ({round_amount(resolved_client_tva_rate * 100):.0f}%)")
-        c.drawRightString(width - 40, y, f"{breakdown['tva_client']:.2f} EUR")
-        y -= 13
-        c.drawString(40, y, (
+        c.drawString(36, y, "Mode de paiement :")
+        c.drawString(138, y, f"{'[X]' if payment_method == 'cb' else '[ ]'} CB")
+        c.drawString(216, y, f"{'[X]' if payment_method == 'cash' else '[ ]'} Espèces")
+        c.drawString(316, y, f"{'[X]' if payment_method == 'virement' else '[ ]'} Virement bancaire")
+        y -= 14
+
+        # Sub-totals
+        set_fill(MID_GREY)
+        c.setFont("Helvetica", 9)
+        c.drawString(36, y, "Montant HT")
+        c.drawRightString(width - 36, y, f"{breakdown['price_ht']:.2f} EUR")
+        y -= table_row_h
+        c.drawString(36, y, f"Montant TVA ({round_amount(resolved_client_tva_rate * 100):.0f}%)")
+        c.drawRightString(width - 36, y, f"{breakdown['tva_client']:.2f} EUR")
+        y -= table_row_h
+        c.setFont("Helvetica", 7)
+        c.drawString(36, y, (
             f"Règle TVA : {round_amount(CLIENT_TVA_RATE_STANDARD_COURSE * 100):.0f}% pour les courses hors mise à disposition, "
             f"{round_amount(CLIENT_TVA_RATE_DISPOSITION * 100):.0f}% pour la mise à disposition."
         ))
-        y -= 13
+        y -= table_row_h
         total_label = "TOTAL TTC"
         total_value = breakdown['price_ttc']
+
     else:
-        c.drawString(40, y, "DESCRIPTION")
-        c.drawRightString(width - 40, y, "MONTANT")
-        y -= 10
-        c.setStrokeColorRGB(0.83, 0.69, 0.22)
-        c.setLineWidth(1)
-        c.line(40, y, width - 40, y)
-        y -= 15
-        c.setFillColorRGB(0.1, 0.1, 0.1)
-        c.setFont("Helvetica", 10)
+        # Driver / commission / activity
+        draw_table_header_band(["DESCRIPTION", "MONTANT"], [40, -(width - 36)])
+        y -= 3
+        set_fill(DARK)
+        c.setFont("Helvetica", 9)
 
     if is_driver_statement:
         if document_type == "activity":
-            c.setFillColorRGB(0.1, 0.1, 0.1)
-            c.setFont("Helvetica-Bold", 9)
-            x_date, x_service, x_ref, x_amount = 40, 220, 410, width - 40
+            x_date, x_service, x_ref, x_amount = 40, 220, 410, width - 36
+            # Sub-header for activity columns
+            set_fill(LIGHT_BG)
+            c.rect(36, y - table_row_h + 4, width - 72, table_row_h + 2, fill=1, stroke=0)
+            set_fill(DARK)
+            c.setFont("Helvetica-Bold", 8)
             c.drawString(x_date, y, "DATE")
             c.drawString(x_service, y, "SERVICE")
             c.drawString(x_ref, y, "RÉF.")
             c.drawRightString(x_amount, y, "MONTANT HT")
-            y -= 10
-            c.setStrokeColorRGB(0.83, 0.69, 0.22)
-            c.setLineWidth(1)
-            c.line(40, y, width - 40, y)
-            y -= 15
+            y -= table_row_h + 2
+
+            set_fill(MID_GREY)
             c.setFont("Helvetica", 9)
             c.drawString(x_date, y, f"{booking.get('pickup_date', 'N/A')} {booking.get('pickup_time', '')}")
             c.drawString(x_service, y, booking.get('transfer_type', 'VTC'))
             c.drawString(x_ref, y, document_number)
             c.drawRightString(x_amount, y, f"{breakdown['driver_earning']:.2f} EUR")
-            y -= 15
-            c.setStrokeColorRGB(0.83, 0.69, 0.22)
+            y -= table_row_h
+
+            set_stroke(GOLD)
             c.setLineWidth(0.5)
-            c.line(40, y, width - 40, y)
-            y -= 14
-            c.setFillColorRGB(0.3, 0.3, 0.3)
+            c.line(36, y, width - 36, y)
+            y -= 12
+
             c.setFont("Helvetica", 9)
-            c.drawString(40, y, "Récapitulatif : Montant course client TTC")
-            c.drawRightString(width - 40, y, f"{breakdown['price_ttc']:.2f} EUR")
-            y -= 13
-            c.drawString(40, y, "Commission prélevée TTC")
-            c.drawRightString(width - 40, y, f"- {breakdown['commission_ttc']:.2f} EUR")
-            y -= 20
+            c.drawString(36, y, "Récapitulatif : Montant course client TTC")
+            c.drawRightString(width - 36, y, f"{breakdown['price_ttc']:.2f} EUR")
+            y -= table_row_h
+            c.drawString(36, y, "Commission prélevée TTC")
+            c.drawRightString(width - 36, y, f"- {breakdown['commission_ttc']:.2f} EUR")
+            y -= 16
         else:
             description = "Rémunération trajet"
-            c.drawString(40, y, f"{description} - {booking.get('transfer_type', 'VTC')}")
-            c.drawRightString(width - 40, y, f"{breakdown['driver_earning']:.2f} EUR HT")
-            y -= 20
-            c.setFillColorRGB(0.3, 0.3, 0.3)
+            set_fill(DARK)
             c.setFont("Helvetica", 9)
-            c.drawString(40, y, "Montant course client TTC")
-            c.drawRightString(width - 40, y, f"{breakdown['price_ttc']:.2f} EUR")
-            y -= 13
-            c.drawString(40, y, f"Commission prélevée TTC ({round_amount(settings['commission_rate'] * 100):.0f}%)")
-            c.drawRightString(width - 40, y, f"- {breakdown['commission_ttc']:.2f} EUR")
-            y -= 20
+            c.drawString(36, y, f"{description} - {booking.get('transfer_type', 'VTC')}")
+            c.drawRightString(width - 36, y, f"{breakdown['driver_earning']:.2f} EUR HT")
+            y -= table_row_h
+
+            set_fill(MID_GREY)
+            c.drawString(36, y, "Montant course client TTC")
+            c.drawRightString(width - 36, y, f"{breakdown['price_ttc']:.2f} EUR")
+            y -= table_row_h
+            c.drawString(36, y, f"Commission prélevée TTC ({round_amount(settings['commission_rate'] * 100):.0f}%)")
+            c.drawRightString(width - 36, y, f"- {breakdown['commission_ttc']:.2f} EUR")
+            y -= 16
+
         total_label = "TOTAL ACTIVITÉ (HT)" if document_type == "activity" else "MONTANT À VERSER (HT)"
         total_value = breakdown['driver_earning']
+
     elif document_type == "commission":
-        c.setFillColorRGB(0.1, 0.1, 0.1)
-        c.setFont("Helvetica-Bold", 10)
-        c.drawString(40, y, "Bloc fournisseur :")
-        c.drawString(300, y, "Bloc destinataire :")
-        y -= 14
+        # Commission-specific two-column info block
+        set_fill(LIGHT_BG)
+        c.rect(36, y - 46, width - 72, 46, fill=1, stroke=0)
+
+        set_fill(GOLD)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(40, y - 4, "Fournisseur")
+        c.drawString(300, y - 4, "Destinataire")
+        set_fill(MID_GREY)
+        c.setFont("Helvetica", 8)
+        c.drawString(40, y - 16, f"{issuer['name']}")
+        c.drawString(300, y - 16, f"{booking.get('client_name', 'N/A')}")
+        c.drawString(40, y - 27, issuer['email'])
+        c.drawString(300, y - 27, booking.get('client_email', 'N/A'))
+        y -= 46 + 8
+
+        set_fill(DARK)
         c.setFont("Helvetica", 9)
-        c.drawString(40, y, f"{issuer['name']} — {issuer['email']}")
-        c.drawString(300, y, f"{booking.get('client_name', 'N/A')} — {booking.get('client_email', 'N/A')}")
+        c.drawString(36, y, f"Commission de gestion - {booking.get('transfer_type', 'VTC')}")
+        c.drawRightString(width - 36, y, f"{breakdown['commission_ht']:.2f} EUR")
+        y -= table_row_h
+
+        set_fill(MID_GREY)
+        c.drawString(36, y, "Commission HT")
+        c.drawRightString(width - 36, y, f"{breakdown['commission_ht']:.2f} EUR")
+        y -= table_row_h
+        c.drawString(36, y, f"TVA commission ({round_amount(settings['tva_commission_rate'] * 100):.0f}%)")
+        c.drawRightString(width - 36, y, f"{breakdown['tva_commission']:.2f} EUR")
         y -= 16
-        c.drawString(40, y, f"Commission de gestion - {booking.get('transfer_type', 'VTC')}")
-        c.drawRightString(width - 40, y, f"{breakdown['commission_ht']:.2f} EUR")
-        y -= 20
-        c.setFillColorRGB(0.3, 0.3, 0.3)
-        c.setFont("Helvetica", 9)
-        c.drawString(40, y, "Commission HT")
-        c.drawRightString(width - 40, y, f"{breakdown['commission_ht']:.2f} EUR")
-        y -= 13
-        c.drawString(40, y, f"TVA commission ({round_amount(settings['tva_commission_rate'] * 100):.0f}%)")
-        c.drawRightString(width - 40, y, f"{breakdown['tva_commission']:.2f} EUR")
-        y -= 20
+
         total_label = "TOTAL COMMISSION TTC"
         total_value = breakdown['commission_ttc']
 
-    # Total box
-    y -= 5
-    c.setStrokeColorRGB(0.83, 0.69, 0.22)
-    c.setLineWidth(1)
-    c.rect(40, y - 10, width - 80, 28, fill=0, stroke=1)
-    c.setFillColorRGB(0.83, 0.69, 0.22)
+    # ================================================================
+    # TOTAL BOX  — gold fill, prominent amount
+    # ================================================================
+    y -= 6
+    box_h = 30
+    set_fill(GOLD)
+    set_stroke(GOLD)
+    c.setLineWidth(1.5)
+    c.rect(36, y - box_h + 10, width - 72, box_h, fill=1, stroke=1)
+    set_fill(DARK)
     c.setFont("Helvetica-Bold", 12)
-    c.drawString(50, y + 5, total_label)
-    c.drawRightString(width - 50, y + 5, f"{total_value:.2f} EUR")
+    c.drawString(44, y - 4, total_label)
+    c.drawRightString(width - 44, y - 4, f"{total_value:.2f} EUR")
+    y -= box_h + 16
 
-    y -= 40
-
-    # Payment conditions
-    c.setStrokeColorRGB(0.83, 0.69, 0.22)
+    # ================================================================
+    # FOOTER  — conditions & mentions légales
+    # ================================================================
+    set_stroke(GOLD)
     c.setLineWidth(0.5)
-    c.line(40, y, width - 40, y)
-    y -= 15
-    c.setFillColorRGB(0.3, 0.3, 0.3)
-    c.setFont("Helvetica", 8)
-    c.drawString(40, y, "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.")
-    y -= 12
+    c.line(36, y, width - 36, y)
+    y -= 14
+
+    set_fill(MID_GREY)
+    c.setFont("Helvetica", 7)
+    c.drawString(36, y, "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.")
+    y -= 11
     if document_type == "order":
-        c.drawString(40, y, "Bon de réservation émis à titre contractuel selon les informations disponibles dans l'application.")
-        y -= 12
-    c.drawString(40, y, f"TVA non récupérable par le preneur. {issuer['name']} - {issuer['address']}")
+        c.drawString(36, y, "Bon de réservation émis à titre contractuel selon les informations disponibles dans l'application.")
+        y -= 11
+    c.drawString(36, y, f"TVA non récupérable par le preneur. {issuer['name']} - {issuer['address']}")
 
     c.showPage()
     c.save()
