@@ -1414,7 +1414,7 @@ async def admin_assign_self(booking_id: str, request: Request, body: AdminAssign
         "commission_override": 0.0,
     }
 
-    if body and body.vehicle_id:
+    if body is not None and body.vehicle_id:
         vehicle = await db.admin_vehicles.find_one({"id": body.vehicle_id})
         if vehicle:
             update_fields["admin_vehicle_plate"] = vehicle["plate"]

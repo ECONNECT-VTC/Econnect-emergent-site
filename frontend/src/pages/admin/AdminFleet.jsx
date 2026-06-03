@@ -25,6 +25,10 @@ const AdminFleet = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [vehicleToDelete, setVehicleToDelete] = useState(null);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -106,13 +110,25 @@ const AdminFleet = () => {
     }
   };
 
-  const handleDelete = async (vehicleId) => {
-    if (!window.confirm('Supprimer ce véhicule de la flotte ?')) return;
+  const openDeleteDialog = (vehicle) => {
+    setVehicleToDelete(vehicle);
+    setDeleteError('');
+    setIsDeleteOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!vehicleToDelete) return;
+    setDeleting(true);
+    setDeleteError('');
     try {
-      await axios.delete(`${API_URL}/api/admin/fleet/${vehicleId}`, { withCredentials: true });
+      await axios.delete(`${API_URL}/api/admin/fleet/${vehicleToDelete.id}`, { withCredentials: true });
       await fetchVehicles();
+      setIsDeleteOpen(false);
+      setVehicleToDelete(null);
     } catch (err) {
-      alert(parseError(err));
+      setDeleteError(parseError(err));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -249,7 +265,7 @@ const AdminFleet = () => {
                     <PencilSimple size={16} />
                   </button>
                   <button
-                    onClick={() => handleDelete(vehicle.id)}
+                    onClick={() => openDeleteDialog(vehicle)}
                     className="p-2 rounded-lg hover:bg-red-500/10 text-[#A1A1AA] hover:text-red-400 transition-colors"
                     title="Supprimer"
                   >
@@ -282,6 +298,44 @@ const AdminFleet = () => {
             </DialogTitle>
           </DialogHeader>
           <VehicleForm onSubmit={handleEdit} submitLabel="Enregistrer" />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog */}
+      <Dialog open={isDeleteOpen} onOpenChange={(o) => { setIsDeleteOpen(o); if (!o) { setVehicleToDelete(null); setDeleteError(''); } }}>
+        <DialogContent className="bg-[#141414] border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-red-400 font-['Cormorant_Garamond'] text-xl">
+              Supprimer le véhicule
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-[#A1A1AA]">
+              Voulez-vous vraiment supprimer <span className="text-white font-medium">{vehicleToDelete?.brand} {vehicleToDelete?.model}</span> ({vehicleToDelete?.plate}) de la flotte ?
+            </p>
+            {deleteError && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-3 py-2 rounded-lg text-sm">
+                {deleteError}
+              </div>
+            )}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 border-white/10"
+                onClick={() => setIsDeleteOpen(false)}
+                disabled={deleting}
+              >
+                Annuler
+              </Button>
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleDelete}
+                disabled={deleting}
+              >
+                {deleting ? 'Suppression...' : 'Supprimer'}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
