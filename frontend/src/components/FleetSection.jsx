@@ -46,17 +46,23 @@ const FleetSection = () => {
     fetchPricingCategories();
   }, []);
 
-  const gammes = VEHICLE_CATEGORY_CONFIG.map((category) => ({
-    ...category,
-    adminCategory: findVehicleCategoryByName(pricingCategories, category.backendName),
-  })).map((category) => ({
-    ...category,
-    nameKey: category.translationKey,
-    descKey: `${category.translationKey}Desc`,
-    price: Number.isFinite(Number(category.adminCategory?.min_fare))
-      ? `${Math.round(Number(category.adminCategory.min_fare))}€`
-      : category.startingPrice,
-  }));
+  const gammes = VEHICLE_CATEGORY_CONFIG
+    .map((category) => ({
+      ...category,
+      adminCategory: findVehicleCategoryByName(pricingCategories, category.backendName),
+    }))
+    .map((category) => {
+      const minFare = Number(category.adminCategory?.min_fare);
+      const fallbackPrice = typeof category.startingPrice === 'number'
+        ? `${category.startingPrice}€`
+        : String(category.startingPrice);
+      return {
+        ...category,
+        nameKey: category.translationKey,
+        descKey: `${category.translationKey}Desc`,
+        price: Number.isFinite(minFare) ? `${Math.round(minFare)}€` : fallbackPrice,
+      };
+    });
 
   return (
     <section id="gammes" className="pt-24 pb-12 md:pt-32 md:pb-16 bg-[#141414]" data-testid="fleet-section">

@@ -94,16 +94,18 @@ export const findDispositionEstimateForCategory = (estimates = [], categoryName)
 };
 
 export const findVehicleCategoryByName = (categories = [], categoryName) => {
-  const normalizedName = (categoryName || '').trim().toLowerCase();
-  const backendName = CATEGORY_ALIAS_MAP[normalizedName] || categoryName;
-
-  if (!backendName) {
+  const rawCategoryName = (categoryName || '').trim();
+  if (!rawCategoryName) {
     return null;
   }
 
+  const normalizedName = rawCategoryName.toLowerCase();
+  const backendName = (CATEGORY_ALIAS_MAP[normalizedName] || normalizedName).toLowerCase();
+
   return categories.find((category) => {
     const categoryNameValue = (category?.name || '').trim().toLowerCase();
-    return CATEGORY_ALIAS_MAP[categoryNameValue] === backendName || category?.name === backendName;
+    const categoryBackendName = (CATEGORY_ALIAS_MAP[categoryNameValue] || categoryNameValue).toLowerCase();
+    return categoryBackendName === backendName;
   }) || null;
 };
 

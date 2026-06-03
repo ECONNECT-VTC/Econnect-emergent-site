@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer, Users, Briefcase } from '@phosphor-icons/react';
@@ -146,13 +146,22 @@ const BookingSection = () => {
     return `${Math.round(total)}€`;
   };
 
-  const getCategoryStartingPrice = useCallback((categoryId, fallbackStartingPrice) => {
-    const matchedCategory = findVehicleCategoryByName(pricingCategories, categoryId);
-    if (matchedCategory && Number.isFinite(Number(matchedCategory.min_fare))) {
-      return Number(matchedCategory.min_fare);
-    }
-    return fallbackStartingPrice;
-  }, [pricingCategories]);
+  const pricingMinFareByCategory = useMemo(
+    () => Object.fromEntries(
+      VEHICLE_CATEGORIES.map((category) => {
+        const matchedCategory = findVehicleCategoryByName(pricingCategories, category.id);
+        const minFare = Number(matchedCategory?.min_fare);
+        return [category.id, Number.isFinite(minFare) ? minFare : null];
+      })
+    ),
+    [pricingCategories]
+  );
+
+  const getCategoryStartingPrice = (categoryId, fallbackStartingPrice) =>
+    pricingMinFareByCategory[categoryId] ?? fallbackStartingPrice;
+
+  const getCategoryStartingPriceLabel = (categoryId, fallbackStartingPrice) =>
+    getStartingPriceLabel(getCategoryStartingPrice(categoryId, fallbackStartingPrice));
 
   const handleStep3Submit = (e) => {
     e.preventDefault();
@@ -163,7 +172,7 @@ const BookingSection = () => {
       categoryPriceLabel = getFormattedDispositionPrice(selectedCategory, selectedVehicle?.startingPrice);
     } else {
       categoryPriceLabel = selectedVehicle
-        ? getStartingPriceLabel(getCategoryStartingPrice(selectedVehicle.id, selectedVehicle.startingPrice))
+        ? getCategoryStartingPriceLabel(selectedVehicle.id, selectedVehicle.startingPrice)
         : 'Non spécifié';
     }
     const hoursLine = transferType === 'disposition' ? `\n- Durée: ${dispositionHours}h` : '';
@@ -444,7 +453,7 @@ const BookingSection = () => {
                                 <span className="text-xs text-[#D4AF37] font-medium">
                                   {transferType === 'disposition' && dispositionHours
                                     ? getFormattedDispositionPrice(cat.id)
-                                    : `dès ${getStartingPriceLabel(getCategoryStartingPrice(cat.id, cat.startingPrice))}`}
+                                    : `dès ${getCategoryStartingPriceLabel(cat.id, cat.startingPrice)}`}
                                 </span>
                               </div>
                               <div className="flex items-center gap-3 text-[#A1A1AA]">
@@ -479,7 +488,7 @@ const BookingSection = () => {
                         <p className="text-[#D4AF37] text-sm font-medium">
                           {transferType === 'disposition' && dispositionHours
                             ? `Mise à disposition · ${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory)}`
-                            : `${VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name} · à partir de ${getStartingPriceLabel(getCategoryStartingPrice(selectedCategory, VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice || ''))}`}
+                            : `${VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name} · à partir de ${getCategoryStartingPriceLabel(selectedCategory, VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice || '')}`}
                         </p>
                         <p className="text-[#A1A1AA] text-xs mt-1">Le prix final sera confirmé par votre chauffeur.</p>
                       </motion.div>
@@ -535,7 +544,7 @@ const BookingSection = () => {
                         {`${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory)}`}
                       </p>
                     ) : (
-                      <p className="text-[#D4AF37]">Tarif indicatif: {getStartingPriceLabel(getCategoryStartingPrice(selectedCategory, VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice || ''))}</p>
+                      <p className="text-[#D4AF37]">Tarif indicatif: {getCategoryStartingPriceLabel(selectedCategory, VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice || '')}</p>
                     )}
                   </div>
 
