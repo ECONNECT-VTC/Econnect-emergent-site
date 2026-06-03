@@ -44,4 +44,14 @@ describe('NewBooking parseBookingError', () => {
       })
     ).toBe('transfer_type=simple&distance_km=18.2&duration_minutes=35');
   });
+
+  it('keeps retour transfer type when building distance estimate params', () => {
+    expect(
+      buildEstimatePriceQuery({
+        transferType: 'retour',
+        distance: '18.2',
+        duration: '35',
+      })
+    ).toBe('transfer_type=retour&distance_km=18.2&duration_minutes=35');
+  });
 });

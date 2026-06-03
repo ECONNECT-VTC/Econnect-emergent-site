@@ -132,7 +132,7 @@ const AdminFleet = () => {
     }
   };
 
-  const VehicleForm = ({ onSubmit, submitLabel }) => (
+  const renderVehicleForm = (onSubmit, submitLabel) => (
     <form onSubmit={onSubmit} className="space-y-4">
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-3 py-2 rounded-lg text-sm">
@@ -144,7 +144,7 @@ const AdminFleet = () => {
           <Label className="text-[#A1A1AA] text-sm">Marque *</Label>
           <Input
             value={form.brand}
-            onChange={(e) => setForm({ ...form, brand: e.target.value })}
+            onChange={(e) => setForm((prev) => ({ ...prev, brand: e.target.value }))}
             placeholder="Ex: Mercedes"
             required
             className="bg-[#1E1E1E] border-white/10 mt-1"
@@ -154,7 +154,7 @@ const AdminFleet = () => {
           <Label className="text-[#A1A1AA] text-sm">Modèle *</Label>
           <Input
             value={form.model}
-            onChange={(e) => setForm({ ...form, model: e.target.value })}
+            onChange={(e) => setForm((prev) => ({ ...prev, model: e.target.value }))}
             placeholder="Ex: Classe E"
             required
             className="bg-[#1E1E1E] border-white/10 mt-1"
@@ -165,7 +165,7 @@ const AdminFleet = () => {
         <Label className="text-[#A1A1AA] text-sm">Immatriculation *</Label>
         <Input
           value={form.plate}
-          onChange={(e) => setForm({ ...form, plate: e.target.value })}
+          onChange={(e) => setForm((prev) => ({ ...prev, plate: e.target.value }))}
           placeholder="Ex: AB-123-CD"
           required
           className="bg-[#1E1E1E] border-white/10 mt-1"
@@ -176,7 +176,7 @@ const AdminFleet = () => {
           <Label className="text-[#A1A1AA] text-sm">Couleur</Label>
           <Input
             value={form.color}
-            onChange={(e) => setForm({ ...form, color: e.target.value })}
+            onChange={(e) => setForm((prev) => ({ ...prev, color: e.target.value }))}
             placeholder="Ex: Noir"
             className="bg-[#1E1E1E] border-white/10 mt-1"
           />
@@ -188,7 +188,7 @@ const AdminFleet = () => {
             min="1"
             max="20"
             value={form.capacity}
-            onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+            onChange={(e) => setForm((prev) => ({ ...prev, capacity: e.target.value }))}
             placeholder="Ex: 4"
             className="bg-[#1E1E1E] border-white/10 mt-1"
           />
@@ -224,7 +224,7 @@ const AdminFleet = () => {
                 Nouveau véhicule
               </DialogTitle>
             </DialogHeader>
-            <VehicleForm onSubmit={handleCreate} submitLabel="Ajouter" />
+            {renderVehicleForm(handleCreate, 'Ajouter')}
           </DialogContent>
         </Dialog>
       </div>
@@ -297,7 +297,7 @@ const AdminFleet = () => {
               Modifier le véhicule
             </DialogTitle>
           </DialogHeader>
-          <VehicleForm onSubmit={handleEdit} submitLabel="Enregistrer" />
+          {renderVehicleForm(handleEdit, 'Enregistrer')}
         </DialogContent>
       </Dialog>
 

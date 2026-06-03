@@ -68,9 +68,23 @@ const BookingSection = () => {
       alert('Veuillez choisir une gamme de véhicule.');
       return;
     }
+    setStep(3);
+  };
+
+  const getStartingPriceLabel = (startingPrice) => {
+    const parsed = Number(String(startingPrice).replace(/[^\d.,]/g, '').replace(',', '.'));
+    if (!Number.isFinite(parsed)) return startingPrice;
+    const total = transferType === 'retour' ? parsed * 2 : parsed;
+    return `${Math.round(total)}€`;
+  };
+
+  const handleStep3Submit = (e) => {
+    e.preventDefault();
+    const selectedVehicle = VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory);
     const categoryLabel = VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name || 'Non spécifiée';
+    const categoryPriceLabel = selectedVehicle ? getStartingPriceLabel(selectedVehicle.startingPrice) : 'Sur devis';
     const hoursLine = transferType === 'disposition' ? `\n- Durée: ${dispositionHours}h` : '';
-    const message = `Bonjour, je souhaite réserver un VTC:\n- Date: ${date ? format(date, 'dd/MM/yyyy', { locale: fr }) : 'Non spécifiée'}\n- Heure: ${time || 'Non spécifiée'}\n- Départ: ${pickup || 'Non spécifié'}\n- Arrivée: ${dropoff || 'Non spécifié'}\n- Type: ${transferType || 'Non spécifié'}${hoursLine}\n- Gamme: ${categoryLabel}`;
+    const message = `Bonjour, je souhaite réserver un VTC:\n- Date: ${date ? format(date, 'dd/MM/yyyy', { locale: fr }) : 'Non spécifiée'}\n- Heure: ${time || 'Non spécifiée'}\n- Départ: ${pickup || 'Non spécifié'}\n- Arrivée: ${dropoff || 'Non spécifié'}\n- Type: ${transferType || 'Non spécifié'}${hoursLine}\n- Gamme: ${categoryLabel}\n- Tarif indicatif: ${categoryPriceLabel}`;
     window.open(`https://wa.me/33753418833?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -93,7 +107,7 @@ const BookingSection = () => {
           </h2>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-stretch min-h-[600px]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start lg:items-stretch">
           {/* Booking Form */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
@@ -104,7 +118,7 @@ const BookingSection = () => {
           >
             {/* Step indicators */}
             <div className="flex items-center gap-3 mb-6">
-              {[1, 2].map((s) => (
+              {[1, 2, 3].map((s) => (
                 <div key={s} className="flex items-center">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
                     s < step ? 'bg-[#D4AF37] text-[#0A0A0A]' :
@@ -113,11 +127,11 @@ const BookingSection = () => {
                   }`}>
                     {s < step ? <CheckCircle size={18} weight="fill" /> : s}
                   </div>
-                  {s < 2 && <div className="w-12 md:w-20 h-[2px] bg-[#D4AF37]/30 mx-2" />}
+                  {s < 3 && <div className="w-12 md:w-20 h-[2px] bg-[#D4AF37]/30 mx-2" />}
                 </div>
               ))}
               <span className="text-[#A1A1AA] text-sm ml-2">
-                {step === 1 ? t('typeTransfert') || 'Votre trajet' : 'Choisir votre véhicule'}
+                {step === 1 ? t('typeTransfert') || 'Votre trajet' : step === 2 ? 'Choisir votre véhicule' : 'Valider votre demande'}
               </span>
             </div>
 
@@ -130,7 +144,7 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep1Submit}
-                  className="glass rounded-2xl p-8 md:p-10 h-full flex flex-col justify-between"
+                  className="glass rounded-2xl p-8 md:p-10 space-y-6"
                   data-testid="booking-form"
                 >
                   <div className="flex flex-col gap-6">
@@ -272,7 +286,7 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep2Submit}
-                  className="glass rounded-2xl p-8 md:p-10 h-full flex flex-col justify-between"
+                  className="glass rounded-2xl p-8 md:p-10 space-y-6"
                   data-testid="vehicle-selection-form"
                 >
                   <div className="flex flex-col gap-5">
@@ -309,7 +323,7 @@ const BookingSection = () => {
                               <span className="text-xs text-[#D4AF37] font-medium">
                                 {transferType === 'disposition' && dispositionHours
                                   ? `Sur devis`
-                                  : `dès ${cat.startingPrice}`}
+                                  : `dès ${getStartingPriceLabel(cat.startingPrice)}`}
                               </span>
                             </div>
                             <div className="flex items-center gap-3 text-[#A1A1AA]">
@@ -343,7 +357,7 @@ const BookingSection = () => {
                         <p className="text-[#D4AF37] text-sm font-medium">
                           {transferType === 'disposition' && dispositionHours
                             ? `Mise à disposition · ${dispositionHours}h · Tarif sur devis`
-                            : `${VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name} · à partir de ${VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice}`}
+                            : `${VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name} · à partir de ${getStartingPriceLabel(VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice || '')}`}
                         </p>
                         <p className="text-[#A1A1AA] text-xs mt-1">Le prix final sera confirmé par votre chauffeur.</p>
                       </motion.div>
@@ -363,6 +377,49 @@ const BookingSection = () => {
                       type="submit"
                       disabled={!selectedCategory}
                       className="flex-1 bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6 text-lg transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                      data-testid="continue-booking-step-3"
+                    >
+                      Continuer
+                      <ArrowRight size={20} className="ml-2" />
+                    </Button>
+                  </div>
+                </motion.form>
+              )}
+
+              {step === 3 && (
+                <motion.form
+                  key="step3"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.3 }}
+                  onSubmit={handleStep3Submit}
+                  className="glass rounded-2xl p-8 md:p-10 space-y-6"
+                  data-testid="booking-confirmation-form"
+                >
+                  <div className="space-y-4 rounded-xl border border-[#D4AF37]/20 bg-[#1E1E1E] p-5 text-sm text-[#C7B588]">
+                    <p className="flex items-center gap-2"><MapPin size={14} className="text-[#D4AF37]" /> {pickup} → {dropoff}</p>
+                    <p className="flex items-center gap-2"><Calendar size={14} className="text-[#D4AF37]" /> {date ? format(date, 'dd/MM/yyyy', { locale: fr }) : ''} à {time}</p>
+                    <p className="flex items-center gap-2"><CarSimple size={14} className="text-[#D4AF37]" /> {VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.name}</p>
+                    {transferType === 'disposition' && dispositionHours ? (
+                      <p className="flex items-center gap-2"><Timer size={14} className="text-[#D4AF37]" /> {dispositionHours}h · Tarif sur devis</p>
+                    ) : (
+                      <p className="text-[#D4AF37]">Tarif indicatif: {getStartingPriceLabel(VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice || '')}</p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-white/10 text-[#A1A1AA] hover:bg-white/5"
+                      onClick={() => setStep(2)}
+                    >
+                      Retour
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="flex-1 bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6 text-lg transition-all duration-300 hover:scale-[1.02]"
                       data-testid="submit-booking"
                     >
                       {t('reserverMaintenant')}
@@ -380,7 +437,7 @@ const BookingSection = () => {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="h-full min-h-[600px] rounded-2xl overflow-hidden"
+            className="h-full min-h-[420px] rounded-2xl overflow-hidden"
           >
             <InteractiveMap />
           </motion.div>
