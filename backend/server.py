@@ -1427,9 +1427,10 @@ async def admin_assign_self(booking_id: str, request: Request, body: AdminAssign
         raise HTTPException(status_code=400, detail="L'auto-affectation admin est uniquement possible lorsque la course est en attente ou réceptionnée (non encore assignée à un chauffeur)")
 
     assigned_at = datetime.now(timezone.utc)
+    driver_display_name_input = body.driver_display_name if body else ""
     driver_display_name = (
-        body.driver_display_name.strip()
-        if body and body.driver_display_name and body.driver_display_name.strip()
+        driver_display_name_input.strip()
+        if isinstance(driver_display_name_input, str) and driver_display_name_input.strip()
         else admin["name"]
     )
     update_fields = {

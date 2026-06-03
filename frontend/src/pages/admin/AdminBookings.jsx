@@ -244,7 +244,7 @@ const AdminBookings = () => {
     try {
       await axios.post(
         `${API_URL}/api/admin/bookings/${bookingToAssignSelf.id}/assign-self`,
-        { vehicle_id: selectedFleetVehicle || null, driver_display_name: assignSelfDriverName || null },
+        { vehicle_id: selectedFleetVehicle || null, driver_display_name: assignSelfDriverName },
         { withCredentials: true }
       );
       setAssignSelfDialogOpen(false);
@@ -880,8 +880,9 @@ const AdminBookings = () => {
               <p className="text-sm text-[#A1A1AA]">Aucun véhicule dans la flotte admin.</p>
             )}
             <div>
-              <p className="text-sm text-[#A1A1AA] mb-2">Nom chauffeur affiché au client</p>
+              <label htmlFor="assign-self-driver-name" className="text-sm text-[#A1A1AA] mb-2 block">Nom du chauffeur affiché au client</label>
               <Input
+                id="assign-self-driver-name"
                 value={assignSelfDriverName}
                 onChange={(e) => setAssignSelfDriverName(e.target.value)}
                 className="bg-[#1E1E1E] border-white/10"
