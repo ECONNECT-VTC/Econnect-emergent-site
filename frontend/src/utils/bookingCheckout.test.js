@@ -39,6 +39,7 @@ const shouldAutoCheckout = (draft) =>
   draft?.autoPayAfterAuth === true && draft?.checkoutPayload != null;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// sessionStorage is available in jsdom (the Jest test environment)
 
 beforeEach(() => {
   sessionStorage.clear();
@@ -114,126 +115,5 @@ describe('draft does NOT block login — autoPayAfterAuth gating (Bug 1)', () =>
   test('corrupted storage → no auto-checkout (safe fallback)', () => {
     sessionStorage.setItem(BOOKING_CHECKOUT_DRAFT_KEY, '{bad json');
     expect(shouldAutoCheckout(readBookingCheckoutDraft())).toBe(false);
-  });
-});
-
-
-// sessionStorage is available in jsdom (the Jest test environment)
-
-beforeEach(() => {
-  sessionStorage.clear();
-});
-
-describe('readBookingCheckoutDraft', () => {
-  test('returns null when storage is empty', () => {
-    expect(readBookingCheckoutDraft()).toBeNull();
-  });
-
-  test('returns null and removes key when stored value is corrupted JSON', () => {
-    sessionStorage.setItem(BOOKING_CHECKOUT_DRAFT_KEY, 'NOT_VALID_JSON{{');
-    const result = readBookingCheckoutDraft();
-    expect(result).toBeNull();
-    expect(sessionStorage.getItem(BOOKING_CHECKOUT_DRAFT_KEY)).toBeNull();
-  });
-
-  test('returns the stored draft object when valid', () => {
-    const draft = {
-      pickup: '1 rue de la Paix, Paris',
-      dropoff: 'Aéroport CDG',
-      transferType: 'aller',
-      autoPayAfterAuth: false,
-    };
-    saveBookingCheckoutDraft(draft);
-    const result = readBookingCheckoutDraft();
-    expect(result).toEqual(draft);
-  });
-});
-
-describe('saveBookingCheckoutDraft', () => {
-  test('persists draft to sessionStorage', () => {
-    const draft = { pickup: 'Paris', dropoff: 'CDG', autoPayAfterAuth: true, checkoutPayload: { estimated_price: 45 } };
-    saveBookingCheckoutDraft(draft);
-    const raw = sessionStorage.getItem(BOOKING_CHECKOUT_DRAFT_KEY);
-    expect(raw).not.toBeNull();
-    expect(JSON.parse(raw)).toEqual(draft);
-  });
-
-  test('does not throw when called with null', () => {
-    expect(() => saveBookingCheckoutDraft(null)).not.toThrow();
-  });
-});
-
-describe('clearBookingCheckoutDraft', () => {
-  test('removes the draft from storage', () => {
-    saveBookingCheckoutDraft({ pickup: 'Paris', dropoff: 'Lyon' });
-    clearBookingCheckoutDraft();
-    expect(sessionStorage.getItem(BOOKING_CHECKOUT_DRAFT_KEY)).toBeNull();
-  });
-});
-
-describe('draft does NOT block login — autoPayAfterAuth logic', () => {
-  test('a draft with autoPayAfterAuth=false should not trigger auto-checkout', () => {
-    const draft = {
-      pickup: '1 rue de la Paix',
-      dropoff: 'CDG',
-      autoPayAfterAuth: false,
-      checkoutPayload: { estimated_price: 55 },
-    };
-    saveBookingCheckoutDraft(draft);
-
-    // Simulate what BookingSection Effect 2 checks:
-    const storedDraft = readBookingCheckoutDraft();
-    const shouldAutoCheckout =
-      storedDraft?.autoPayAfterAuth === true &&
-      storedDraft?.checkoutPayload != null;
-
-    expect(shouldAutoCheckout).toBe(false);
-  });
-
-  test('a draft with autoPayAfterAuth=true and a payload WOULD trigger auto-checkout when user is set', () => {
-    const draft = {
-      pickup: '1 rue de la Paix',
-      dropoff: 'CDG',
-      autoPayAfterAuth: true,
-      checkoutPayload: { estimated_price: 55 },
-    };
-    saveBookingCheckoutDraft(draft);
-
-    const storedDraft = readBookingCheckoutDraft();
-    const shouldAutoCheckout =
-      storedDraft?.autoPayAfterAuth === true &&
-      storedDraft?.checkoutPayload != null;
-
-    // This confirms the condition is correctly evaluated — but the actual execution
-    // is gated by the `user` state in BookingSection Effect 2, so a non-logged-in
-    // user is never affected.
-    expect(shouldAutoCheckout).toBe(true);
-  });
-
-  test('a draft with autoPayAfterAuth=true but missing checkoutPayload does NOT trigger auto-checkout', () => {
-    const draft = {
-      pickup: 'Paris',
-      dropoff: 'Lyon',
-      autoPayAfterAuth: true,
-      checkoutPayload: null,
-    };
-    saveBookingCheckoutDraft(draft);
-
-    const storedDraft = readBookingCheckoutDraft();
-    const shouldAutoCheckout =
-      storedDraft?.autoPayAfterAuth === true &&
-      storedDraft?.checkoutPayload != null;
-
-    expect(shouldAutoCheckout).toBe(false);
-  });
-
-  test('an empty/missing draft never triggers auto-checkout', () => {
-    // No draft saved
-    const storedDraft = readBookingCheckoutDraft();
-    const shouldAutoCheckout =
-      storedDraft?.autoPayAfterAuth === true &&
-      storedDraft?.checkoutPayload != null;
-
-    expect(shouldAutoCheckout).toBe(false);
   });
 });
