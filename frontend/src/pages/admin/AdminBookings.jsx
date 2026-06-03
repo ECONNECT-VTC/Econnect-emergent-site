@@ -275,8 +275,27 @@ const AdminBookings = () => {
     }
   };
 
-  const openAssignDialog = (booking) => {
-    setSelectedBooking(booking);
+  const openAssignDialog = async (booking) => {
+    setError('');
+    // Refresh the booking data first to avoid assigning a stale-status booking (Bug 2 fix)
+    try {
+      const [bookingsRes] = await Promise.all([
+        axios.get(`${API_URL}/api/admin/bookings`, { withCredentials: true }),
+      ]);
+      setBookings(bookingsRes.data);
+      const freshBooking = bookingsRes.data.find((b) => b.id === booking.id);
+      if (!freshBooking) {
+        setError('Course introuvable. La liste a été actualisée.');
+        return;
+      }
+      if (freshBooking.status !== 'received') {
+        setError(`Impossible d'assigner : la course est en statut "${freshBooking.status}". Elle doit être réceptionnée avant d'être assignée. La liste a été actualisée.`);
+        return;
+      }
+      setSelectedBooking(freshBooking);
+    } catch {
+      setSelectedBooking(booking);
+    }
     setSelectedDriver('');
     setAssignDialogOpen(true);
   };
@@ -292,7 +311,9 @@ const AdminBookings = () => {
       setSelectedDriver('');
       fetchData();
     } catch (err) {
-      setError(parseError(err));
+      // Refresh on failure so the UI reflects the real state (Bug 2 fix)
+      fetchData();
+      setError('La course a été modifiée entre-temps. La liste a été actualisée.');
     } finally {
       setAssigning(false);
     }

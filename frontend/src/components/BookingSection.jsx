@@ -59,11 +59,17 @@ const BookingSection = () => {
   const [dispositionPrices, setDispositionPrices] = useState([]);
   const [loadingDispositionPrices, setLoadingDispositionPrices] = useState(false);
   const [pricingCategories, setPricingCategories] = useState([]);
+  const [priceEstimates, setPriceEstimates] = useState([]);
+  const [estimatingPrice, setEstimatingPrice] = useState(false);
   const [distanceKm, setDistanceKm] = useState('');
   const [submittingCheckout, setSubmittingCheckout] = useState(false);
   const [bookingError, setBookingError] = useState('');
   const [bookingNotice, setBookingNotice] = useState('');
   const autoCheckoutStartedRef = useRef(false);
+  // Ref to access the latest submitCheckout without it being a dependency
+  const submitCheckoutRef = useRef(null);
+  // Ref to the form panel for smooth scroll on step changes (Bug 3b)
+  const formPanelRef = useRef(null);
   const { t } = useLanguage();
   const bookingPanelMinHeight = 'lg:min-h-[680px]';
 
@@ -113,6 +119,40 @@ const BookingSection = () => {
     }
   }, [dispositionHours, transferType, fetchDispositionPrices]);
 
+  // Fetch distance-based price estimates from backend whenever relevant inputs change (Bug 3a)
+  useEffect(() => {
+    if (transferType === 'disposition' || !transferType) {
+      setPriceEstimates([]);
+      return;
+    }
+    const km = parseFloat(distanceKm);
+    if (!(km > 0)) {
+      setPriceEstimates([]);
+      return;
+    }
+    const controller = new AbortController();
+    setEstimatingPrice(true);
+    const params = new URLSearchParams({ transfer_type: transferType, distance_km: String(km) });
+    axios
+      .post(`${API_URL}/api/estimate-price?${params}`, {}, {
+        withCredentials: true,
+        signal: controller.signal,
+      })
+      .then((res) => {
+        setPriceEstimates(Array.isArray(res.data) ? res.data : []);
+      })
+      .catch((err) => {
+        if (!axios.isCancel(err)) {
+          console.error('[BookingSection] Failed to fetch price estimates:', err);
+          setPriceEstimates([]);
+        }
+      })
+      .finally(() => {
+        setEstimatingPrice(false);
+      });
+    return () => controller.abort();
+  }, [distanceKm, transferType]);
+
   const getFormattedDispositionPrice = useCallback((categoryId) => {
     if (loadingDispositionPrices) {
       return 'Chargement...';
@@ -138,10 +178,18 @@ const BookingSection = () => {
   const canProceedToStep2 = date && time && pickup && dropoff && transferType &&
     (transferType !== 'disposition' || dispositionHours);
 
+  // Smooth scroll to the top of the booking form panel on step changes (Bug 3b)
+  const scrollToFormPanel = useCallback(() => {
+    setTimeout(() => {
+      formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 50);
+  }, []);
+
   const handleStep1Submit = (e) => {
     e.preventDefault();
     if (!canProceedToStep2) return;
     setStep(2);
+    scrollToFormPanel();
   };
 
   const handleStep2Submit = (e) => {
@@ -151,6 +199,7 @@ const BookingSection = () => {
       return;
     }
     setStep(3);
+    scrollToFormPanel();
   };
 
   const getStartingPriceLabel = (startingPrice) => {
@@ -179,6 +228,21 @@ const BookingSection = () => {
   const getCategoryStartingPriceLabel = (categoryId, fallbackStartingPrice) =>
     getStartingPriceLabel(getCategoryStartingPrice(categoryId, fallbackStartingPrice));
 
+  // Returns a formatted price label for a given category in step 2 vehicle cards (Bug 3a)
+  const getCategoryPriceLabel = useCallback((categoryId, fallbackStartingPrice) => {
+    if (transferType === 'disposition' && dispositionHours) {
+      return getFormattedDispositionPrice(categoryId);
+    }
+    // Show distance-based estimate if available
+    if (estimatingPrice) return 'Calcul...';
+    const distanceEstimate = findDispositionEstimateForCategory(priceEstimates, categoryId);
+    if (distanceEstimate && Number.isFinite(Number(distanceEstimate.final_price)) && Number(distanceEstimate.final_price) > 0) {
+      return `${Number(distanceEstimate.final_price).toFixed(2)}€`;
+    }
+    // Fall back to minimum fare label
+    return `dès ${getCategoryStartingPriceLabel(categoryId, fallbackStartingPrice)}`;
+  }, [transferType, dispositionHours, estimatingPrice, priceEstimates, getFormattedDispositionPrice, getCategoryStartingPriceLabel]);
+
   const getEstimatedPrice = useCallback(() => {
     if (!selectedCategory) return null;
     if (transferType === 'disposition') {
@@ -186,12 +250,21 @@ const BookingSection = () => {
       const dispositionPrice = Number(dispositionEstimate?.final_price);
       return Number.isFinite(dispositionPrice) && dispositionPrice > 0 ? dispositionPrice : null;
     }
+    // Use backend estimate (distance-based) when available (Bug 3a)
+    const distanceEstimate = findDispositionEstimateForCategory(priceEstimates, selectedCategory);
+    const estimatedFromDistance = Number(distanceEstimate?.final_price);
+    if (Number.isFinite(estimatedFromDistance) && estimatedFromDistance > 0) {
+      return estimatedFromDistance;
+    }
+    // Fallback to min_fare (or parsed startingPrice) when no distance estimate is available
     const selectedVehicle = VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory);
     if (!selectedVehicle) return null;
-    const rawPrice = Number(getCategoryStartingPrice(selectedVehicle.id, selectedVehicle.startingPrice));
+    const rawPriceSource = getCategoryStartingPrice(selectedVehicle.id, selectedVehicle.startingPrice);
+    // Parse numeric value, stripping any currency symbols (e.g. '30€' → 30)
+    const rawPrice = Number(String(rawPriceSource).replace(/[^\d.,]/g, '').replace(',', '.'));
     if (!Number.isFinite(rawPrice) || rawPrice <= 0) return null;
     return transferType === 'retour' ? rawPrice * 2 : rawPrice;
-  }, [dispositionPrices, selectedCategory, transferType, getCategoryStartingPrice]);
+  }, [dispositionPrices, priceEstimates, selectedCategory, transferType, getCategoryStartingPrice]);
 
   const buildCheckoutPayload = useCallback(() => {
     const estimatedPrice = getEstimatedPrice();
@@ -246,6 +319,13 @@ const BookingSection = () => {
     }
   }, [date, pickup, dropoff, time, transferType, selectedCategory, dispositionHours, distanceKm]);
 
+  // Keep submitCheckoutRef current so the auto-checkout effect can use the latest version
+  // without needing to list it as a dependency (Bug 1 fix)
+  useEffect(() => {
+    submitCheckoutRef.current = submitCheckout;
+  });
+
+  // Effect 1: Restore draft state ONCE on mount — no reactive deps to avoid infinite loop (Bug 1 fix)
   useEffect(() => {
     const draft = readBookingCheckoutDraft();
     if (!draft) return;
@@ -258,12 +338,17 @@ const BookingSection = () => {
     if (draft.dispositionHours) setDispositionHours(String(draft.dispositionHours));
     if (draft.distanceKm) setDistanceKm(String(draft.distanceKm));
     if (draft.step) setStep(draft.step);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    if (user && draft.autoPayAfterAuth && draft.checkoutPayload && !autoCheckoutStartedRef.current) {
-      autoCheckoutStartedRef.current = true;
-      submitCheckout(draft.checkoutPayload, { ...draft, autoPayAfterAuth: false });
-    }
-  }, [submitCheckout, user]);
+  // Effect 2: Auto-checkout when user logs in after saving a draft (Bug 1 fix)
+  // Depends only on `user`; uses submitCheckoutRef to avoid stale-closure issues.
+  useEffect(() => {
+    if (!user) return;
+    const draft = readBookingCheckoutDraft();
+    if (!draft?.autoPayAfterAuth || !draft?.checkoutPayload || autoCheckoutStartedRef.current) return;
+    autoCheckoutStartedRef.current = true;
+    submitCheckoutRef.current(draft.checkoutPayload, { ...draft, autoPayAfterAuth: false });
+  }, [user]);
 
   const handleStep3Submit = async (e) => {
     e.preventDefault();
@@ -325,7 +410,7 @@ const BookingSection = () => {
             transition={{ duration: 0.6 }}
             className="w-full h-full flex flex-col"
           >
-            <div className={`glass rounded-2xl p-8 md:p-10 flex-1 flex flex-col ${bookingPanelMinHeight}`}>
+            <div ref={formPanelRef} className={`glass rounded-2xl p-8 md:p-10 flex-1 flex flex-col ${bookingPanelMinHeight}`}>
             {/* Step indicators */}
             <div className="mb-8 flex flex-col items-center gap-4 text-center flex-shrink-0">
               <div className="flex w-full items-center justify-center gap-2 sm:gap-3">
@@ -553,21 +638,19 @@ const BookingSection = () => {
                             }`}
                             data-testid={`vehicle-cat-${cat.id}`}
                           >
-                            <div className="relative h-36 overflow-hidden">
+                            <div className="relative h-36 overflow-hidden bg-[#141414]">
                               <img
                                 src={cat.image}
                                 alt={cat.name}
-                                className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                                className="h-full w-full object-contain transition-transform duration-500 hover:scale-105"
                               />
-                              <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/45 to-transparent" />
+                              <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/30 to-transparent" />
                             </div>
                             <div className="space-y-3 p-4">
                               <div className="flex items-center justify-between gap-3">
                                 <p className="font-semibold text-sm text-white">{cat.name}</p>
                                 <span className="text-xs text-[#D4AF37] font-medium">
-                                  {transferType === 'disposition' && dispositionHours
-                                    ? getFormattedDispositionPrice(cat.id)
-                                    : `dès ${getCategoryStartingPriceLabel(cat.id, cat.startingPrice)}`}
+                                  {getCategoryPriceLabel(cat.id, cat.startingPrice)}
                                 </span>
                               </div>
                               <div className="flex items-center gap-3 text-[#A1A1AA]">
@@ -614,7 +697,7 @@ const BookingSection = () => {
                       type="button"
                       variant="outline"
                       className="border-white/10 text-[#A1A1AA] hover:bg-white/5"
-                      onClick={() => setStep(1)}
+                      onClick={() => { setStep(1); scrollToFormPanel(); }}
                     >
                       Retour
                     </Button>
@@ -683,7 +766,7 @@ const BookingSection = () => {
                       type="button"
                       variant="outline"
                       className="border-white/10 text-[#A1A1AA] hover:bg-white/5"
-                      onClick={() => setStep(2)}
+                      onClick={() => { setStep(2); scrollToFormPanel(); }}
                     >
                       Retour
                     </Button>
