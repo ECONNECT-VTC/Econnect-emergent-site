@@ -1,5 +1,13 @@
 import React from 'react';
-import { formatDate, calculateDueDate, formatCurrency, formatInvoiceNumber } from '@/utils/invoiceUtils';
+import {
+  formatDate,
+  calculateDueDate,
+  formatCurrency,
+  formatInvoiceNumber,
+  getClientVatRate,
+  CLIENT_TVA_RATES,
+  computeHtFromTtc,
+} from '@/utils/invoiceUtils';
 import LogoDisplay from '@/components/LogoDisplay';
 
 /**
@@ -27,7 +35,13 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const companySiret = settings?.company_siret || 'À compléter';
   const companyVtc = settings?.company_vtc_number || 'À compléter';
   const companyEmail = settings?.company_email || 'contact@econnect-vtc.fr';
-  const tvaRate = Math.round((booking.tva_client_rate ?? 0.2) * 100);
+  const resolvedTvaRate = getClientVatRate(booking.transfer_type);
+  const tvaRate = Math.round(resolvedTvaRate * 100);
+  const resolvedPriceTtc = Number(booking.price_ttc || 0);
+  const computedAmounts = computeHtFromTtc(resolvedPriceTtc, resolvedTvaRate);
+  const resolvedPriceHt = computedAmounts.ht;
+  const resolvedTvaAmount = computedAmounts.tva;
+  const isDriverIssued = Boolean(booking.driver_id) && !booking.fulfilled_by_admin;
   const distanceKm = Number(booking.distance_km) > 0 ? Number(booking.distance_km) : null;
   const unitPriceHt = Number(booking.price_per_km) > 0
     ? Number(booking.price_per_km)
@@ -134,21 +148,31 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
           <div className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-[#525252]">Montant HT</span>
-              <span className="font-mono">{formatCurrency(booking.price_ht)}</span>
+              <span className="font-mono">{formatCurrency(resolvedPriceHt)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-[#525252]">Montant TVA ({tvaRate}%)</span>
-              <span className="font-mono">{formatCurrency(booking.tva_client)}</span>
+              <span className="font-mono">{formatCurrency(resolvedTvaAmount)}</span>
             </div>
             <div className="flex justify-between border-t border-[#D4AF37] pt-2">
               <span className="font-semibold text-[#D4AF37]">Total TTC</span>
-              <span className="font-mono font-bold text-[#D4AF37]">{formatCurrency(booking.price_ttc)}</span>
+              <span className="font-mono font-bold text-[#D4AF37]">{formatCurrency(resolvedPriceTtc)}</span>
             </div>
           </div>
         </div>
 
         {/* Footer */}
         <div className="pt-4 border-t border-[#D4AF37] text-xs text-[#525252] space-y-1">
+          <p>
+            TVA appliquée : {resolvedTvaRate === CLIENT_TVA_RATES.disposition
+              ? `${Math.round(CLIENT_TVA_RATES.disposition * 100)}% (mise à disposition)`
+              : `${Math.round(CLIENT_TVA_RATES.standardCourse * 100)}% (course hors mise à disposition)`}.
+          </p>
+          {isDriverIssued && (
+            <p className="font-semibold text-[#7A5A00]">
+              Facture éditée par la société Econnect VTC pour la société à laquelle le chauffeur est rattaché.
+            </p>
+          )}
           <p>Paiement sous 30 jours. Tout retard entraîne des pénalités de 3× le taux légal.</p>
           <p>TVA non récupérable par le preneur – {companyName} assujetti à la TVA.</p>
           <p className="text-center text-[#D4AF37]/60 mt-4">{companyName} © {new Date().getFullYear()} — Merci de votre confiance.</p>

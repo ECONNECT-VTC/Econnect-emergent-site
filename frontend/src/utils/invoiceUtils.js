@@ -99,6 +99,31 @@ export const calculateVatAmount = (amountHt, rate = 0.2) => {
   return Math.round((vat + Number.EPSILON) * 100) / 100;
 };
 
+export const CLIENT_TVA_RATES = {
+  standardCourse: 0.1,
+  disposition: 0.2,
+};
+
+/**
+ * Return the client VAT rate based on transfer type.
+ * VAT is 20% for disposition services and 10% for other courses.
+ * @param {string} transferType
+ * @returns {number}
+ */
+export const getClientVatRate = (transferType) => {
+  const normalizedType = String(transferType || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+  if (normalizedType.includes('disposition')) {
+    return CLIENT_TVA_RATES.disposition;
+  }
+
+  return CLIENT_TVA_RATES.standardCourse;
+};
+
 /**
  * Human-readable label for invoice type
  * @param {string} type - "invoice" | "driver" | "commission" | "order"
@@ -109,7 +134,7 @@ export const invoiceTypeLabel = (type) => {
     invoice: 'Facture Client',
     driver: 'Facture Chauffeur',
     commission: 'Facture Commission',
-    order: 'Bon de Commande',
+    order: 'Bon de Réservation',
   };
   return labels[type] || type;
 };

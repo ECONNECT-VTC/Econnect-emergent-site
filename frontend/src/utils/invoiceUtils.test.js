@@ -3,6 +3,7 @@ import {
   isValidInvoiceNumber,
   generateInvoiceNumber,
   calculateVatAmount,
+  getClientVatRate,
 } from './invoiceUtils';
 
 describe('invoiceUtils', () => {
@@ -21,5 +22,15 @@ describe('invoiceUtils', () => {
   it('calculates VAT with French default rate of 20%', () => {
     expect(calculateVatAmount(100)).toBe(20);
     expect(calculateVatAmount(100, 0.1)).toBe(10);
+  });
+
+  it('returns 20% VAT for disposition and 10% otherwise', () => {
+    expect(getClientVatRate('disposition')).toBe(0.2);
+    expect(getClientVatRate('mise à disposition')).toBe(0.2);
+    expect(getClientVatRate('MISE A DISPOSITION')).toBe(0.2);
+    expect(getClientVatRate('')).toBe(0.1);
+    expect(getClientVatRate(undefined)).toBe(0.1);
+    expect(getClientVatRate(null)).toBe(0.1);
+    expect(getClientVatRate('simple')).toBe(0.1);
   });
 });

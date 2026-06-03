@@ -531,6 +531,66 @@ async def get_commission_settings() -> dict:
     await db.commission_settings.insert_one(defaults)
     return defaults
 
+# Client VAT business rule (easy to adjust if regulation changes)
+CLIENT_TVA_RATE_STANDARD_COURSE = 0.10
+CLIENT_TVA_RATE_DISPOSITION = 0.20
+
+def is_disposition_transfer(transfer_type: Optional[str]) -> bool:
+    """Return True when the transfer type corresponds to a disposition service.
+
+    Input text is normalized (lowercase + accent removal) so variants such as
+    "mise à disposition" are matched reliably.
+    """
+    normalized = ''.join(
+        char for char in unicodedata.normalize("NFD", str(transfer_type or "").lower()) if unicodedata.category(char) != "Mn"
+    ).strip()
+    return "disposition" in normalized
+
+def get_client_tva_rate_for_booking(booking: Optional[dict]) -> float:
+    """Resolve client VAT rate from booking type.
+
+    Args:
+        booking: Booking payload containing transfer_type.
+    Returns:
+        20% for disposition, 10% for other client courses.
+    """
+    if is_disposition_transfer((booking or {}).get("transfer_type")):
+        return CLIENT_TVA_RATE_DISPOSITION
+    return CLIENT_TVA_RATE_STANDARD_COURSE
+
+async def build_document_issuer_profile(booking: dict, settings: dict) -> dict:
+    """Build issuer details for generated documents.
+
+    Uses main company information for admin-fulfilled bookings, and switches to
+    driver/company fields when the booking is assigned to a non-admin driver.
+    """
+    issuer = {
+        "name": settings["company_name"],
+        "address": settings["company_address"],
+        "email": settings["company_email"],
+        "phone": settings.get("company_phone", "À compléter"),
+        "siret": settings["company_siret"],
+        "vtc_number": settings["company_vtc_number"],
+        "is_driver_issuer": False,
+    }
+
+    if bool(booking.get("fulfilled_by_admin")) or not booking.get("driver_id"):
+        return issuer
+
+    driver = await db.users.find_one({"id": booking.get("driver_id"), "role": "driver"}, {"_id": 0})
+    if not driver:
+        return issuer
+
+    return {
+        "name": driver.get("company_name") or driver.get("name") or issuer["name"],
+        "address": driver.get("company_address") or driver.get("address") or issuer["address"],
+        "email": driver.get("company_email") or driver.get("email") or issuer["email"],
+        "phone": driver.get("company_phone") or driver.get("phone") or issuer["phone"],
+        "siret": driver.get("company_siret") or issuer["siret"],
+        "vtc_number": driver.get("company_vtc_number") or issuer["vtc_number"],
+        "is_driver_issuer": True,
+    }
+
 def compute_financial_breakdown(
     price_ttc: float,
     commission_rate: float,
@@ -588,10 +648,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     if booking.get("estimated_price") is None:
         raise HTTPException(status_code=400, detail="Montant de course indisponible")
 
+    resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
     breakdown = compute_financial_breakdown(
         booking["estimated_price"],
         settings["commission_rate"],
-        settings["tva_client_rate"],
+        resolved_client_tva_rate,
         settings["tva_commission_rate"],
         booking.get("commission_override"),
         bool(booking.get("fulfilled_by_admin"))
@@ -599,7 +660,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
     title_map = {
         "invoice": "FACTURE CLIENT",
-        "order": "BON DE COMMANDE",
+        "order": "BON DE RÉSERVATION",
         "driver": "FACTURE CHAUFFEUR",
         "commission": "FACTURE COMMISSION",
         "activity": "RELEVÉ D'ACTIVITÉ",
@@ -607,6 +668,15 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     title = title_map.get(document_type, "DOCUMENT")
     is_client_invoice = document_type in ("invoice", "order")
     is_driver_statement = document_type in ("driver", "activity")
+    issuer = booking.get("issuer", {
+        "name": settings["company_name"],
+        "address": settings["company_address"],
+        "email": settings["company_email"],
+        "phone": settings.get("company_phone", "À compléter"),
+        "siret": settings["company_siret"],
+        "vtc_number": settings["company_vtc_number"],
+        "is_driver_issuer": False,
+    })
 
     def detect_payment_method_label() -> str:
         raw_method = str(booking.get("payment_method") or "").strip().lower()
@@ -673,7 +743,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
     c.setFillColorRGB(0.3, 0.3, 0.3)
     c.setFont("Helvetica", 9)
-    c.drawString(40, y, f"Date : {now_str}   |   Échéance : {due_date}   |   SIRET : {settings['company_siret']}")
+    c.drawString(40, y, f"Date : {now_str}   |   Échéance : {due_date}   |   SIRET : {issuer['siret']}")
     y -= 25
 
     # Parties section
@@ -685,7 +755,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
     c.setFillColorRGB(0.1, 0.1, 0.1)
     c.setFont("Helvetica-Bold", 10)
-    c.drawString(40, y, settings["company_name"])
+    c.drawString(40, y, issuer["name"])
     if is_driver_statement:
         c.drawString(300, y, booking.get("driver_name", "N/A"))
     else:
@@ -694,16 +764,16 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
     c.setFillColorRGB(0.3, 0.3, 0.3)
     c.setFont("Helvetica", 9)
-    c.drawString(40, y, settings["company_address"])
+    c.drawString(40, y, issuer["address"])
     if is_driver_statement:
         c.drawString(300, y, "Chauffeur VTC Partenaire")
     else:
         c.drawString(300, y, booking.get("client_email", "N/A"))
     y -= 13
 
-    c.drawString(40, y, settings["company_email"])
+    c.drawString(40, y, issuer["email"])
     y -= 13
-    c.drawString(40, y, f"N° VTC : {settings['company_vtc_number']}")
+    c.drawString(40, y, f"N° VTC : {issuer['vtc_number']}  |  Tél : {issuer['phone']}")
     y -= 25
 
     # Separator
@@ -725,6 +795,18 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.drawString(40, y, f"Arrivée : {booking.get('dropoff_address', 'N/A')}")
     y -= 13
     c.drawString(40, y, f"Date : {booking.get('pickup_date', 'N/A')} à {booking.get('pickup_time', 'N/A')}")
+    if document_type == "order":
+        y -= 13
+        c.drawString(40, y, f"Service : {'Mise à disposition' if is_disposition_transfer(booking.get('transfer_type')) else 'Course'}")
+    if document_type == "invoice" and issuer.get("is_driver_issuer"):
+        y -= 13
+        c.setFillColorRGB(0.45, 0.33, 0.0)
+        c.setFont("Helvetica-Oblique", 8)
+        c.drawString(
+            40,
+            y,
+            f"Facture éditée par la société {settings['company_name']} pour la société à laquelle le chauffeur est rattaché."
+        )
     y -= 25
 
     # Separator
@@ -774,8 +856,13 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(40, y, "Montant HT")
         c.drawRightString(width - 40, y, f"{breakdown['price_ht']:.2f} EUR")
         y -= 13
-        c.drawString(40, y, f"Montant TVA ({round_amount(settings['tva_client_rate'] * 100):.0f}%)")
+        c.drawString(40, y, f"Montant TVA ({round_amount(resolved_client_tva_rate * 100):.0f}%)")
         c.drawRightString(width - 40, y, f"{breakdown['tva_client']:.2f} EUR")
+        y -= 13
+        c.drawString(40, y, (
+            f"Règle TVA : {round_amount(CLIENT_TVA_RATE_STANDARD_COURSE * 100):.0f}% pour les courses hors mise à disposition, "
+            f"{round_amount(CLIENT_TVA_RATE_DISPOSITION * 100):.0f}% pour la mise à disposition."
+        ))
         y -= 13
         total_label = "TOTAL TTC"
         total_value = breakdown['price_ttc']
@@ -791,21 +878,62 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.setFont("Helvetica", 10)
 
     if is_driver_statement:
-        description = "Relevé d'activité" if document_type == "activity" else "Rémunération trajet"
-        c.drawString(40, y, f"{description} - {booking.get('transfer_type', 'VTC')}")
-        c.drawRightString(width - 40, y, f"{breakdown['driver_earning']:.2f} EUR HT")
-        y -= 20
-        c.setFillColorRGB(0.3, 0.3, 0.3)
-        c.setFont("Helvetica", 9)
-        c.drawString(40, y, "Montant course client TTC")
-        c.drawRightString(width - 40, y, f"{breakdown['price_ttc']:.2f} EUR")
-        y -= 13
-        c.drawString(40, y, f"Commission prélevée TTC ({round_amount(settings['commission_rate'] * 100):.0f}%)")
-        c.drawRightString(width - 40, y, f"- {breakdown['commission_ttc']:.2f} EUR")
-        y -= 20
+        if document_type == "activity":
+            c.setFillColorRGB(0.1, 0.1, 0.1)
+            c.setFont("Helvetica-Bold", 9)
+            x_date, x_service, x_ref, x_amount = 40, 220, 410, width - 40
+            c.drawString(x_date, y, "DATE")
+            c.drawString(x_service, y, "SERVICE")
+            c.drawString(x_ref, y, "RÉF.")
+            c.drawRightString(x_amount, y, "MONTANT HT")
+            y -= 10
+            c.setStrokeColorRGB(0.83, 0.69, 0.22)
+            c.setLineWidth(1)
+            c.line(40, y, width - 40, y)
+            y -= 15
+            c.setFont("Helvetica", 9)
+            c.drawString(x_date, y, f"{booking.get('pickup_date', 'N/A')} {booking.get('pickup_time', '')}")
+            c.drawString(x_service, y, booking.get('transfer_type', 'VTC'))
+            c.drawString(x_ref, y, document_number)
+            c.drawRightString(x_amount, y, f"{breakdown['driver_earning']:.2f} EUR")
+            y -= 15
+            c.setStrokeColorRGB(0.83, 0.69, 0.22)
+            c.setLineWidth(0.5)
+            c.line(40, y, width - 40, y)
+            y -= 14
+            c.setFillColorRGB(0.3, 0.3, 0.3)
+            c.setFont("Helvetica", 9)
+            c.drawString(40, y, "Récapitulatif : Montant course client TTC")
+            c.drawRightString(width - 40, y, f"{breakdown['price_ttc']:.2f} EUR")
+            y -= 13
+            c.drawString(40, y, "Commission prélevée TTC")
+            c.drawRightString(width - 40, y, f"- {breakdown['commission_ttc']:.2f} EUR")
+            y -= 20
+        else:
+            description = "Rémunération trajet"
+            c.drawString(40, y, f"{description} - {booking.get('transfer_type', 'VTC')}")
+            c.drawRightString(width - 40, y, f"{breakdown['driver_earning']:.2f} EUR HT")
+            y -= 20
+            c.setFillColorRGB(0.3, 0.3, 0.3)
+            c.setFont("Helvetica", 9)
+            c.drawString(40, y, "Montant course client TTC")
+            c.drawRightString(width - 40, y, f"{breakdown['price_ttc']:.2f} EUR")
+            y -= 13
+            c.drawString(40, y, f"Commission prélevée TTC ({round_amount(settings['commission_rate'] * 100):.0f}%)")
+            c.drawRightString(width - 40, y, f"- {breakdown['commission_ttc']:.2f} EUR")
+            y -= 20
         total_label = "TOTAL ACTIVITÉ (HT)" if document_type == "activity" else "MONTANT À VERSER (HT)"
         total_value = breakdown['driver_earning']
     elif document_type == "commission":
+        c.setFillColorRGB(0.1, 0.1, 0.1)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(40, y, "Bloc fournisseur :")
+        c.drawString(300, y, "Bloc destinataire :")
+        y -= 14
+        c.setFont("Helvetica", 9)
+        c.drawString(40, y, f"{issuer['name']} — {issuer['email']}")
+        c.drawString(300, y, f"{booking.get('client_name', 'N/A')} — {booking.get('client_email', 'N/A')}")
+        y -= 16
         c.drawString(40, y, f"Commission de gestion - {booking.get('transfer_type', 'VTC')}")
         c.drawRightString(width - 40, y, f"{breakdown['commission_ht']:.2f} EUR")
         y -= 20
@@ -841,7 +969,10 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.setFont("Helvetica", 8)
     c.drawString(40, y, "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.")
     y -= 12
-    c.drawString(40, y, f"TVA non récupérable par le preneur. {settings['company_name']} - {settings['company_address']}")
+    if document_type == "order":
+        c.drawString(40, y, "Bon de réservation émis à titre contractuel selon les informations disponibles dans l'application.")
+        y -= 12
+    c.drawString(40, y, f"TVA non récupérable par le preneur. {issuer['name']} - {issuer['address']}")
 
     c.showPage()
     c.save()
@@ -850,6 +981,10 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     return pdf_bytes
 
 async def generate_and_store_document(booking: dict, settings: dict, document_type: str) -> Tuple[bytes, dict]:
+    enriched_booking = {**booking}
+    enriched_booking["issuer"] = await build_document_issuer_profile(booking, settings)
+    resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
+
     existing_document = await db.invoices.find_one(
         {"booking_id": booking["id"], "type": document_type},
         {"_id": 0}
@@ -857,7 +992,7 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
 
     if existing_document:
         existing_pdf = generate_financial_pdf(
-            booking,
+            enriched_booking,
             settings,
             document_type,
             existing_document["invoice_number"]
@@ -865,11 +1000,11 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         return existing_pdf, existing_document
 
     document_number = await get_next_sequential_number()
-    pdf_bytes = generate_financial_pdf(booking, settings, document_type, document_number)
+    pdf_bytes = generate_financial_pdf(enriched_booking, settings, document_type, document_number)
     breakdown = compute_financial_breakdown(
         booking["estimated_price"],
         settings["commission_rate"],
-        settings["tva_client_rate"],
+        resolved_client_tva_rate,
         settings["tva_commission_rate"],
         booking.get("commission_override"),
         bool(booking.get("fulfilled_by_admin"))
@@ -889,7 +1024,7 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         amount_ttc = breakdown["price_ttc"]
         amount_ht = breakdown["price_ht"]
         tva_amount = breakdown["tva_client"]
-        tva_rate = settings["tva_client_rate"]
+        tva_rate = resolved_client_tva_rate
 
     metadata = {
         "id": str(uuid.uuid4()),
@@ -2014,10 +2149,11 @@ async def get_financial_stats(request: Request, driver_id: Optional[str] = None)
     }
 
     for booking in completed_bookings:
+        resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
         breakdown = compute_financial_breakdown(
             booking["estimated_price"],
             settings["commission_rate"],
-            settings["tva_client_rate"],
+            resolved_client_tva_rate,
             settings["tva_commission_rate"],
             booking.get("commission_override"),
             bool(booking.get("fulfilled_by_admin"))
@@ -2084,10 +2220,11 @@ async def get_completed_bookings_financial(request: Request):
 
     result = []
     for b in bookings:
+        resolved_client_tva_rate = get_client_tva_rate_for_booking(b)
         breakdown = compute_financial_breakdown(
             b["estimated_price"],
             settings["commission_rate"],
-            settings["tva_client_rate"],
+            resolved_client_tva_rate,
             settings["tva_commission_rate"],
             b.get("commission_override"),
             bool(b.get("fulfilled_by_admin"))
@@ -2102,6 +2239,7 @@ async def get_completed_bookings_financial(request: Request):
             "client_email": b.get("client_email", "N/A"),
             "driver_name": b.get("driver_name"),
             "driver_id": b.get("driver_id"),
+            "fulfilled_by_admin": b.get("fulfilled_by_admin"),
             "pickup_address": b.get("pickup_address", ""),
             "dropoff_address": b.get("dropoff_address", ""),
             "pickup_date": b.get("pickup_date", ""),
@@ -2119,7 +2257,7 @@ async def get_completed_bookings_financial(request: Request):
             "commission_ht": breakdown["commission_ht"],
             "tva_commission": breakdown["tva_commission"],
             "driver_earning": breakdown["driver_earning"],
-            "tva_client_rate": settings["tva_client_rate"],
+            "tva_client_rate": resolved_client_tva_rate,
             "tva_commission_rate": settings["tva_commission_rate"],
             "commission_rate": settings["commission_rate"],
             "client_invoice_number": client_inv["invoice_number"] if client_inv else None,
@@ -2140,10 +2278,11 @@ async def get_driver_earnings(request: Request):
 
     earnings = []
     for booking in bookings:
+        resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
         breakdown = compute_financial_breakdown(
             booking["estimated_price"],
             settings["commission_rate"],
-            settings["tva_client_rate"],
+            resolved_client_tva_rate,
             settings["tva_commission_rate"],
             booking.get("commission_override"),
             bool(booking.get("fulfilled_by_admin"))
@@ -2256,10 +2395,11 @@ async def get_driver_invoices(request: Request):
 
     result = []
     for b in bookings:
+        resolved_client_tva_rate = get_client_tva_rate_for_booking(b)
         breakdown = compute_financial_breakdown(
             b["estimated_price"],
             settings["commission_rate"],
-            settings["tva_client_rate"],
+            resolved_client_tva_rate,
             settings["tva_commission_rate"],
             b.get("commission_override"),
             bool(b.get("fulfilled_by_admin"))
