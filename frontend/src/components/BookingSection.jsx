@@ -360,7 +360,7 @@ const BookingSection = () => {
                         ))}
                       </div>
                       <p className="mx-auto max-w-3xl text-sm leading-relaxed text-[#A1A1AA]">
-                        Pour toute demande de courses non classique : moto, autocar, bus, limousine, véhicule de collection, contacter nous ou faite nous une demande par mail.
+                        Pour toute demande de courses non classique : moto, autocar, bus, limousine, véhicule de collection, contactez-nous ou faites-nous une demande par mail.
                       </p>
                     </div>
 
