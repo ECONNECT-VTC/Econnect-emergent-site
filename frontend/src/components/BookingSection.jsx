@@ -338,7 +338,7 @@ const BookingSection = () => {
     if (draft.dispositionHours) setDispositionHours(String(draft.dispositionHours));
     if (draft.distanceKm) setDistanceKm(String(draft.distanceKm));
     if (draft.step) setStep(draft.step);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only: adding state setters as deps would re-run on every field change, causing an infinite loop where setDate(new Date(x)) always produces a new object reference
 
   // Effect 2: Auto-checkout when user logs in after saving a draft (Bug 1 fix)
   // Depends only on `user`; uses submitCheckoutRef to avoid stale-closure issues.
