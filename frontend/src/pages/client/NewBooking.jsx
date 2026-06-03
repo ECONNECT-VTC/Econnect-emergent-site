@@ -113,12 +113,15 @@ const NewBooking = () => {
     return priceEstimates.find(e => e.category_id === selectedCategory);
   };
 
-  const getEstimateRateLabel = (estimate) => (
-    estimate.rate_label
-    || (estimate.pricing_basis === 'hourly'
-      ? `Tarif ${estimate.disposition_hours}h`
-      : `${estimate.price_per_km.toFixed(2)}€/km`)
-  );
+  const getEstimateRateLabel = (estimate) => {
+    if (estimate.final_price === null || estimate.final_price === undefined) {
+      return 'Tarif indisponible';
+    }
+    return estimate.rate_label
+      || (estimate.pricing_basis === 'hourly'
+        ? `Tarif ${estimate.disposition_hours}h`
+        : `${estimate.price_per_km.toFixed(2)}€/km`);
+  };
 
   const formatReservedHours = (hoursValue) => {
     const parsedHours = parseFloat(hoursValue);
@@ -186,6 +189,35 @@ const NewBooking = () => {
       setSelectedCategory(null);
     }
   }, [priceEstimates, selectedCategory]);
+
+  const sortedPriceEstimates = [...priceEstimates].sort((a, b) => {
+    const aPresentation = getVehicleCategoryPresentation(a.category_name);
+    const bPresentation = getVehicleCategoryPresentation(b.category_name);
+    return (aPresentation?.order ?? 99) - (bPresentation?.order ?? 99);
+  });
+
+  const displayedEstimates = transferType === 'disposition'
+    ? (() => {
+      const estimateCategoryIds = new Set(priceEstimates.map((estimate) => estimate.category_id));
+      const missingDispositionCategories = categories
+        .filter((category) => category?.id && !estimateCategoryIds.has(category.id))
+        .sort((a, b) => {
+          const aOrder = getVehicleCategoryPresentation(a.name)?.order ?? 99;
+          const bOrder = getVehicleCategoryPresentation(b.name)?.order ?? 99;
+          return aOrder - bOrder;
+        })
+        .map((category) => ({
+          category_id: category.id,
+          category_name: category.name,
+          final_price: null,
+          min_fare: null,
+          pricing_basis: 'hourly',
+          rate_label: 'Tarif indisponible',
+        }));
+
+      return [...sortedPriceEstimates, ...missingDispositionCategories];
+    })()
+    : sortedPriceEstimates;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -368,24 +400,27 @@ const NewBooking = () => {
             )}
 
             {/* Vehicle Category Selection */}
-            {priceEstimates.length > 0 && (
+            {displayedEstimates.length > 0 && (
               <div className="space-y-3">
                 <Label className="text-[#A1A1AA]">Choisir votre vehicule</Label>
                 <div className="grid sm:grid-cols-2 gap-3" data-testid="vehicle-selection">
-                  {[...priceEstimates].sort((a, b) => {
-                    const aPresentation = getVehicleCategoryPresentation(a.category_name);
-                    const bPresentation = getVehicleCategoryPresentation(b.category_name);
-                    return (aPresentation?.order ?? 99) - (bPresentation?.order ?? 99);
-                  }).map((estimate) => {
+                  {displayedEstimates.map((estimate) => {
                     const category = categories.find(c => c.id === estimate.category_id || c.name === estimate.category_name);
                     const categoryMeta = getCategoryMeta(category);
                     const displayMeta = getDisplayMeta(estimate.category_name, categoryMeta);
                     const isSelected = selectedCategory === estimate.category_id;
+                    const hasPrice = Number.isFinite(estimate.final_price);
                     return (
                       <div 
                         key={estimate.category_id}
-                        onClick={() => setSelectedCategory(estimate.category_id)}
-                        className={`overflow-hidden rounded-2xl cursor-pointer transition-all ${
+                        onClick={() => {
+                          if (hasPrice) {
+                            setSelectedCategory(estimate.category_id);
+                          }
+                        }}
+                        className={`overflow-hidden rounded-2xl transition-all ${
+                          hasPrice ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
+                        } ${
                           isSelected 
                             ? 'bg-[#D4AF37]/20 border-2 border-[#D4AF37]' 
                             : 'bg-[#1E1E1E] border-2 border-transparent hover:border-white/20'
@@ -412,8 +447,10 @@ const NewBooking = () => {
                               </p>
                             </div>
                             <div className="text-right">
-                              <p className="text-2xl font-bold text-[#D4AF37]">{estimate.final_price.toFixed(2)}€</p>
-                              {estimate.final_price === estimate.min_fare && estimate.pricing_basis !== 'hourly' && (
+                              <p className="text-2xl font-bold text-[#D4AF37]">
+                                {hasPrice ? `${estimate.final_price.toFixed(2)}€` : 'Sur devis'}
+                              </p>
+                              {hasPrice && estimate.final_price === estimate.min_fare && estimate.pricing_basis !== 'hourly' && (
                                 <p className="text-xs text-[#A1A1AA]">Tarif min.</p>
                               )}
                             </div>

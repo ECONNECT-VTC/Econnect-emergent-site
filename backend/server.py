@@ -299,6 +299,16 @@ LEGACY_CATEGORY_METADATA = {
     "Green": {"has_wifi": True, "max_passengers": 4, "max_luggage": 3},
 }
 
+CATEGORY_NAME_ALIASES = {
+    "berline": "Berline",
+    "confort classique": "Berline",
+    "green": "Green",
+    "confort premium": "Green",
+    "luxe": "Luxe",
+    "prestige": "Luxe",
+    "van": "Van",
+}
+
 
 def serialize_vehicle_category(category: dict) -> VehicleCategory:
     return VehicleCategory(
@@ -314,6 +324,14 @@ def serialize_vehicle_category(category: dict) -> VehicleCategory:
         is_active=category.get("is_active", True),
         order=category.get("order", 0),
     )
+
+
+def normalize_category_name(category_name: Optional[str]) -> Optional[str]:
+    if not category_name:
+        return None
+    normalized = unicodedata.normalize("NFKD", category_name).encode("ASCII", "ignore").decode("ASCII")
+    normalized = normalized.strip().lower()
+    return CATEGORY_NAME_ALIASES.get(normalized, category_name)
 
 
 def select_disposition_rate(rates: List[dict], requested_hours: float) -> Optional[dict]:
@@ -1887,6 +1905,7 @@ async def estimate_price(
     Standard transfers are based on distance; disposition transfers use hourly rates.
     """
     categories = await db.vehicle_categories.find({"is_active": True}, {"_id": 0}).sort("order", 1).to_list(100)
+    multiplier = 2 if transfer_type == "retour" else 1
 
     if transfer_type == "disposition":
         if disposition_hours is None or disposition_hours <= 0:
@@ -1895,15 +1914,19 @@ async def estimate_price(
         rates = await db.disposition_rates.find({"is_active": True}, {"_id": 0}).to_list(1000)
         rates_by_category = {}
         for rate in rates:
-            rates_by_category.setdefault(rate.get("vehicle_category_name"), []).append(rate)
+            normalized_rate_category = normalize_category_name(rate.get("vehicle_category_name"))
+            if not normalized_rate_category:
+                continue
+            rates_by_category.setdefault(normalized_rate_category, []).append(rate)
 
         estimates = []
         for cat in categories:
-            selected_rate = select_disposition_rate(rates_by_category.get(cat["name"], []), disposition_hours)
+            normalized_category_name = normalize_category_name(cat["name"]) or cat["name"]
+            selected_rate = select_disposition_rate(rates_by_category.get(normalized_category_name, []), disposition_hours)
             if not selected_rate:
                 continue
 
-            final_price = round(float(selected_rate["price"]), 2)
+            final_price = round(float(selected_rate["price"]) * multiplier, 2)
             estimates.append(PriceEstimate(
                 category_id=cat["id"],
                 category_name=cat["name"],
@@ -1915,7 +1938,7 @@ async def estimate_price(
                 price_per_km=cat["price_per_km"],
                 pricing_basis="hourly",
                 disposition_hours=round(disposition_hours, 2),
-                rate_label=f"Tarif {selected_rate['duration_hours']}h",
+                rate_label=f"Tarif {selected_rate['duration_hours']}h" + (" · aller-retour" if transfer_type == "retour" else ""),
             ))
 
         return estimates
@@ -1927,19 +1950,22 @@ async def estimate_price(
     for cat in categories:
         base_price = distance_km * cat["price_per_km"]
         final_price = max(base_price, cat["min_fare"])
+        total_base_price = base_price * multiplier
+        total_final_price = final_price * multiplier
+        total_min_fare = cat["min_fare"] * multiplier
 
         estimates.append(PriceEstimate(
             category_id=cat["id"],
             category_name=cat["name"],
             distance_km=round(distance_km, 2),
             duration_minutes=round(duration_minutes, 0),
-            base_price=round(base_price, 2),
-            final_price=round(final_price, 2),
-            min_fare=cat["min_fare"],
+            base_price=round(total_base_price, 2),
+            final_price=round(total_final_price, 2),
+            min_fare=round(total_min_fare, 2),
             price_per_km=cat["price_per_km"],
             pricing_basis="distance",
             disposition_hours=None,
-            rate_label=f"{cat['price_per_km']:.2f}€/km",
+            rate_label=f"{cat['price_per_km']:.2f}€/km" + (" · aller-retour" if transfer_type == "retour" else ""),
         ))
 
     return estimates
