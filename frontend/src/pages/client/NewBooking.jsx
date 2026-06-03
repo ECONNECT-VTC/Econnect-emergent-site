@@ -448,7 +448,7 @@ const NewBooking = () => {
                             </div>
                             <div className="text-right">
                               <p className="text-2xl font-bold text-[#D4AF37]">
-                                {hasPrice ? `${estimate.final_price.toFixed(2)}€` : 'Sur devis'}
+                                {hasPrice ? `${estimate.final_price.toFixed(2)}€` : '—'}
                               </p>
                               {hasPrice && estimate.final_price === estimate.min_fare && estimate.pricing_basis !== 'hourly' && (
                                 <p className="text-xs text-[#A1A1AA]">Tarif min.</p>
