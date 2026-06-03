@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer, CheckCircle, Users, Briefcase, WifiHigh } from '@phosphor-icons/react';
+import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer, Users, Briefcase } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import InteractiveMap from './InteractiveMap';
+import { PremiumWifiIcon } from './VehicleFeatureBadges';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { VEHICLE_CATEGORY_CONFIG } from '@/utils/vehicleCategories';
 
@@ -30,6 +31,7 @@ const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
   passengers: category.passengers,
   luggage: category.luggage,
   hasWifi: category.hasWifi,
+  image: category.image,
   startingPrice: category.startingPrice,
 }));
 
@@ -43,6 +45,7 @@ const BookingSection = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [dispositionHours, setDispositionHours] = useState('');
   const { t } = useLanguage();
+  const bookingPanelMinHeight = 'lg:min-h-[680px]';
 
   const timeSlots = [];
   for (let h = 0; h < 24; h++) {
@@ -117,20 +120,18 @@ const BookingSection = () => {
             className="w-full h-full"
           >
             {/* Step indicators */}
-            <div className="flex items-center gap-3 mb-6">
-              {[1, 2, 3].map((s) => (
-                <div key={s} className="flex items-center">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
-                    s < step ? 'bg-[#D4AF37] text-[#0A0A0A]' :
-                    s === step ? 'bg-[#D4AF37] text-[#0A0A0A]' :
-                    'bg-white/10 text-[#A1A1AA]'
-                  }`}>
-                    {s < step ? <CheckCircle size={18} weight="fill" /> : s}
+            <div className="mb-8 flex flex-col items-center gap-4 text-center">
+              <div className="flex w-full items-center justify-center gap-2 sm:gap-3">
+                {[1, 2, 3].map((s) => (
+                  <div key={s} className="flex items-center">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-[#D4AF37]/40 bg-[#121212] text-sm font-semibold text-[#F3D67A] shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+                      {s}
+                    </div>
+                    {s < 3 && <div className="mx-2 h-px w-10 bg-[#D4AF37]/35 sm:w-16 md:w-20" />}
                   </div>
-                  {s < 3 && <div className="w-12 md:w-20 h-[2px] bg-[#D4AF37]/30 mx-2" />}
-                </div>
-              ))}
-              <span className="text-[#A1A1AA] text-sm ml-2">
+                ))}
+              </div>
+              <span className="text-sm tracking-[0.18em] uppercase text-[#C7B588]">
                 {step === 1 ? t('typeTransfert') || 'Votre trajet' : step === 2 ? 'Choisir votre véhicule' : 'Valider votre demande'}
               </span>
             </div>
@@ -144,7 +145,7 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep1Submit}
-                  className="glass rounded-2xl p-8 md:p-10 space-y-6 h-full lg:min-h-[760px]"
+                  className={`glass rounded-2xl p-8 md:p-10 space-y-6 h-full ${bookingPanelMinHeight}`}
                   data-testid="booking-form"
                 >
                   <div className="flex flex-col gap-6">
@@ -286,10 +287,10 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep2Submit}
-                  className="glass rounded-2xl p-8 md:p-10 space-y-6 h-full lg:min-h-[760px]"
+                  className={`glass rounded-2xl p-8 md:p-10 space-y-8 h-full ${bookingPanelMinHeight}`}
                   data-testid="vehicle-selection-form"
                 >
-                  <div className="flex flex-col gap-5">
+                  <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
                     {/* Recap */}
                     <div className="rounded-xl border border-[#D4AF37]/20 bg-[#1E1E1E] p-4 text-sm text-[#C7B588] space-y-1">
                       <p className="flex items-center gap-2"><MapPin size={14} className="text-[#D4AF37]" /> {pickup} → {dropoff}</p>
@@ -303,51 +304,64 @@ const BookingSection = () => {
                     </div>
 
                     {/* Vehicle selection */}
-                    <div>
-                      <Label className="text-[#A1A1AA] text-sm flex items-center gap-2 mb-3">
+                    <div className="space-y-4 text-center">
+                      <Label className="justify-center text-[#A1A1AA] text-sm flex items-center gap-2">
                         <CarSimple size={16} className="text-[#D4AF37]" />
                         Choisissez votre gamme
                       </Label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {VEHICLE_CATEGORIES.map((cat) => (
                           <button
                             key={cat.id}
                             type="button"
                             onClick={() => setSelectedCategory(cat.id)}
-                            className={`p-4 rounded-xl border text-left transition-all ${
+                            className={`overflow-hidden rounded-2xl border text-left transition-all ${
                               selectedCategory === cat.id
-                                ? 'border-[#D4AF37] bg-[#D4AF37]/10'
+                                ? 'border-[#D4AF37] bg-[#D4AF37]/10 shadow-[0_18px_40px_rgba(212,175,55,0.08)]'
                                 : 'border-white/10 bg-[#1E1E1E] hover:border-[#D4AF37]/50'
                             }`}
                             data-testid={`vehicle-cat-${cat.id}`}
                           >
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="font-semibold text-sm text-white">{cat.name}</p>
-                              <span className="text-xs text-[#D4AF37] font-medium">
-                                {transferType === 'disposition' && dispositionHours
-                                  ? `Sur devis`
-                                  : `dès ${getStartingPriceLabel(cat.startingPrice)}`}
-                              </span>
+                            <div className="relative h-36 overflow-hidden">
+                              <img
+                                src={cat.image}
+                                alt={cat.name}
+                                className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/45 to-transparent" />
                             </div>
-                            <div className="flex items-center gap-3 text-[#A1A1AA]">
-                              <span className="flex items-center gap-1 text-xs">
-                                <Users size={12} className="text-[#D4AF37]" />
-                                {cat.passengers}
-                              </span>
-                              <span className="flex items-center gap-1 text-xs">
-                                <Briefcase size={12} className="text-[#D4AF37]" />
-                                {cat.luggage}
-                              </span>
-                              {cat.hasWifi && (
-                                <span className="flex items-center gap-1 text-xs">
-                                  <WifiHigh size={12} className="text-[#D4AF37]" />
-                                  Wi‑Fi
+                            <div className="space-y-3 p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="font-semibold text-sm text-white">{cat.name}</p>
+                                <span className="text-xs text-[#D4AF37] font-medium">
+                                  {transferType === 'disposition' && dispositionHours
+                                    ? 'Sur devis'
+                                    : `dès ${getStartingPriceLabel(cat.startingPrice)}`}
                                 </span>
-                              )}
+                              </div>
+                              <div className="flex items-center gap-3 text-[#A1A1AA]">
+                                <span className="flex items-center gap-1 text-xs">
+                                  <Users size={12} className="text-[#D4AF37]" />
+                                  {cat.passengers}
+                                </span>
+                                <span className="flex items-center gap-1 text-xs">
+                                  <Briefcase size={12} className="text-[#D4AF37]" />
+                                  {cat.luggage}
+                                </span>
+                                {cat.hasWifi && (
+                                  <span className="flex items-center gap-1 text-xs">
+                                    <PremiumWifiIcon size={12} className="text-[#D4AF37]" />
+                                    Wi‑Fi
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </button>
                         ))}
                       </div>
+                      <p className="mx-auto max-w-3xl text-sm leading-relaxed text-[#A1A1AA]">
+                        Pour toute demande de courses non classique : moto, autocar, bus, limousine, véhicule de collection, contactez-nous ou faites-nous une demande par mail.
+                      </p>
                     </div>
 
                     {/* Price info */}
@@ -367,7 +381,7 @@ const BookingSection = () => {
                     )}
                   </div>
 
-                  <div className="flex gap-3 mt-6">
+                  <div className="mx-auto mt-6 flex w-full max-w-4xl gap-3">
                     <Button
                       type="button"
                       variant="outline"
@@ -397,7 +411,7 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep3Submit}
-                  className="glass rounded-2xl p-8 md:p-10 space-y-6 h-full lg:min-h-[760px]"
+                  className={`glass rounded-2xl p-8 md:p-10 space-y-6 h-full ${bookingPanelMinHeight}`}
                   data-testid="booking-confirmation-form"
                 >
                   <div className="space-y-4 rounded-xl border border-[#D4AF37]/20 bg-[#1E1E1E] p-5 text-sm text-[#C7B588]">
@@ -443,7 +457,7 @@ const BookingSection = () => {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="h-full rounded-2xl overflow-hidden lg:min-h-[760px]"
+            className={`h-full rounded-2xl overflow-hidden ${bookingPanelMinHeight}`}
           >
             <InteractiveMap />
           </motion.div>
