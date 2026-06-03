@@ -2,6 +2,7 @@ import {
   CATEGORY_DISPLAY_NAMES,
   DISPOSITION_SERVICE_CATEGORY_KEYS,
   VEHICLE_CATEGORY_CONFIG,
+  findDispositionEstimateForCategory,
   getCategoryDisplayName,
   getOrderedDispositionCategoryNames,
   getVehicleCategoryPresentation,
@@ -65,5 +66,31 @@ describe('vehicleCategories utils', () => {
     expect(
       VEHICLE_CATEGORY_CONFIG.every((category) => Boolean(category.image) && category.hasWifi === true)
     ).toBe(true);
+  });
+
+  it('matches disposition estimates to the correct gamme names used on the public frontend', () => {
+    const estimates = [
+      { category_name: 'Berline', final_price: 180 },
+      { category_name: 'Green', final_price: 240 },
+      { category_name: 'Luxe', final_price: 320 },
+      { category_name: 'Van', final_price: 280 },
+    ];
+
+    expect(findDispositionEstimateForCategory(estimates, 'Confort Classique')).toMatchObject({
+      category_name: 'Berline',
+      final_price: 180,
+    });
+    expect(findDispositionEstimateForCategory(estimates, 'Green')).toMatchObject({
+      category_name: 'Green',
+      final_price: 240,
+    });
+    expect(findDispositionEstimateForCategory(estimates, 'Prestige')).toMatchObject({
+      category_name: 'Luxe',
+      final_price: 320,
+    });
+    expect(findDispositionEstimateForCategory(estimates, 'Van')).toMatchObject({
+      category_name: 'Van',
+      final_price: 280,
+    });
   });
 });

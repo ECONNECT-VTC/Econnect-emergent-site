@@ -79,6 +79,20 @@ export const getVehicleCategoryPresentation = (categoryName) => {
   return CATEGORY_PRESENTATION[backendName] || null;
 };
 
+export const findDispositionEstimateForCategory = (estimates = [], categoryName) => {
+  const normalizedName = (categoryName || '').trim().toLowerCase();
+  const backendName = CATEGORY_ALIAS_MAP[normalizedName] || categoryName;
+
+  if (!backendName) {
+    return null;
+  }
+
+  return estimates.find((estimate) => {
+    const estimateName = (estimate?.category_name || '').trim().toLowerCase();
+    return CATEGORY_ALIAS_MAP[estimateName] === backendName || estimate?.category_name === backendName;
+  }) || null;
+};
+
 export const getOrderedDispositionCategoryNames = (categories = []) => {
   const categoryNames = [
     ...new Set(categories.map((category) => category?.name).filter(Boolean)),

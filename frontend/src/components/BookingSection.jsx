@@ -23,7 +23,7 @@ import { fr } from 'date-fns/locale';
 import InteractiveMap from './InteractiveMap';
 import { PremiumWifiIcon } from './VehicleFeatureBadges';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { VEHICLE_CATEGORY_CONFIG } from '@/utils/vehicleCategories';
+import { VEHICLE_CATEGORY_CONFIG, findDispositionEstimateForCategory } from '@/utils/vehicleCategories';
 import API_URL from '@/config';
 
 const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
@@ -47,6 +47,7 @@ const BookingSection = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [dispositionHours, setDispositionHours] = useState('');
   const [dispositionPrices, setDispositionPrices] = useState([]);
+  const [loadingDispositionPrices, setLoadingDispositionPrices] = useState(false);
   const [distanceKm, setDistanceKm] = useState('');
   const { t } = useLanguage();
   const bookingPanelMinHeight = 'lg:min-h-[680px]';
@@ -56,6 +57,7 @@ const BookingSection = () => {
       setDispositionPrices([]);
       return;
     }
+    setLoadingDispositionPrices(true);
     try {
       const response = await axios.post(
         `${API_URL}/api/estimate-price?transfer_type=disposition&disposition_hours=${parseFloat(hours)}`,
@@ -66,6 +68,8 @@ const BookingSection = () => {
     } catch (err) {
       console.error('[BookingSection] Failed to fetch disposition prices:', err);
       setDispositionPrices([]);
+    } finally {
+      setLoadingDispositionPrices(false);
     }
   }, []);
 
@@ -78,14 +82,18 @@ const BookingSection = () => {
     }
   }, [dispositionHours, transferType, fetchDispositionPrices]);
 
-  const getFormattedDispositionPrice = useCallback((categoryId, fallbackStartingPrice) => {
-    const price = dispositionPrices.find((e) => e.category_id === categoryId);
+  const getFormattedDispositionPrice = useCallback((categoryId) => {
+    if (loadingDispositionPrices) {
+      return 'Chargement...';
+    }
+
+    const price = findDispositionEstimateForCategory(dispositionPrices, categoryId);
     if (price && Number.isFinite(price.final_price)) {
       return `${price.final_price.toFixed(2)}€`;
     }
-    const parsed = Number(String(fallbackStartingPrice || '').replace(/[^\d.,]/g, '').replace(',', '.'));
-    return Number.isFinite(parsed) ? `${Math.round(parsed)}€` : (fallbackStartingPrice || '');
-  }, [dispositionPrices]);
+
+    return 'Tarif indisponible';
+  }, [dispositionPrices, loadingDispositionPrices]);
 
   const timeSlots = [];
   for (let h = 0; h < 24; h++) {
@@ -408,7 +416,7 @@ const BookingSection = () => {
                                 <p className="font-semibold text-sm text-white">{cat.name}</p>
                                 <span className="text-xs text-[#D4AF37] font-medium">
                                   {transferType === 'disposition' && dispositionHours
-                                    ? getFormattedDispositionPrice(cat.id, cat.startingPrice)
+                                    ? getFormattedDispositionPrice(cat.id)
                                     : `dès ${getStartingPriceLabel(cat.startingPrice)}`}
                                 </span>
                               </div>
@@ -432,9 +440,9 @@ const BookingSection = () => {
                           </button>
                         ))}
                       </div>
-                      <p className="mx-auto max-w-3xl text-sm leading-relaxed text-[#A1A1AA]">
+                      <div className="mx-auto w-full max-w-4xl rounded-2xl border border-[#D4AF37]/15 bg-[#161616] px-4 py-3 text-sm leading-relaxed text-[#C7B588]">
                         Pour toute demande de courses non classique : moto, autocar, bus, limousine, véhicule de collection, contactez-nous ou faites-nous une demande par mail.
-                      </p>
+                      </div>
                     </div>
 
                     {/* Price info */}
@@ -446,7 +454,7 @@ const BookingSection = () => {
                       >
                         <p className="text-[#D4AF37] text-sm font-medium">
                           {transferType === 'disposition' && dispositionHours
-                            ? `Mise à disposition · ${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory, VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice)}`
+                            ? `Mise à disposition · ${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory)}`
                             : `${VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name} · à partir de ${getStartingPriceLabel(VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice || '')}`}
                         </p>
                         <p className="text-[#A1A1AA] text-xs mt-1">Le prix final sera confirmé par votre chauffeur.</p>
@@ -500,7 +508,7 @@ const BookingSection = () => {
                     {transferType === 'disposition' && dispositionHours ? (
                       <p className="flex items-center gap-2">
                         <Timer size={14} className="text-[#D4AF37]" />
-                        {`${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory, VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice)}`}
+                        {`${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory)}`}
                       </p>
                     ) : (
                       <p className="text-[#D4AF37]">Tarif indicatif: {getStartingPriceLabel(VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice || '')}</p>
