@@ -1158,6 +1158,130 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
 
 # ==================== EMAIL SERVICE ====================
 
+def get_logo_url() -> str:
+    """Return the absolute public URL for the Econnect VTC logo."""
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    return f"{frontend_url}/photo/logo.png"
+
+
+def build_email_html(
+    title: str,
+    body_html: str,
+    cta_label: Optional[str] = None,
+    cta_url: Optional[str] = None,
+) -> str:
+    """
+    Build a responsive HTML email with a branded header (logo), body, optional CTA
+    button, and a footer.  All styles are inline for maximum email-client compatibility.
+    Layout is table-based so it renders correctly in Outlook.
+    """
+    logo_url = get_logo_url()
+    current_year = datetime.now(timezone.utc).year
+
+    cta_block = ""
+    if cta_label and cta_url:
+        cta_block = f"""
+        <tr>
+          <td align="center" style="padding: 24px 0 8px 0;">
+            <a href="{cta_url}"
+               style="display: inline-block; background-color: #D4AF37; color: #0A0A0A;
+                      font-family: Arial, sans-serif; font-size: 15px; font-weight: bold;
+                      text-decoration: none; padding: 14px 32px; border-radius: 8px;">
+              {cta_label}
+            </a>
+          </td>
+        </tr>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{title}</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #0A0A0A; font-family: Arial, sans-serif;">
+
+  <!-- Outer wrapper -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0"
+         style="background-color: #0A0A0A; padding: 32px 16px;">
+    <tr>
+      <td align="center">
+
+        <!-- Card -->
+        <table width="600" cellpadding="0" cellspacing="0" border="0"
+               style="max-width: 600px; width: 100%; background-color: #141414;
+                      border-radius: 12px; border: 1px solid #2A2A2A; overflow: hidden;">
+
+          <!-- Header with logo -->
+          <tr>
+            <td align="center"
+                style="background-color: #0A0A0A; padding: 28px 32px;
+                       border-bottom: 1px solid #D4AF37;">
+              <img src="{logo_url}" alt="Econnect VTC"
+                   width="160" height="auto"
+                   style="display: block; max-width: 160px; height: auto;" />
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px 40px 8px 40px; color: #FAFAFA;">
+
+              <!-- Title -->
+              <h1 style="margin: 0 0 24px 0; font-size: 22px; font-weight: bold;
+                         color: #D4AF37; border-bottom: 1px solid #2A2A2A;
+                         padding-bottom: 16px;">
+                {title}
+              </h1>
+
+              <!-- Dynamic body -->
+              <div style="color: #FAFAFA; font-size: 15px; line-height: 1.6;">
+                {body_html}
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- CTA -->
+          {f'''<tr><td style="padding: 0 40px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              {cta_block}
+            </table>
+          </td></tr>''' if cta_block else ""}
+
+          <!-- Spacer -->
+          <tr><td style="height: 32px;"></td></tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center"
+                style="background-color: #0A0A0A; padding: 20px 32px;
+                       border-top: 1px solid #2A2A2A;">
+              <p style="margin: 0 0 4px 0; color: #D4AF37; font-size: 13px;
+                        font-weight: bold; letter-spacing: 1px;">
+                ECONNECT VTC
+              </p>
+              <p style="margin: 0 0 4px 0; color: #A1A1AA; font-size: 12px;">
+                Service de transport privé premium
+              </p>
+              <p style="margin: 0; color: #A1A1AA; font-size: 11px;">
+                &copy; {current_year} Econnect VTC. Tous droits réservés.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /Card -->
+
+      </td>
+    </tr>
+  </table>
+  <!-- /Outer wrapper -->
+
+</body>
+</html>"""
+
+
 async def send_notification_email(to_email: str, subject: str, html_content: str):
     """Send email notification via SendGrid"""
     sendgrid_key = os.environ.get('SENDGRID_API_KEY')
@@ -1181,36 +1305,72 @@ async def send_notification_email(to_email: str, subject: str, html_content: str
         logger.error(f"Failed to send email: {e}")
         return False
 
+
 async def send_booking_notification_to_driver(driver: dict, booking: dict, client: dict, order_download_url: Optional[str] = None):
     """Send notification to driver when a booking is assigned"""
     subject = f"🚗 Nouvelle course assignée - {booking['pickup_date']} à {booking['pickup_time']}"
-    html_content = f"""
-<html>
-<body style="font-family: Arial, sans-serif; background-color: #0A0A0A; color: #FAFAFA; padding: 20px;">
-<div style="max-width: 600px; margin: 0 auto; background: #141414; border-radius: 12px; padding: 30px; border: 1px solid #D4AF37;">
-<h1 style="color: #D4AF37; margin-bottom: 20px;">Nouvelle Course Assignée</h1>
 
-<h2 style="color: #FAFAFA;">Détails du client</h2>
-<p><strong>Nom:</strong> {client.get('name', 'N/A')}</p>
-<p><strong>Téléphone:</strong> {client.get('phone', 'N/A')}</p>
-<p><strong>Email:</strong> {client.get('email', 'N/A')}</p>
+    notes_row = (
+        f"<tr><td style='padding: 6px 0; color: #A1A1AA; font-size: 13px;'>Notes</td>"
+        f"<td style='padding: 6px 0; color: #FAFAFA;'>{booking.get('notes', '')}</td></tr>"
+        if booking.get('notes') else ""
+    )
 
-<h2 style="color: #FAFAFA; margin-top: 20px;">Détails de la course</h2>
-<p><strong>📅 Date:</strong> {booking['pickup_date']}</p>
-<p><strong>⏰ Heure:</strong> {booking['pickup_time']}</p>
-<p><strong>📍 Départ:</strong> {booking['pickup_address']}</p>
-<p><strong>🏁 Arrivée:</strong> {booking['dropoff_address']}</p>
-<p><strong>Type:</strong> {booking['transfer_type']}</p>
-{f"<p><strong>Notes:</strong> {booking.get('notes', '')}</p>" if booking.get('notes') else ""}
+    body_html = f"""
+<h2 style="margin: 0 0 12px 0; font-size: 16px; color: #FAFAFA;">Détails du client</h2>
+<table cellpadding="0" cellspacing="0" border="0" width="100%"
+       style="font-size: 14px; margin-bottom: 24px;">
+  <tr>
+    <td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Nom</td>
+    <td style="padding: 6px 0; color: #FAFAFA;">{client.get('name', 'N/A')}</td>
+  </tr>
+  <tr>
+    <td style="padding: 6px 0; color: #A1A1AA;">Téléphone</td>
+    <td style="padding: 6px 0; color: #FAFAFA;">{client.get('phone', 'N/A')}</td>
+  </tr>
+  <tr>
+    <td style="padding: 6px 0; color: #A1A1AA;">Email</td>
+    <td style="padding: 6px 0; color: #FAFAFA;">{client.get('email', 'N/A')}</td>
+  </tr>
+</table>
 
-<div style="margin-top: 30px; padding: 20px; background: #D4AF37; border-radius: 8px; text-align: center;">
-<p style="color: #0A0A0A; font-weight: bold; margin: 0;">Connectez-vous à votre espace chauffeur pour confirmer</p>
-{f"<p style='margin-top: 10px;'><a href='{order_download_url}' style='color: #0A0A0A; font-weight: bold;'>Télécharger le bon de commande</a></p>" if order_download_url else ""}
-</div>
-</div>
-</body>
-</html>
+<h2 style="margin: 0 0 12px 0; font-size: 16px; color: #FAFAFA;">Détails de la course</h2>
+<table cellpadding="0" cellspacing="0" border="0" width="100%"
+       style="font-size: 14px; margin-bottom: 16px;">
+  <tr>
+    <td style="padding: 6px 0; color: #A1A1AA; width: 40%;">&#128197; Date</td>
+    <td style="padding: 6px 0; color: #FAFAFA;">{booking['pickup_date']}</td>
+  </tr>
+  <tr>
+    <td style="padding: 6px 0; color: #A1A1AA;">&#9200; Heure</td>
+    <td style="padding: 6px 0; color: #FAFAFA;">{booking['pickup_time']}</td>
+  </tr>
+  <tr>
+    <td style="padding: 6px 0; color: #A1A1AA;">&#128205; Départ</td>
+    <td style="padding: 6px 0; color: #FAFAFA;">{booking['pickup_address']}</td>
+  </tr>
+  <tr>
+    <td style="padding: 6px 0; color: #A1A1AA;">&#127937; Arrivée</td>
+    <td style="padding: 6px 0; color: #FAFAFA;">{booking['dropoff_address']}</td>
+  </tr>
+  <tr>
+    <td style="padding: 6px 0; color: #A1A1AA;">Type</td>
+    <td style="padding: 6px 0; color: #FAFAFA;">{booking['transfer_type']}</td>
+  </tr>
+  {notes_row}
+</table>
+
+{'<p style="color: #A1A1AA; font-size: 13px; margin: 0;">Connectez-vous à votre espace chauffeur pour confirmer.</p>' if not order_download_url else ""}
 """
+
+    cta_label = "Télécharger le bon de commande" if order_download_url else None
+
+    html_content = build_email_html(
+        title="Nouvelle course assignée",
+        body_html=body_html,
+        cta_label=cta_label,
+        cta_url=order_download_url,
+    )
     await send_notification_email(driver['email'], subject, html_content)
 
 # ==================== AUTH ROUTES ====================
@@ -1310,23 +1470,24 @@ async def forgot_password(data: PasswordResetRequest):
 
         frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
         reset_link = f"{frontend_url}/reset-password?token={raw_token}"
-        html_content = f"""
-<html>
-<body style="font-family: Arial, sans-serif; background-color: #0A0A0A; color: #FAFAFA; padding: 20px;">
-<div style="max-width: 600px; margin: 0 auto; background: #141414; border-radius: 12px; padding: 30px; border: 1px solid #D4AF37;">
-<h1 style="color: #D4AF37; margin-bottom: 20px;">Réinitialisation de votre mot de passe</h1>
-<p>Bonjour,</p>
-<p>Vous avez demandé la réinitialisation de votre mot de passe Econnect VTC.</p>
-<p>Cliquez sur le lien ci-dessous pour créer un nouveau mot de passe :</p>
-<div style="text-align: center; margin: 30px 0;">
-<a href="{reset_link}" style="background-color: #D4AF37; color: #0A0A0A; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; display: inline-block;">Réinitialiser mon mot de passe</a>
-</div>
-<p style="color: #A1A1AA; font-size: 14px;">Ce lien est valide pendant 24 heures.</p>
-<p style="color: #A1A1AA; font-size: 14px;">Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
-</div>
-</body>
-</html>
+
+        reset_body = """
+<p style="margin: 0 0 16px 0;">Bonjour,</p>
+<p style="margin: 0 0 16px 0;">Vous avez demandé la réinitialisation de votre mot de passe Econnect VTC.</p>
+<p style="margin: 0 0 24px 0;">Cliquez sur le bouton ci-dessous pour créer un nouveau mot de passe :</p>
+<p style="margin: 24px 0 8px 0; color: #A1A1AA; font-size: 13px;">
+  Ce lien est valide pendant <strong style="color: #FAFAFA;">24 heures</strong>.
+</p>
+<p style="margin: 0; color: #A1A1AA; font-size: 13px;">
+  Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.
+</p>
 """
+        html_content = build_email_html(
+            title="Réinitialisation de votre mot de passe",
+            body_html=reset_body,
+            cta_label="Réinitialiser mon mot de passe",
+            cta_url=reset_link,
+        )
         await send_notification_email(user["email"], "Réinitialisation de votre mot de passe - Econnect VTC", html_content)
         logger.info(f"Password reset token generated for user {user['id']}")
 
