@@ -293,7 +293,10 @@ const BookingSection = () => {
                     {/* Recap */}
                     <div className="rounded-xl border border-[#D4AF37]/20 bg-[#1E1E1E] p-4 text-sm text-[#C7B588] space-y-1">
                       <p className="flex items-center gap-2"><MapPin size={14} className="text-[#D4AF37]" /> {pickup} → {dropoff}</p>
-                      <p className="flex items-center gap-2"><Calendar size={14} className="text-[#D4AF37]" /> {date ? format(date, 'dd/MM/yyyy', { locale: fr }) : ''} à {time}</p>
+                      <p className="flex items-center gap-2">
+                        <Calendar size={14} className="text-[#D4AF37]" />
+                        {date ? `${format(date, 'dd/MM/yyyy', { locale: fr })} à ${time}` : (time || 'Date à confirmer')}
+                      </p>
                       {transferType === 'disposition' && dispositionHours && (
                         <p className="flex items-center gap-2"><Timer size={14} className="text-[#D4AF37]" /> {dispositionHours}h de mise à disposition</p>
                       )}
@@ -399,7 +402,10 @@ const BookingSection = () => {
                 >
                   <div className="space-y-4 rounded-xl border border-[#D4AF37]/20 bg-[#1E1E1E] p-5 text-sm text-[#C7B588]">
                     <p className="flex items-center gap-2"><MapPin size={14} className="text-[#D4AF37]" /> {pickup} → {dropoff}</p>
-                    <p className="flex items-center gap-2"><Calendar size={14} className="text-[#D4AF37]" /> {date ? format(date, 'dd/MM/yyyy', { locale: fr }) : ''} à {time}</p>
+                    <p className="flex items-center gap-2">
+                      <Calendar size={14} className="text-[#D4AF37]" />
+                      {date ? `${format(date, 'dd/MM/yyyy', { locale: fr })} à ${time}` : (time || 'Date à confirmer')}
+                    </p>
                     <p className="flex items-center gap-2"><CarSimple size={14} className="text-[#D4AF37]" /> {VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.name}</p>
                     {transferType === 'disposition' && dispositionHours ? (
                       <p className="flex items-center gap-2"><Timer size={14} className="text-[#D4AF37]" /> {dispositionHours}h · Tarif sur devis</p>

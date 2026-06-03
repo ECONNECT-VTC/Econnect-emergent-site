@@ -113,15 +113,15 @@ const NewBooking = () => {
     return priceEstimates.find(e => e.category_id === selectedCategory);
   };
 
-  const getEstimateRateLabel = (estimate) => (
-    estimate.final_price == null
-      ? 'Tarif indisponible'
-      :
-    estimate.rate_label
-    || (estimate.pricing_basis === 'hourly'
-      ? `Tarif ${estimate.disposition_hours}h`
-      : `${estimate.price_per_km.toFixed(2)}€/km`)
-  );
+  const getEstimateRateLabel = (estimate) => {
+    if (estimate.final_price === null || estimate.final_price === undefined) {
+      return 'Tarif indisponible';
+    }
+    return estimate.rate_label
+      || (estimate.pricing_basis === 'hourly'
+        ? `Tarif ${estimate.disposition_hours}h`
+        : `${estimate.price_per_km.toFixed(2)}€/km`);
+  };
 
   const formatReservedHours = (hoursValue) => {
     const parsedHours = parseFloat(hoursValue);
@@ -198,9 +198,9 @@ const NewBooking = () => {
 
   const displayedEstimates = transferType === 'disposition'
     ? (() => {
-      const estimateByCategoryId = new Set(priceEstimates.map((estimate) => estimate.category_id));
+      const estimateCategoryIds = new Set(priceEstimates.map((estimate) => estimate.category_id));
       const missingDispositionCategories = categories
-        .filter((category) => category?.id && !estimateByCategoryId.has(category.id))
+        .filter((category) => category?.id && !estimateCategoryIds.has(category.id))
         .sort((a, b) => {
           const aOrder = getVehicleCategoryPresentation(a.name)?.order ?? 99;
           const bOrder = getVehicleCategoryPresentation(b.name)?.order ?? 99;
