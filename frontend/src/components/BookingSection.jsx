@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer, Users, Briefcase } from '@phosphor-icons/react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,8 +24,14 @@ import { fr } from 'date-fns/locale';
 import InteractiveMap from './InteractiveMap';
 import { PremiumWifiIcon } from './VehicleFeatureBadges';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { VEHICLE_CATEGORY_CONFIG, findDispositionEstimateForCategory, findVehicleCategoryByName } from '@/utils/vehicleCategories';
 import API_URL from '@/config';
+import {
+  createCheckoutSession,
+  readBookingCheckoutDraft,
+  saveBookingCheckoutDraft,
+} from '@/utils/bookingCheckout';
 
 const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
   id: category.backendName,
@@ -38,6 +45,9 @@ const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
 }));
 
 const BookingSection = () => {
+  const navigate = useNavigate();
+  const { lang = 'fr' } = useParams();
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [date, setDate] = useState();
   const [pickup, setPickup] = useState('');
@@ -50,6 +60,10 @@ const BookingSection = () => {
   const [loadingDispositionPrices, setLoadingDispositionPrices] = useState(false);
   const [pricingCategories, setPricingCategories] = useState([]);
   const [distanceKm, setDistanceKm] = useState('');
+  const [submittingCheckout, setSubmittingCheckout] = useState(false);
+  const [bookingError, setBookingError] = useState('');
+  const [bookingNotice, setBookingNotice] = useState('');
+  const autoCheckoutStartedRef = useRef(false);
   const { t } = useLanguage();
   const bookingPanelMinHeight = 'lg:min-h-[680px]';
 
@@ -157,30 +171,130 @@ const BookingSection = () => {
     [pricingCategories]
   );
 
-  const getCategoryStartingPrice = (categoryId, fallbackStartingPrice) =>
-    pricingMinFareByCategory[categoryId] ?? fallbackStartingPrice;
+  const getCategoryStartingPrice = useCallback(
+    (categoryId, fallbackStartingPrice) => pricingMinFareByCategory[categoryId] ?? fallbackStartingPrice,
+    [pricingMinFareByCategory]
+  );
 
   const getCategoryStartingPriceLabel = (categoryId, fallbackStartingPrice) =>
     getStartingPriceLabel(getCategoryStartingPrice(categoryId, fallbackStartingPrice));
 
-  const handleStep3Submit = (e) => {
-    e.preventDefault();
-    const selectedVehicle = VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory);
-    const categoryLabel = selectedVehicle?.name || 'Non spécifiée';
-    let categoryPriceLabel;
-    if (transferType === 'disposition' && selectedCategory) {
-      categoryPriceLabel = getFormattedDispositionPrice(selectedCategory, selectedVehicle?.startingPrice);
-    } else {
-      categoryPriceLabel = selectedVehicle
-        ? getCategoryStartingPriceLabel(selectedVehicle.id, selectedVehicle.startingPrice)
-        : 'Non spécifié';
+  const getEstimatedPrice = useCallback(() => {
+    if (!selectedCategory) return null;
+    if (transferType === 'disposition') {
+      const dispositionEstimate = findDispositionEstimateForCategory(dispositionPrices, selectedCategory);
+      const dispositionPrice = Number(dispositionEstimate?.final_price);
+      return Number.isFinite(dispositionPrice) && dispositionPrice > 0 ? dispositionPrice : null;
     }
-    const hoursLine = transferType === 'disposition' ? `\n- Durée: ${dispositionHours}h` : '';
-    const distanceLine = transferType !== 'disposition' && distanceKm && parseFloat(distanceKm) > 0
-      ? `\n- Distance estimée: ${parseFloat(distanceKm).toFixed(1)} km`
-      : '';
-    const message = `Bonjour, je souhaite réserver un VTC:\n- Date: ${date ? format(date, 'dd/MM/yyyy', { locale: fr }) : 'Non spécifiée'}\n- Heure: ${time || 'Non spécifiée'}\n- Départ: ${pickup || 'Non spécifié'}\n- Arrivée: ${dropoff || 'Non spécifié'}\n- Type: ${transferType || 'Non spécifié'}${hoursLine}${distanceLine}\n- Gamme: ${categoryLabel}\n- Tarif indicatif: ${categoryPriceLabel}`;
-    window.open(`https://wa.me/33753418833?text=${encodeURIComponent(message)}`, '_blank');
+    const selectedVehicle = VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory);
+    if (!selectedVehicle) return null;
+    const rawPrice = Number(getCategoryStartingPrice(selectedVehicle.id, selectedVehicle.startingPrice));
+    if (!Number.isFinite(rawPrice) || rawPrice <= 0) return null;
+    return transferType === 'retour' ? rawPrice * 2 : rawPrice;
+  }, [dispositionPrices, selectedCategory, transferType, getCategoryStartingPrice]);
+
+  const buildCheckoutPayload = useCallback(() => {
+    const estimatedPrice = getEstimatedPrice();
+    if (!estimatedPrice) return null;
+    return {
+      pickup_address: pickup,
+      dropoff_address: dropoff,
+      pickup_date: date ? format(date, 'dd/MM/yyyy', { locale: fr }) : '',
+      pickup_time: time,
+      transfer_type: transferType,
+      vehicle_category_id: selectedCategory || null,
+      distance_km: transferType === 'disposition' ? null : (distanceKm ? parseFloat(distanceKm) : null),
+      duration_minutes: null,
+      estimated_price: estimatedPrice,
+      notes: null,
+      disposition_hours: transferType === 'disposition' && dispositionHours ? parseFloat(dispositionHours) : null,
+      success_path: `/${lang}/booking/confirmation`,
+      cancel_path: `/${lang}/booking/cancel`,
+    };
+  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, dispositionHours, getEstimatedPrice, lang]);
+
+  const submitCheckout = useCallback(async (payload, draftState = null) => {
+    setBookingError('');
+    setBookingNotice('Vous allez être redirigé vers la plateforme de paiement sécurisée Stripe...');
+    setSubmittingCheckout(true);
+
+    const draft = draftState || {
+      date: date ? date.toISOString() : null,
+      pickup,
+      dropoff,
+      time,
+      transferType,
+      selectedCategory,
+      dispositionHours,
+      distanceKm,
+      step: 3,
+      autoPayAfterAuth: false,
+      checkoutPayload: payload,
+    };
+    saveBookingCheckoutDraft(draft);
+
+    try {
+      const checkout = await createCheckoutSession(payload);
+      if (!checkout?.checkout_url) {
+        throw new Error('URL de paiement Stripe manquante');
+      }
+      window.location.href = checkout.checkout_url;
+    } catch (error) {
+      setBookingError(error?.response?.data?.detail || 'Impossible de lancer le paiement Stripe.');
+      setBookingNotice('');
+      setSubmittingCheckout(false);
+    }
+  }, [date, pickup, dropoff, time, transferType, selectedCategory, dispositionHours, distanceKm]);
+
+  useEffect(() => {
+    const draft = readBookingCheckoutDraft();
+    if (!draft) return;
+    if (draft.date) setDate(new Date(draft.date));
+    if (draft.pickup) setPickup(draft.pickup);
+    if (draft.dropoff) setDropoff(draft.dropoff);
+    if (draft.time) setTime(draft.time);
+    if (draft.transferType) setTransferType(draft.transferType);
+    if (draft.selectedCategory) setSelectedCategory(draft.selectedCategory);
+    if (draft.dispositionHours) setDispositionHours(String(draft.dispositionHours));
+    if (draft.distanceKm) setDistanceKm(String(draft.distanceKm));
+    if (draft.step) setStep(draft.step);
+
+    if (user && draft.autoPayAfterAuth && draft.checkoutPayload && !autoCheckoutStartedRef.current) {
+      autoCheckoutStartedRef.current = true;
+      submitCheckout(draft.checkoutPayload, { ...draft, autoPayAfterAuth: false });
+    }
+  }, [submitCheckout, user]);
+
+  const handleStep3Submit = async (e) => {
+    e.preventDefault();
+    const payload = buildCheckoutPayload();
+    if (!payload) {
+      setBookingError('Impossible de déterminer le montant estimé pour le paiement.');
+      return;
+    }
+
+    if (!user) {
+      saveBookingCheckoutDraft({
+        date: date ? date.toISOString() : null,
+        pickup,
+        dropoff,
+        time,
+        transferType,
+        selectedCategory,
+        dispositionHours,
+        distanceKm,
+        step: 3,
+        autoPayAfterAuth: true,
+        checkoutPayload: payload,
+      });
+      setBookingNotice('Connectez-vous ou créez un compte pour valider le paiement sécurisé Stripe.');
+      navigate(`/${lang}/login`, {
+        state: { from: { pathname: `/${lang}`, hash: '#reserver' } },
+      });
+      return;
+    }
+
+    await submitCheckout(payload);
   };
 
   return (
@@ -528,6 +642,22 @@ const BookingSection = () => {
                   className="flex-1 flex flex-col space-y-6"
                   data-testid="booking-confirmation-form"
                 >
+                  {bookingNotice && (
+                    <div
+                      className="rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-4 py-3 text-sm text-[#F3D67A]"
+                      data-testid="booking-checkout-notice"
+                    >
+                      {bookingNotice}
+                    </div>
+                  )}
+                  {bookingError && (
+                    <div
+                      className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300"
+                      data-testid="booking-checkout-error"
+                    >
+                      {bookingError}
+                    </div>
+                  )}
                   <div className="space-y-4 rounded-xl border border-[#D4AF37]/20 bg-[#1E1E1E] p-5 text-sm text-[#C7B588]">
                     <p className="flex items-center gap-2"><MapPin size={14} className="text-[#D4AF37]" /> {pickup} → {dropoff}</p>
                     <p className="flex items-center gap-2">
@@ -559,10 +689,11 @@ const BookingSection = () => {
                     </Button>
                     <Button
                       type="submit"
+                      disabled={submittingCheckout}
                       className="flex-1 bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6 text-lg transition-all duration-300 hover:scale-[1.02]"
                       data-testid="submit-booking"
                     >
-                      {t('reserverMaintenant')}
+                      {submittingCheckout ? 'Redirection vers Stripe...' : t('reserverMaintenant')}
                       <ArrowRight size={20} className="ml-2" />
                     </Button>
                   </div>

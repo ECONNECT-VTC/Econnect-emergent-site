@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -10,15 +10,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { ArrowRight, Calendar, Car, CheckCircle, CircleNotch, Clock, CurrencyEur, MapPin } from '@phosphor-icons/react';
+import { ArrowRight, Calendar, Car, CircleNotch, Clock, CurrencyEur, MapPin } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import VehicleFeatureBadges from '@/components/VehicleFeatureBadges';
 import { getCategoryDisplayName, getVehicleCategoryPresentation } from '@/utils/vehicleCategories';
 import { buildEstimatePriceQuery, parseBookingError } from './newBookingUtils';
+import { createCheckoutSession, saveBookingCheckoutDraft } from '@/utils/bookingCheckout';
 
 const NewBooking = () => {
   const enableDebugLogging = process.env.NODE_ENV !== 'production';
-  const navigate = useNavigate();
   const { lang = 'fr' } = useParams();
   const [date, setDate] = useState();
   const [time, setTime] = useState('');
@@ -28,7 +28,6 @@ const NewBooking = () => {
   const [dispositionHours, setDispositionHours] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
   
   // Vehicle & pricing
@@ -237,7 +236,7 @@ const NewBooking = () => {
     const selectedPrice = getSelectedPrice();
 
     try {
-      await axios.post(`${API_URL}/api/bookings`, {
+      const payload = {
         pickup_address: pickup,
         dropoff_address: dropoff,
         pickup_date: format(date, 'dd/MM/yyyy', { locale: fr }),
@@ -248,27 +247,36 @@ const NewBooking = () => {
         duration_minutes: transferType === 'disposition' ? null : (duration ? parseFloat(duration) : null),
         estimated_price: selectedPrice?.final_price || null,
         notes: notes,
-        disposition_hours: dispositionHours ? parseFloat(dispositionHours) : null
-      }, { withCredentials: true });
+        disposition_hours: dispositionHours ? parseFloat(dispositionHours) : null,
+        success_path: `/${lang}/booking/confirmation`,
+        cancel_path: `/${lang}/booking/cancel`,
+      };
 
-      setSuccess(true);
-      setTimeout(() => navigate(`/${lang}/client/bookings`), 2000);
+      saveBookingCheckoutDraft({
+        date: date ? date.toISOString() : null,
+        pickup,
+        dropoff,
+        time,
+        transferType,
+        selectedCategory,
+        dispositionHours,
+        distanceKm: distance,
+        step: 3,
+        autoPayAfterAuth: false,
+        checkoutPayload: payload,
+      });
+
+      const checkout = await createCheckoutSession(payload);
+      if (!checkout?.checkout_url) {
+        throw new Error('URL Stripe introuvable');
+      }
+      window.location.href = checkout.checkout_url;
     } catch (err) {
       setError(parseBookingError(err, 'Erreur lors de la réservation'));
     } finally {
       setLoading(false);
     }
   };
-
-  if (success) {
-    return (
-      <div className="glass rounded-xl p-12 text-center">
-        <CheckCircle size={64} className="text-green-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold font-['Cormorant_Garamond'] mb-2">Réservation confirmée !</h2>
-        <p className="text-[#A1A1AA]">Redirection...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">

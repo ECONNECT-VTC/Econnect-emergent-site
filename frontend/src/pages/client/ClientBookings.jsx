@@ -119,6 +119,22 @@ const ClientBookings = () => {
   };
 
   const getDisplayedDriverName = (booking) => booking.driver_display_name || booking.driver_name;
+  const getPaymentBadge = (paymentStatus) => {
+    const styles = {
+      pending: 'bg-yellow-500/20 text-yellow-300',
+      paid: 'bg-green-500/20 text-green-300',
+      failed: 'bg-red-500/20 text-red-300',
+      not_required: 'bg-zinc-500/20 text-zinc-300',
+    };
+    const labels = {
+      pending: 'Paiement en attente',
+      paid: 'Payée',
+      failed: 'Paiement échoué',
+      not_required: 'Sans paiement',
+    };
+    if (!paymentStatus) return null;
+    return <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[paymentStatus] || 'bg-zinc-500/20 text-zinc-300'}`}>{labels[paymentStatus] || paymentStatus}</span>;
+  };
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
@@ -158,7 +174,10 @@ const ClientBookings = () => {
                     <p className="text-sm text-[#A1A1AA]">{booking.pickup_time}</p>
                   </div>
                 </div>
-                {getStatusBadge(booking.status)}
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(booking.status)}
+                  {getPaymentBadge(booking.payment_status)}
+                </div>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="flex items-start gap-3">
