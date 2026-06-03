@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer, Users, Briefcase } from '@phosphor-icons/react';
@@ -23,7 +23,7 @@ import { fr } from 'date-fns/locale';
 import InteractiveMap from './InteractiveMap';
 import { PremiumWifiIcon } from './VehicleFeatureBadges';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { VEHICLE_CATEGORY_CONFIG, findDispositionEstimateForCategory } from '@/utils/vehicleCategories';
+import { VEHICLE_CATEGORY_CONFIG, findDispositionEstimateForCategory, findVehicleCategoryByName } from '@/utils/vehicleCategories';
 import API_URL from '@/config';
 
 const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
@@ -48,9 +48,22 @@ const BookingSection = () => {
   const [dispositionHours, setDispositionHours] = useState('');
   const [dispositionPrices, setDispositionPrices] = useState([]);
   const [loadingDispositionPrices, setLoadingDispositionPrices] = useState(false);
+  const [pricingCategories, setPricingCategories] = useState([]);
   const [distanceKm, setDistanceKm] = useState('');
   const { t } = useLanguage();
   const bookingPanelMinHeight = 'lg:min-h-[680px]';
+
+  const fetchPricingCategories = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_URL}/api/vehicle-categories`, {
+        withCredentials: true,
+      });
+      setPricingCategories(Array.isArray(response.data) ? response.data : []);
+    } catch (err) {
+      console.error('[BookingSection] Failed to fetch vehicle categories:', err);
+      setPricingCategories([]);
+    }
+  }, []);
 
   const fetchDispositionPrices = useCallback(async (hours) => {
     if (!hours || parseFloat(hours) <= 0) {
@@ -72,6 +85,10 @@ const BookingSection = () => {
       setLoadingDispositionPrices(false);
     }
   }, []);
+
+  useEffect(() => {
+    fetchPricingCategories();
+  }, [fetchPricingCategories]);
 
   useEffect(() => {
     if (transferType === 'disposition' && dispositionHours && parseFloat(dispositionHours) > 0) {
@@ -129,6 +146,23 @@ const BookingSection = () => {
     return `${Math.round(total)}€`;
   };
 
+  const pricingMinFareByCategory = useMemo(
+    () => Object.fromEntries(
+      VEHICLE_CATEGORIES.map((category) => {
+        const matchedCategory = findVehicleCategoryByName(pricingCategories, category.id);
+        const minFare = Number(matchedCategory?.min_fare);
+        return [category.id, Number.isFinite(minFare) ? minFare : null];
+      })
+    ),
+    [pricingCategories]
+  );
+
+  const getCategoryStartingPrice = (categoryId, fallbackStartingPrice) =>
+    pricingMinFareByCategory[categoryId] ?? fallbackStartingPrice;
+
+  const getCategoryStartingPriceLabel = (categoryId, fallbackStartingPrice) =>
+    getStartingPriceLabel(getCategoryStartingPrice(categoryId, fallbackStartingPrice));
+
   const handleStep3Submit = (e) => {
     e.preventDefault();
     const selectedVehicle = VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory);
@@ -137,7 +171,9 @@ const BookingSection = () => {
     if (transferType === 'disposition' && selectedCategory) {
       categoryPriceLabel = getFormattedDispositionPrice(selectedCategory, selectedVehicle?.startingPrice);
     } else {
-      categoryPriceLabel = selectedVehicle ? getStartingPriceLabel(selectedVehicle.startingPrice) : 'Non spécifié';
+      categoryPriceLabel = selectedVehicle
+        ? getCategoryStartingPriceLabel(selectedVehicle.id, selectedVehicle.startingPrice)
+        : 'Non spécifié';
     }
     const hoursLine = transferType === 'disposition' ? `\n- Durée: ${dispositionHours}h` : '';
     const distanceLine = transferType !== 'disposition' && distanceKm && parseFloat(distanceKm) > 0
@@ -417,7 +453,7 @@ const BookingSection = () => {
                                 <span className="text-xs text-[#D4AF37] font-medium">
                                   {transferType === 'disposition' && dispositionHours
                                     ? getFormattedDispositionPrice(cat.id)
-                                    : `dès ${getStartingPriceLabel(cat.startingPrice)}`}
+                                    : `dès ${getCategoryStartingPriceLabel(cat.id, cat.startingPrice)}`}
                                 </span>
                               </div>
                               <div className="flex items-center gap-3 text-[#A1A1AA]">
@@ -440,9 +476,6 @@ const BookingSection = () => {
                           </button>
                         ))}
                       </div>
-                      <div className="mx-auto w-full max-w-4xl rounded-2xl border border-[#D4AF37]/15 bg-[#161616] px-4 py-3 text-sm leading-relaxed text-[#C7B588]">
-                        Pour toute demande de courses non classique : moto, autocar, bus, limousine, véhicule de collection, contactez-nous ou faites-nous une demande par mail.
-                      </div>
                     </div>
 
                     {/* Price info */}
@@ -455,7 +488,7 @@ const BookingSection = () => {
                         <p className="text-[#D4AF37] text-sm font-medium">
                           {transferType === 'disposition' && dispositionHours
                             ? `Mise à disposition · ${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory)}`
-                            : `${VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name} · à partir de ${getStartingPriceLabel(VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice || '')}`}
+                            : `${VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name} · à partir de ${getCategoryStartingPriceLabel(selectedCategory, VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice || '')}`}
                         </p>
                         <p className="text-[#A1A1AA] text-xs mt-1">Le prix final sera confirmé par votre chauffeur.</p>
                       </motion.div>
@@ -511,7 +544,7 @@ const BookingSection = () => {
                         {`${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory)}`}
                       </p>
                     ) : (
-                      <p className="text-[#D4AF37]">Tarif indicatif: {getStartingPriceLabel(VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice || '')}</p>
+                      <p className="text-[#D4AF37]">Tarif indicatif: {getCategoryStartingPriceLabel(selectedCategory, VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice || '')}</p>
                     )}
                   </div>
 

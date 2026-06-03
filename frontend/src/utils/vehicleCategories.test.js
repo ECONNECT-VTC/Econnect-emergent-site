@@ -3,6 +3,7 @@ import {
   DISPOSITION_SERVICE_CATEGORY_KEYS,
   VEHICLE_CATEGORY_CONFIG,
   findDispositionEstimateForCategory,
+  findVehicleCategoryByName,
   getCategoryDisplayName,
   getOrderedDispositionCategoryNames,
   getVehicleCategoryPresentation,
@@ -92,5 +93,28 @@ describe('vehicleCategories utils', () => {
       category_name: 'Van',
       final_price: 280,
     });
+  });
+
+  it('matches admin categories by backend or display names for price syncing', () => {
+    const categories = [
+      { name: 'Berline', min_fare: 25 },
+      { name: 'Green', min_fare: 35 },
+      { name: 'Luxe', min_fare: 50 },
+      { name: 'Van', min_fare: 30 },
+    ];
+
+    expect(findVehicleCategoryByName(categories, 'Confort Classique')).toMatchObject({
+      name: 'Berline',
+      min_fare: 25,
+    });
+    expect(findVehicleCategoryByName(categories, 'Prestige')).toMatchObject({
+      name: 'Luxe',
+      min_fare: 50,
+    });
+    expect(findVehicleCategoryByName(categories, 'Van')).toMatchObject({
+      name: 'Van',
+      min_fare: 30,
+    });
+    expect(findVehicleCategoryByName(categories, 'Inconnue')).toBeNull();
   });
 });
