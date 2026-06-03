@@ -112,8 +112,8 @@ const ClientDashboard = () => {
                   </div>
                   {getStatusBadge(booking.status)}
                 </div>
-                {booking.driver_name && (
-                  <p className="text-sm text-[#D4AF37] mt-2">Chauffeur: {booking.driver_name}</p>
+                {(booking.driver_display_name || booking.driver_name) && (
+                  <p className="text-sm text-[#D4AF37] mt-2">Chauffeur: {booking.driver_display_name || booking.driver_name}</p>
                 )}
               </Link>
             ))}

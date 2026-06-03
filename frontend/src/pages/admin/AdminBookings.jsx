@@ -9,6 +9,7 @@ import { CalendarCheck, CarSimple, CheckCircle, MapPin, User } from '@phosphor-i
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
 import { CATEGORY_DISPLAY_NAMES } from '@/utils/vehicleCategories';
+import { useAuth } from '@/contexts/AuthContext';
 
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
@@ -45,6 +46,7 @@ const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
 
 const AdminBookings = () => {
   const { lang = 'fr' } = useParams();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [bookings, setBookings] = useState([]);
   const [clients, setClients] = useState([]);
@@ -75,6 +77,7 @@ const AdminBookings = () => {
   const [assignSelfDialogOpen, setAssignSelfDialogOpen] = useState(false);
   const [bookingToAssignSelf, setBookingToAssignSelf] = useState(null);
   const [selectedFleetVehicle, setSelectedFleetVehicle] = useState('');
+  const [assignSelfDriverName, setAssignSelfDriverName] = useState('');
   const [assigningSelf, setAssigningSelf] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState('');
   const [googleMapsReady, setGoogleMapsReady] = useState(Boolean(window.google?.maps?.places));
@@ -224,6 +227,7 @@ const AdminBookings = () => {
   const openAssignSelfDialog = async (booking) => {
     setBookingToAssignSelf(booking);
     setSelectedFleetVehicle('');
+    setAssignSelfDriverName(user?.name || '');
     try {
       const res = await axios.get(`${API_URL}/api/admin/fleet`, { withCredentials: true });
       setAdminFleet(res.data);
@@ -240,11 +244,12 @@ const AdminBookings = () => {
     try {
       await axios.post(
         `${API_URL}/api/admin/bookings/${bookingToAssignSelf.id}/assign-self`,
-        { vehicle_id: selectedFleetVehicle || null },
+        { vehicle_id: selectedFleetVehicle || null, driver_display_name: assignSelfDriverName },
         { withCredentials: true }
       );
       setAssignSelfDialogOpen(false);
       setBookingToAssignSelf(null);
+      setAssignSelfDriverName('');
       fetchData();
     } catch (err) {
       setError(parseError(err));
@@ -845,7 +850,7 @@ const AdminBookings = () => {
       </Dialog>
 
       {/* Assign self with vehicle selection dialog */}
-      <Dialog open={assignSelfDialogOpen} onOpenChange={(o) => { setAssignSelfDialogOpen(o); if (!o) { setBookingToAssignSelf(null); setSelectedFleetVehicle(''); } }}>
+      <Dialog open={assignSelfDialogOpen} onOpenChange={(o) => { setAssignSelfDialogOpen(o); if (!o) { setBookingToAssignSelf(null); setSelectedFleetVehicle(''); setAssignSelfDriverName(''); } }}>
         <DialogContent className="bg-[#141414] border-white/10 text-white">
           <DialogHeader>
             <DialogTitle className="text-[#D4AF37]">Affecter à l'admin</DialogTitle>
@@ -874,6 +879,16 @@ const AdminBookings = () => {
             ) : (
               <p className="text-sm text-[#A1A1AA]">Aucun véhicule dans la flotte admin.</p>
             )}
+            <div>
+              <label htmlFor="assign-self-driver-name" className="text-sm text-[#A1A1AA] mb-2 block">Nom du chauffeur affiché au client</label>
+              <Input
+                id="assign-self-driver-name"
+                value={assignSelfDriverName}
+                onChange={(e) => setAssignSelfDriverName(e.target.value)}
+                className="bg-[#1E1E1E] border-white/10"
+                placeholder="Ex: Oumar Bah"
+              />
+            </div>
             {error && <p className="text-sm text-red-400">{error}</p>}
             <Button
               onClick={assignSelf}

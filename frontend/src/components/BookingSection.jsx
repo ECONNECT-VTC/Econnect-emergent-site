@@ -114,7 +114,7 @@ const BookingSection = () => {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="w-full"
+            className="w-full h-full"
           >
             {/* Step indicators */}
             <div className="flex items-center gap-3 mb-6">
@@ -144,7 +144,7 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep1Submit}
-                  className="glass rounded-2xl p-8 md:p-10 space-y-6"
+                  className="glass rounded-2xl p-8 md:p-10 space-y-6 h-full lg:min-h-[760px]"
                   data-testid="booking-form"
                 >
                   <div className="flex flex-col gap-6">
@@ -286,7 +286,7 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep2Submit}
-                  className="glass rounded-2xl p-8 md:p-10 space-y-6"
+                  className="glass rounded-2xl p-8 md:p-10 space-y-6 h-full lg:min-h-[760px]"
                   data-testid="vehicle-selection-form"
                 >
                   <div className="flex flex-col gap-5">
@@ -397,7 +397,7 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep3Submit}
-                  className="glass rounded-2xl p-8 md:p-10 space-y-6"
+                  className="glass rounded-2xl p-8 md:p-10 space-y-6 h-full lg:min-h-[760px]"
                   data-testid="booking-confirmation-form"
                 >
                   <div className="space-y-4 rounded-xl border border-[#D4AF37]/20 bg-[#1E1E1E] p-5 text-sm text-[#C7B588]">
@@ -443,7 +443,7 @@ const BookingSection = () => {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="h-full rounded-2xl overflow-hidden"
+            className="h-full rounded-2xl overflow-hidden lg:min-h-[760px]"
           >
             <InteractiveMap />
           </motion.div>

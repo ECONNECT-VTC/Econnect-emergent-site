@@ -127,6 +127,7 @@ const BookingDetail = () => {
 
   const statusStyle = STATUS_STYLES[booking.status] || 'bg-gray-500/20 text-gray-400';
   const statusLabel = STATUS_LABELS[booking.status] || booking.status;
+  const displayedDriverName = booking.driver_display_name || booking.driver_name;
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
@@ -287,7 +288,7 @@ const BookingDetail = () => {
               {booking.transfer_type === 'disposition' && booking.disposition_hours != null && (
                 <p className="text-xs text-[#A1A1AA] mt-2">Tarification calculée sur {booking.disposition_hours}h réservées.</p>
               )}
-              {booking.fulfilled_by_admin && (
+              {booking.fulfilled_by_admin && user?.role === 'admin' && (
                 <p className="text-xs text-purple-300 mt-2">Commission: 0€ (réalisée par admin)</p>
               )}
               {booking.refund_amount != null && (
@@ -297,14 +298,14 @@ const BookingDetail = () => {
           )}
 
           {/* Driver info */}
-          {booking.driver_name && (
+          {displayedDriverName && (
             <div className="glass rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4">
                 {user?.role === 'admin' ? 'Chauffeur assigné' : 'Votre chauffeur'}
               </h3>
               <div className="flex items-center gap-3">
                 <CarSimple size={20} className="text-[#D4AF37]" />
-                <span className="text-[#D4AF37]">{booking.driver_name}</span>
+                <span className="text-[#D4AF37]">{displayedDriverName}</span>
               </div>
               {/* Vehicle info - show to all roles when admin vehicle is assigned */}
               {(booking.admin_vehicle_brand || booking.admin_vehicle_model || booking.admin_vehicle_plate) && (

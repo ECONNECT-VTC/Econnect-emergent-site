@@ -10,7 +10,8 @@ const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isGammeOpen, setIsGammeOpen] = useState(false);
-  const { language, t } = useLanguage();
+  const { language, t, availableLanguages = [] } = useLanguage();
+  const currentLanguage = availableLanguages.find((langItem) => langItem.code === language) || availableLanguages[0];
 
   useEffect(() => {
     const handleScroll = () => {
@@ -52,8 +53,9 @@ const Navbar = () => {
               <Phone size={12} weight="fill" className="text-[#D4AF37]" />
               +337 53 41 88 33
             </span>
-            <span className="rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-[#F3D67A]">
-              {language.toUpperCase()}
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-3 py-1 text-[#F3D67A]">
+              <span>{currentLanguage?.flag || '🌐'}</span>
+              <span>{language.toUpperCase()}</span>
             </span>
           </div>
         </div>
