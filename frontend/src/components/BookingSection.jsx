@@ -62,7 +62,8 @@ const BookingSection = () => {
         { withCredentials: true }
       );
       setDispositionPrices(Array.isArray(response.data) ? response.data : []);
-    } catch {
+    } catch (err) {
+      console.error('[BookingSection] Failed to fetch disposition prices:', err);
       setDispositionPrices([]);
     }
   }, []);
@@ -76,10 +77,13 @@ const BookingSection = () => {
     }
   }, [dispositionHours, transferType, fetchDispositionPrices]);
 
-  const getDispositionPrice = useCallback((categoryId) => {
-    const estimate = dispositionPrices.find((e) => e.category_id === categoryId);
-    if (!estimate || !Number.isFinite(estimate.final_price)) return null;
-    return estimate.final_price;
+  const getFormattedDispositionPrice = useCallback((categoryId, fallbackStartingPrice) => {
+    const price = dispositionPrices.find((e) => e.category_id === categoryId);
+    if (price && Number.isFinite(price.final_price)) {
+      return `${price.final_price.toFixed(2)}€`;
+    }
+    const parsed = Number(String(fallbackStartingPrice || '').replace(/[^\d.,]/g, '').replace(',', '.'));
+    return Number.isFinite(parsed) ? `${Math.round(parsed)}€` : (fallbackStartingPrice || '');
   }, [dispositionPrices]);
 
   const timeSlots = [];
@@ -119,11 +123,10 @@ const BookingSection = () => {
   const handleStep3Submit = (e) => {
     e.preventDefault();
     const selectedVehicle = VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory);
-    const categoryLabel = VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name || 'Non spécifiée';
+    const categoryLabel = selectedVehicle?.name || 'Non spécifiée';
     let categoryPriceLabel;
     if (transferType === 'disposition' && selectedCategory) {
-      const dispPrice = getDispositionPrice(selectedCategory);
-      categoryPriceLabel = dispPrice != null ? `${dispPrice.toFixed(2)}€` : (selectedVehicle ? getStartingPriceLabel(selectedVehicle.startingPrice) : 'Non spécifié');
+      categoryPriceLabel = getFormattedDispositionPrice(selectedCategory, selectedVehicle?.startingPrice);
     } else {
       categoryPriceLabel = selectedVehicle ? getStartingPriceLabel(selectedVehicle.startingPrice) : 'Non spécifié';
     }
@@ -376,10 +379,7 @@ const BookingSection = () => {
                                 <p className="font-semibold text-sm text-white">{cat.name}</p>
                                 <span className="text-xs text-[#D4AF37] font-medium">
                                   {transferType === 'disposition' && dispositionHours
-                                    ? (() => {
-                                        const p = getDispositionPrice(cat.id);
-                                        return p != null ? `${p.toFixed(2)}€` : `dès ${getStartingPriceLabel(cat.startingPrice)}`;
-                                      })()
+                                    ? getFormattedDispositionPrice(cat.id, cat.startingPrice)
                                     : `dès ${getStartingPriceLabel(cat.startingPrice)}`}
                                 </span>
                               </div>
@@ -417,11 +417,7 @@ const BookingSection = () => {
                       >
                         <p className="text-[#D4AF37] text-sm font-medium">
                           {transferType === 'disposition' && dispositionHours
-                            ? (() => {
-                                const p = getDispositionPrice(selectedCategory);
-                                const label = p != null ? `${p.toFixed(2)}€` : getStartingPriceLabel(VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice || '');
-                                return `Mise à disposition · ${dispositionHours}h · ${label}`;
-                              })()
+                            ? `Mise à disposition · ${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory, VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice)}`
                             : `${VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name} · à partir de ${getStartingPriceLabel(VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice || '')}`}
                         </p>
                         <p className="text-[#A1A1AA] text-xs mt-1">Le prix final sera confirmé par votre chauffeur.</p>
@@ -472,12 +468,7 @@ const BookingSection = () => {
                     {transferType === 'disposition' && dispositionHours ? (
                       <p className="flex items-center gap-2">
                         <Timer size={14} className="text-[#D4AF37]" />
-                        {dispositionHours}h
-                        {' · '}
-                        {(() => {
-                          const p = getDispositionPrice(selectedCategory);
-                          return p != null ? `${p.toFixed(2)}€` : getStartingPriceLabel(VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice || '');
-                        })()}
+                        {`${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory, VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice)}`}
                       </p>
                     ) : (
                       <p className="text-[#D4AF37]">Tarif indicatif: {getStartingPriceLabel(VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice || '')}</p>
