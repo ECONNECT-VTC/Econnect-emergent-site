@@ -434,7 +434,7 @@ const AdminPricing = () => {
                           <thead>
                             <tr className="text-[#A1A1AA] text-xs">
                               <th className="text-left pb-1">Durée</th>
-                              <th className="text-left pb-1">Prix</th>
+                              <th className="text-left pb-1">Montant / h</th>
                               <th className="pb-1"></th>
                             </tr>
                           </thead>
@@ -442,7 +442,7 @@ const AdminPricing = () => {
                             {rates.map((rate) => (
                               <tr key={rate.id} className="border-t border-white/5">
                                 <td className="py-1">{rate.duration_hours}h</td>
-                                <td className="py-1 text-[#D4AF37]">{rate.price.toFixed(2)} €</td>
+                                <td className="py-1 text-[#D4AF37]">{rate.price.toFixed(2)} €/h</td>
                                 <td className="py-1 flex gap-1 justify-end">
                                   <button onClick={() => openDispDialog(catName, rate)} className="text-[#D4AF37] hover:text-[#F0C74A] p-1">
                                     <PencilSimple size={14} />
@@ -495,7 +495,7 @@ const AdminPricing = () => {
               </Select>
             </div>
             <div>
-              <Label className="text-[#A1A1AA]">Prix (€)</Label>
+              <Label className="text-[#A1A1AA]">Montant horaire (€ / h)</Label>
               <Input
                 type="number"
                 min="0"
@@ -503,7 +503,7 @@ const AdminPricing = () => {
                 value={dispForm.price}
                 onChange={(e) => setDispForm({ ...dispForm, price: e.target.value })}
                 className="bg-[#1E1E1E] border-white/10 mt-1"
-                placeholder="Ex: 120.00"
+                placeholder="Ex: 35.00"
               />
             </div>
             <Button

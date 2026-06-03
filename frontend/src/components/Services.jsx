@@ -73,7 +73,7 @@ const Services = () => {
   ];
 
   return (
-    <section id="services" className="pt-24 pb-12 md:pt-32 md:pb-16 bg-[#0A0A0A]" data-testid="services-section">
+    <section id="services" className="pt-12 pb-10 md:pt-16 md:pb-14 bg-[#0A0A0A]" data-testid="services-section">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         {/* Section Header */}
         <motion.div
@@ -81,7 +81,7 @@ const Services = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="text-center mb-12 md:mb-14"
         >
           <span className="text-[#D4AF37] text-sm tracking-[0.3em] uppercase">{t('nosServicesLabel')}</span>
           <h2 className="text-4xl md:text-5xl font-bold font-['Cormorant_Garamond'] mt-4 tracking-tight" data-testid="services-title">

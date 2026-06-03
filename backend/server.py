@@ -1926,7 +1926,9 @@ async def estimate_price(
             if not selected_rate:
                 continue
 
-            final_price = round(float(selected_rate["price"]) * multiplier, 2)
+            hourly_amount = float(selected_rate["price"])
+            total_amount = hourly_amount * float(disposition_hours)
+            final_price = round(total_amount * multiplier, 2)
             estimates.append(PriceEstimate(
                 category_id=cat["id"],
                 category_name=cat["name"],
@@ -1938,7 +1940,7 @@ async def estimate_price(
                 price_per_km=cat["price_per_km"],
                 pricing_basis="hourly",
                 disposition_hours=round(disposition_hours, 2),
-                rate_label=f"Tarif {selected_rate['duration_hours']}h" + (" · aller-retour" if transfer_type == "retour" else ""),
+                rate_label=f"{hourly_amount:.2f}€/h × {round(disposition_hours, 2)}h" + (" · aller-retour" if transfer_type == "retour" else ""),
             ))
 
         return estimates

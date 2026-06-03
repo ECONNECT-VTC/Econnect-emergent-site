@@ -394,7 +394,7 @@ const NewBooking = () => {
                   />
                 </div>
                 <p className="text-xs text-[#A1A1AA]">
-                  Le tarif de mise à disposition est calculé selon la durée réservée, pas selon les kilomètres.
+                  Le tarif de mise à disposition est calculé sur la base du montant horaire × nombre d'heures, pas selon les kilomètres.
                 </p>
               </div>
             )}
