@@ -47,6 +47,7 @@ const BookingSection = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [dispositionHours, setDispositionHours] = useState('');
   const [dispositionPrices, setDispositionPrices] = useState([]);
+  const [distanceKm, setDistanceKm] = useState('');
   const { t } = useLanguage();
   const bookingPanelMinHeight = 'lg:min-h-[680px]';
 
@@ -131,7 +132,10 @@ const BookingSection = () => {
       categoryPriceLabel = selectedVehicle ? getStartingPriceLabel(selectedVehicle.startingPrice) : 'Non spécifié';
     }
     const hoursLine = transferType === 'disposition' ? `\n- Durée: ${dispositionHours}h` : '';
-    const message = `Bonjour, je souhaite réserver un VTC:\n- Date: ${date ? format(date, 'dd/MM/yyyy', { locale: fr }) : 'Non spécifiée'}\n- Heure: ${time || 'Non spécifiée'}\n- Départ: ${pickup || 'Non spécifié'}\n- Arrivée: ${dropoff || 'Non spécifié'}\n- Type: ${transferType || 'Non spécifié'}${hoursLine}\n- Gamme: ${categoryLabel}\n- Tarif indicatif: ${categoryPriceLabel}`;
+    const distanceLine = transferType !== 'disposition' && distanceKm && parseFloat(distanceKm) > 0
+      ? `\n- Distance estimée: ${parseFloat(distanceKm).toFixed(1)} km`
+      : '';
+    const message = `Bonjour, je souhaite réserver un VTC:\n- Date: ${date ? format(date, 'dd/MM/yyyy', { locale: fr }) : 'Non spécifiée'}\n- Heure: ${time || 'Non spécifiée'}\n- Départ: ${pickup || 'Non spécifié'}\n- Arrivée: ${dropoff || 'Non spécifié'}\n- Type: ${transferType || 'Non spécifié'}${hoursLine}${distanceLine}\n- Gamme: ${categoryLabel}\n- Tarif indicatif: ${categoryPriceLabel}`;
     window.open(`https://wa.me/33753418833?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -161,10 +165,11 @@ const BookingSection = () => {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="w-full h-full"
+            className="w-full h-full flex flex-col"
           >
+            <div className={`glass rounded-2xl p-8 md:p-10 flex-1 flex flex-col ${bookingPanelMinHeight}`}>
             {/* Step indicators */}
-            <div className="mb-8 flex flex-col items-center gap-4 text-center">
+            <div className="mb-8 flex flex-col items-center gap-4 text-center flex-shrink-0">
               <div className="flex w-full items-center justify-center gap-2 sm:gap-3">
                 {[1, 2, 3].map((s) => (
                   <div key={s} className="flex items-center">
@@ -189,7 +194,7 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep1Submit}
-                  className={`glass rounded-2xl p-8 md:p-10 space-y-6 h-full ${bookingPanelMinHeight}`}
+                  className="flex-1 flex flex-col space-y-6"
                   data-testid="booking-form"
                 >
                   <div className="flex flex-col gap-6">
@@ -309,12 +314,33 @@ const BookingSection = () => {
                         />
                       </div>
                     )}
+
+                    {/* Distance km — shown for non-disposition transfers */}
+                    {transferType && transferType !== 'disposition' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="distance-km" className="text-[#A1A1AA] text-sm flex items-center gap-2">
+                          <MapPin size={16} className="text-[#D4AF37]" />
+                          Distance estimée (km)
+                        </Label>
+                        <Input
+                          id="distance-km"
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          value={distanceKm}
+                          onChange={(e) => setDistanceKm(parseFloat(e.target.value) > 0 ? e.target.value : '')}
+                          placeholder="Ex: 15"
+                          className="bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
+                          data-testid="distance-km-input"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <Button
                     type="submit"
                     disabled={!canProceedToStep2}
-                    className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6 text-lg transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed mt-6"
+                    className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6 text-lg transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed mt-auto"
                     data-testid="proceed-to-vehicles"
                   >
                     Voir les véhicules disponibles
@@ -331,7 +357,7 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep2Submit}
-                  className={`glass rounded-2xl p-8 md:p-10 space-y-8 h-full ${bookingPanelMinHeight}`}
+                  className="flex-1 flex flex-col space-y-8"
                   data-testid="vehicle-selection-form"
                 >
                   <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
@@ -344,6 +370,9 @@ const BookingSection = () => {
                       </p>
                       {transferType === 'disposition' && dispositionHours && (
                         <p className="flex items-center gap-2"><Timer size={14} className="text-[#D4AF37]" /> {dispositionHours}h de mise à disposition</p>
+                      )}
+                      {transferType !== 'disposition' && distanceKm && (
+                        <p className="flex items-center gap-2"><MapPin size={14} className="text-[#D4AF37]" /> {distanceKm} km</p>
                       )}
                     </div>
 
@@ -455,7 +484,7 @@ const BookingSection = () => {
                   exit={{ opacity: 0, x: 20 }}
                   transition={{ duration: 0.3 }}
                   onSubmit={handleStep3Submit}
-                  className={`glass rounded-2xl p-8 md:p-10 space-y-6 h-full ${bookingPanelMinHeight}`}
+                  className="flex-1 flex flex-col space-y-6"
                   data-testid="booking-confirmation-form"
                 >
                   <div className="space-y-4 rounded-xl border border-[#D4AF37]/20 bg-[#1E1E1E] p-5 text-sm text-[#C7B588]">
@@ -465,6 +494,9 @@ const BookingSection = () => {
                       {date ? `${format(date, 'dd/MM/yyyy', { locale: fr })} à ${time}` : (time || 'Date à confirmer')}
                     </p>
                     <p className="flex items-center gap-2"><CarSimple size={14} className="text-[#D4AF37]" /> {VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.name}</p>
+                    {transferType !== 'disposition' && distanceKm && (
+                      <p className="flex items-center gap-2"><MapPin size={14} className="text-[#D4AF37]" /> Distance : {distanceKm} km</p>
+                    )}
                     {transferType === 'disposition' && dispositionHours ? (
                       <p className="flex items-center gap-2">
                         <Timer size={14} className="text-[#D4AF37]" />
@@ -475,7 +507,7 @@ const BookingSection = () => {
                     )}
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex gap-3 mt-auto">
                     <Button
                       type="button"
                       variant="outline"
@@ -496,6 +528,7 @@ const BookingSection = () => {
                 </motion.form>
               )}
             </AnimatePresence>
+            </div>
           </motion.div>
 
           {/* Interactive Map */}
