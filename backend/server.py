@@ -757,8 +757,15 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         img = ImageReader(str(LOGO_PATH))
         img_w, img_h = img.getSize()
         logo_w = logo_h * img_w / img_h
-        c.drawImage(img, logo_x, logo_y, width=logo_w, height=logo_h,
-                    mask='auto')
+        c.drawImage(
+            img,
+            logo_x,
+            logo_y,
+            width=logo_w,
+            height=logo_h,
+            mask='auto',
+            preserveAspectRatio=True
+        )
         logo_drawn = True
     except Exception as exc:
         logger.warning("PDF logo could not be drawn (%s); using text fallback.", exc)
@@ -951,12 +958,6 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(36, y, f"Montant TVA ({round_amount(resolved_client_tva_rate * 100):.0f}%)")
         c.drawRightString(width - 36, y, f"{breakdown['tva_client']:.2f} EUR")
         y -= table_row_h
-        c.setFont("Helvetica", 7)
-        c.drawString(36, y, (
-            f"Règle TVA : {round_amount(CLIENT_TVA_RATE_STANDARD_COURSE * 100):.0f}% pour les courses hors mise à disposition, "
-            f"{round_amount(CLIENT_TVA_RATE_DISPOSITION * 100):.0f}% pour la mise à disposition."
-        ))
-        y -= table_row_h
         total_label = "TOTAL TTC"
         total_value = breakdown['price_ttc']
 
@@ -1057,7 +1058,10 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     # ================================================================
     # TOTAL BOX  — gold fill, prominent amount
     # ================================================================
-    y -= 6
+    footer_top_y = 78
+    min_total_start_y = footer_top_y + 66
+    y = max(y - 6, min_total_start_y)
+
     box_h = 30
     set_fill(GOLD)
     set_stroke(GOLD)
@@ -1070,21 +1074,37 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     y -= box_h + 16
 
     # ================================================================
-    # FOOTER  — conditions & mentions légales
+    # FOOTER  — anchored legal and issuer section
     # ================================================================
     set_stroke(GOLD)
-    c.setLineWidth(0.5)
-    c.line(36, y, width - 36, y)
-    y -= 14
+    c.setLineWidth(1)
+    c.line(36, footer_top_y, width - 36, footer_top_y)
 
     set_fill(MID_GREY)
     c.setFont("Helvetica", 7)
-    c.drawString(36, y, "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.")
-    y -= 11
+    c.drawCentredString(width / 2, footer_top_y - 11, issuer["name"])
+    c.setFont("Helvetica-Oblique", 6.8)
+    c.drawCentredString(width / 2, footer_top_y - 20, "Service de transport privé premium")
+
+    c.setFont("Helvetica", 6.6)
+    c.drawCentredString(
+        width / 2,
+        footer_top_y - 29,
+        f"{issuer['address']}  |  {issuer['email']}  |  Tél : {issuer['phone']}"
+    )
+    c.drawCentredString(
+        width / 2,
+        footer_top_y - 37,
+        f"SIRET : {issuer['siret']}  |  N° VTC : {issuer['vtc_number']}"
+    )
+
+    c.setFont("Helvetica", 6.4)
+    c.drawString(36, footer_top_y - 47, "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.")
     if document_type == "order":
-        c.drawString(36, y, "Bon de réservation émis à titre contractuel selon les informations disponibles dans l'application.")
-        y -= 11
-    c.drawString(36, y, f"TVA non récupérable par le preneur. {issuer['name']} - {issuer['address']}")
+        c.drawString(36, footer_top_y - 55, "Bon de réservation émis à titre contractuel selon les informations disponibles dans l'application.")
+        c.drawString(36, footer_top_y - 63, f"TVA non récupérable par le preneur. {issuer['name']} - {issuer['address']}")
+    else:
+        c.drawString(36, footer_top_y - 55, f"TVA non récupérable par le preneur. {issuer['name']} - {issuer['address']}")
 
     c.showPage()
     c.save()

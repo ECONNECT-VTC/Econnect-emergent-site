@@ -108,6 +108,21 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "order", "000008")
         self._assert_valid_pdf(pdf, "order (disposition)")
 
+    def test_invoice_does_not_draw_tva_rule_explanation(self):
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "invoice", "000009")
+
+        self._assert_valid_pdf(pdf, "invoice (no TVA rule explanation)")
+        self.assertTrue(any("Montant TVA (" in text for text in captured_strings))
+        self.assertFalse(any("Règle TVA" in text for text in captured_strings))
+
 
 if __name__ == "__main__":
     unittest.main()
