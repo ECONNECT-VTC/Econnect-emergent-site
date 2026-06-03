@@ -758,7 +758,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         img_w, img_h = img.getSize()
         logo_w = logo_h * img_w / img_h
         c.drawImage(img, logo_x, logo_y, width=logo_w, height=logo_h,
-                    mask='auto', preserveAspectRatio=True)
+                    mask='auto')
         logo_drawn = True
     except Exception as exc:
         logger.warning("PDF logo could not be drawn (%s); using text fallback.", exc)
@@ -890,7 +890,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     table_row_h = 13
 
     def draw_table_header_band(cols_text: list, xs: list, band_h: int = 18):
-        """Draw a gold-band table header row and return updated y."""
+        """Draw a gold-band table header row. Modifies the nonlocal `y` in-place."""
         nonlocal y
         set_fill(GOLD_LIGHT)
         c.rect(36, y - band_h + 12, width - 72, band_h, fill=1, stroke=0)
