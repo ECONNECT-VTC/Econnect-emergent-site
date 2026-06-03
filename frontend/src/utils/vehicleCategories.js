@@ -93,6 +93,20 @@ export const findDispositionEstimateForCategory = (estimates = [], categoryName)
   }) || null;
 };
 
+export const findVehicleCategoryByName = (categories = [], categoryName) => {
+  const normalizedName = (categoryName || '').trim().toLowerCase();
+  const backendName = CATEGORY_ALIAS_MAP[normalizedName] || categoryName;
+
+  if (!backendName) {
+    return null;
+  }
+
+  return categories.find((category) => {
+    const categoryNameValue = (category?.name || '').trim().toLowerCase();
+    return CATEGORY_ALIAS_MAP[categoryNameValue] === backendName || category?.name === backendName;
+  }) || null;
+};
+
 export const getOrderedDispositionCategoryNames = (categories = []) => {
   const categoryNames = [
     ...new Set(categories.map((category) => category?.name).filter(Boolean)),

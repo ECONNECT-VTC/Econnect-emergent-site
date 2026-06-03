@@ -1,8 +1,11 @@
 import { motion } from 'framer-motion';
 import { Car } from '@phosphor-icons/react';
+import axios from 'axios';
+import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import VehicleFeatureBadges from '@/components/VehicleFeatureBadges';
-import { VEHICLE_CATEGORY_CONFIG } from '@/utils/vehicleCategories';
+import { VEHICLE_CATEGORY_CONFIG, findVehicleCategoryByName } from '@/utils/vehicleCategories';
+import API_URL from '@/config';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -25,12 +28,34 @@ const itemVariants = {
 
 const FleetSection = () => {
   const { t } = useLanguage();
+  const [pricingCategories, setPricingCategories] = useState([]);
+
+  useEffect(() => {
+    const fetchPricingCategories = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/api/vehicle-categories`, {
+          withCredentials: true,
+        });
+        setPricingCategories(Array.isArray(response.data) ? response.data : []);
+      } catch (err) {
+        console.error('[FleetSection] Failed to fetch vehicle categories:', err);
+        setPricingCategories([]);
+      }
+    };
+
+    fetchPricingCategories();
+  }, []);
 
   const gammes = VEHICLE_CATEGORY_CONFIG.map((category) => ({
     ...category,
+    adminCategory: findVehicleCategoryByName(pricingCategories, category.backendName),
+  })).map((category) => ({
+    ...category,
     nameKey: category.translationKey,
     descKey: `${category.translationKey}Desc`,
-    price: category.startingPrice,
+    price: Number.isFinite(Number(category.adminCategory?.min_fare))
+      ? `${Math.round(Number(category.adminCategory.min_fare))}€`
+      : category.startingPrice,
   }));
 
   return (
@@ -105,6 +130,10 @@ const FleetSection = () => {
             </motion.div>
           ))}
         </motion.div>
+
+        <div className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-[#D4AF37]/15 bg-[#161616] px-4 py-3 text-sm leading-relaxed text-[#C7B588]">
+          Pour toute demande de courses non classique : moto, autocar, bus, limousine, véhicule de collection, contactez-nous ou faites-nous une demande par mail.
+        </div>
       </div>
     </section>
   );
