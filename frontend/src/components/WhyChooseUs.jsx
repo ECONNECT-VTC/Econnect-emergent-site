@@ -48,7 +48,7 @@ const WhyChooseUs = () => {
   ];
 
   return (
-    <section id="apropos" className="py-24 md:py-32 bg-[#0A0A0A]" data-testid="why-choose-us-section">
+    <section id="apropos" className="pt-24 pb-12 md:pt-32 md:pb-16 bg-[#0A0A0A]" data-testid="why-choose-us-section">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         {/* Section Header */}
         <motion.div

@@ -56,8 +56,8 @@ const Services = () => {
       icon: Airplane,
       image:'/photo/transfert_aero.png',
       /*image: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800',*/
-      colSpan: 'md:col-span-4',
-      rowSpan: 'md:row-span-2',
+      colSpan: 'md:col-span-6',
+      rowSpan: '',
     },
     {
       id: 'affaires',
@@ -67,13 +67,13 @@ const Services = () => {
       icon: Buildings,
       image:'/photo/affaire_event.jpg',
       /*image: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg',*/
-      colSpan: 'md:col-span-8',
+      colSpan: 'md:col-span-6',
       rowSpan: '',
     },
   ];
 
   return (
-    <section id="services" className="py-24 md:py-32 bg-[#0A0A0A]" data-testid="services-section">
+    <section id="services" className="pt-24 pb-12 md:pt-32 md:pb-16 bg-[#0A0A0A]" data-testid="services-section">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         {/* Section Header */}
         <motion.div

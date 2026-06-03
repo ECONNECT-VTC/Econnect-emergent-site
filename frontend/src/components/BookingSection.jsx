@@ -89,7 +89,7 @@ const BookingSection = () => {
   };
 
   return (
-    <section id="reserver" className="py-24 md:py-32 bg-[#141414]" data-testid="booking-section">
+    <section id="reserver" className="pt-24 pb-12 md:pt-32 md:pb-16 bg-[#141414]" data-testid="booking-section">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
         {/* Section Header */}
         <motion.div
@@ -107,14 +107,14 @@ const BookingSection = () => {
           </h2>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start lg:items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
           {/* Booking Form */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6 }}
-            className="h-full"
+            className="w-full"
           >
             {/* Step indicators */}
             <div className="flex items-center gap-3 mb-6">
@@ -443,7 +443,7 @@ const BookingSection = () => {
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="h-full min-h-[420px] rounded-2xl overflow-hidden"
+            className="min-h-[420px] md:min-h-[520px] rounded-2xl overflow-hidden"
           >
             <InteractiveMap />
           </motion.div>
