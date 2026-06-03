@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Car } from '@phosphor-icons/react';
+import { Car, EnvelopeSimple, Motorcycle, Van } from '@phosphor-icons/react';
 import axios from 'axios';
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -137,8 +137,15 @@ const FleetSection = () => {
           ))}
         </motion.div>
 
-        <div className="mx-auto mt-6 w-full max-w-4xl rounded-2xl border border-[#D4AF37]/15 bg-[#161616] px-4 py-3 text-sm leading-relaxed text-[#C7B588]">
-          Pour toute demande de courses non classique : moto, autocar, bus, limousine, véhicule de collection, contactez-nous ou faites-nous une demande par mail.
+        <div className="mt-8 w-full rounded-2xl border border-[#D4AF37]/25 bg-gradient-to-r from-[#171717] via-[#1B1B1B] to-[#171717] px-5 py-4 md:px-6">
+          <div className="flex flex-wrap items-center gap-2 text-[#D4AF37] mb-2">
+            <Motorcycle size={16} weight="duotone" />
+            <Van size={16} weight="duotone" />
+            <EnvelopeSimple size={16} weight="duotone" />
+          </div>
+          <p className="text-sm md:text-[15px] leading-relaxed text-[#D0BC86]">
+            Pour toute demande de courses non classique : moto, autocar, bus, limousine, véhicule de collection, contactez-nous ou faites-nous une demande par mail.
+          </p>
         </div>
       </div>
     </section>
