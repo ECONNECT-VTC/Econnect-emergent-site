@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Envelope, Lock, ArrowLeft, CircleNotch } from '@phosphor-icons/react';
+import LanguageDropdown from '@/components/LanguageDropdown';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -16,6 +18,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { lang = 'fr' } = useParams();
+  const { t } = useLanguage();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -34,7 +37,7 @@ const LoginPage = () => {
       navigate(from, { replace: true });
     } catch (err) {
       const detail = err.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Erreur de connexion');
+      setError(typeof detail === 'string' ? detail : t('loginError') || 'Erreur de connexion');
     } finally {
       setLoading(false);
     }
@@ -42,6 +45,9 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-6" data-testid="login-page">
+      <div className="absolute top-4 right-4">
+        <LanguageDropdown />
+      </div>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -51,15 +57,15 @@ const LoginPage = () => {
           {/* Back link */}
           <Link to={`/${lang}`} className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
             <ArrowLeft size={20} className="mr-2" />
-            Retour à l'accueil
+            {t('loginBackHome') || 'Retour à l\'accueil'}
           </Link>
 
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold font-['Cormorant_Garamond'] gold-text mb-2">
-              Connexion
+              {t('connexion')}
             </h1>
-            <p className="text-[#A1A1AA]">Accédez à votre espace personnel</p>
+            <p className="text-[#A1A1AA]">{t('loginSubtitle') || 'Accédez à votre espace personnel'}</p>
           </div>
 
           {/* Error */}
@@ -89,7 +95,7 @@ const LoginPage = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-[#A1A1AA]">Mot de passe</Label>
+              <Label htmlFor="password" className="text-[#A1A1AA]">{t('loginPassword') || 'Mot de passe'}</Label>
               <div className="relative">
                 <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
                 <Input
@@ -111,7 +117,7 @@ const LoginPage = () => {
               className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6"
               data-testid="login-submit"
             >
-              {loading ? <CircleNotch size={20} className="animate-spin" /> : 'Se connecter'}
+              {loading ? <CircleNotch size={20} className="animate-spin" /> : t('loginSubmit') || 'Se connecter'}
             </Button>
           </form>
 
@@ -122,15 +128,15 @@ const LoginPage = () => {
               onClick={() => navigate(`/${lang}/forgot-password`)}
               className="text-[#D4AF37] hover:text-[#F0C74A] text-sm transition-colors"
             >
-              Mot de passe oublié ?
+              {t('loginForgotPassword') || 'Mot de passe oublié ?'}
             </button>
           </div>
 
           {/* Register link */}
           <p className="text-center mt-6 text-[#A1A1AA]">
-            Pas encore de compte ?{' '}
+            {t('loginNoAccount') || 'Pas encore de compte ?'}{' '}
             <Link to={`/${lang}/register`} className="text-[#D4AF37] hover:underline">
-              S'inscrire
+              {t('sinscrire')}
             </Link>
           </p>
         </div>

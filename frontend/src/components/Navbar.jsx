@@ -118,18 +118,7 @@ const Navbar = () => {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <div className="hidden xl:block">
-            <LanguageDropdown />
-          </div>
-
-          <a
-            href="tel:+33753418833"
-            className="font-semibold px-4 py-2.5 rounded-full transition-all duration-300 text-sm inline-flex items-center gap-2 border border-[#D4AF37]/25 bg-[#161616] text-[#F3D67A] hover:bg-[#1E1E1E]"
-            data-testid="cta-phone"
-          >
-            <Phone size={16} weight="fill" />
-            +337 53 41 88 33
-          </a>
+          <LanguageDropdown />
 
           <a
             href="#reserver"
@@ -150,13 +139,6 @@ const Navbar = () => {
         </div>
 
         <div className="md:hidden flex items-center gap-3">
-          <a
-            href="tel:+33753418833"
-            className="rounded-full border border-[#D4AF37]/30 bg-[#161616] px-3 py-2 text-[#F3D67A]"
-            aria-label="Appeler ECONNECT VTC"
-          >
-            <Phone size={16} weight="fill" />
-          </a>
           <button
             className="text-[#FAFAFA] hover:text-[#D4AF37] transition-colors"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -242,15 +224,6 @@ const Navbar = () => {
               >
                 {t('connexion')}
               </Link>
-
-              <a
-                href="tel:+33753418833"
-                className="font-semibold w-full text-center py-3 rounded-lg transition-all duration-300"
-                style={{ background: '#D4AF37', color: '#232323' }}
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                +337 53 41 88 33
-              </a>
             </div>
           </motion.div>
         )}

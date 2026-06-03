@@ -155,6 +155,9 @@ class BookingResponse(BaseModel):
     driver_name: Optional[str] = None
     commission_override: Optional[float] = None
     fulfilled_by_admin: Optional[bool] = None
+    admin_vehicle_plate: Optional[str] = None
+    admin_vehicle_model: Optional[str] = None
+    admin_vehicle_brand: Optional[str] = None
     cancellation_reason: Optional[str] = None
     driver_cancellation_reason: Optional[str] = None
     cancellation_previous_status: Optional[str] = None
@@ -165,6 +168,33 @@ class BookingResponse(BaseModel):
 
 class AssignBooking(BaseModel):
     driver_id: str
+
+class AdminVehicle(BaseModel):
+    id: str
+    brand: str
+    model: str
+    plate: str
+    color: Optional[str] = None
+    capacity: Optional[int] = None
+    is_active: bool = True
+
+class AdminVehicleCreate(BaseModel):
+    brand: str
+    model: str
+    plate: str
+    color: Optional[str] = None
+    capacity: Optional[int] = None
+
+class AdminVehicleUpdate(BaseModel):
+    brand: Optional[str] = None
+    model: Optional[str] = None
+    plate: Optional[str] = None
+    color: Optional[str] = None
+    capacity: Optional[int] = None
+    is_active: Optional[bool] = None
+
+class AdminAssignSelfRequest(BaseModel):
+    vehicle_id: Optional[str] = None
 
 class BookingStatusUpdate(BaseModel):
     status: str
@@ -1365,7 +1395,7 @@ async def get_admin_booking_detail(booking_id: str, request: Request):
     return BookingResponse(**booking)
 
 @api_router.post("/admin/bookings/{booking_id}/assign-self")
-async def admin_assign_self(booking_id: str, request: Request):
+async def admin_assign_self(booking_id: str, request: Request, body: AdminAssignSelfRequest = None):
     """Admin assigns themselves to a booking and marks it as fulfilled_by_admin (no commission)."""
     admin = await require_admin(request)
     booking = await db.bookings.find_one({"id": booking_id})
@@ -1375,16 +1405,25 @@ async def admin_assign_self(booking_id: str, request: Request):
         raise HTTPException(status_code=400, detail="L'auto-affectation admin est uniquement possible lorsque la course est en attente ou réceptionnée (non encore assignée à un chauffeur)")
 
     assigned_at = datetime.now(timezone.utc)
+    update_fields = {
+        "driver_id": admin["id"],
+        "driver_name": admin["name"],
+        "status": "assigned",
+        "assigned_at": assigned_at,
+        "fulfilled_by_admin": True,
+        "commission_override": 0.0,
+    }
+
+    if body is not None and body.vehicle_id:
+        vehicle = await db.admin_vehicles.find_one({"id": body.vehicle_id})
+        if vehicle:
+            update_fields["admin_vehicle_plate"] = vehicle["plate"]
+            update_fields["admin_vehicle_model"] = vehicle["model"]
+            update_fields["admin_vehicle_brand"] = vehicle["brand"]
+
     await db.bookings.update_one(
         {"id": booking_id},
-        {"$set": {
-            "driver_id": admin["id"],
-            "driver_name": admin["name"],
-            "status": "assigned",
-            "assigned_at": assigned_at,
-            "fulfilled_by_admin": True,
-            "commission_override": 0.0,
-        }}
+        {"$set": update_fields}
     )
     updated = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     return BookingResponse(**updated)
@@ -1784,6 +1823,55 @@ async def delete_vehicle_category(category_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Catégorie non trouvée")
 
     return {"message": "Catégorie supprimée"}
+
+# ==================== ADMIN FLEET ROUTES ====================
+
+@api_router.get("/admin/fleet", response_model=List[AdminVehicle])
+async def list_admin_fleet(request: Request):
+    """List all admin-owned vehicles."""
+    await require_admin(request)
+    vehicles = await db.admin_vehicles.find({}, {"_id": 0}).to_list(200)
+    return [AdminVehicle(**v) for v in vehicles]
+
+@api_router.post("/admin/fleet", response_model=AdminVehicle)
+async def create_admin_vehicle(vehicle: AdminVehicleCreate, request: Request):
+    """Add a vehicle to the admin fleet."""
+    await require_admin(request)
+    vehicle_id = str(uuid.uuid4())
+    vehicle_doc = {
+        "id": vehicle_id,
+        "brand": vehicle.brand,
+        "model": vehicle.model,
+        "plate": vehicle.plate,
+        "color": vehicle.color,
+        "capacity": vehicle.capacity,
+        "is_active": True,
+    }
+    await db.admin_vehicles.insert_one(vehicle_doc)
+    vehicle_doc.pop("_id", None)
+    return AdminVehicle(**vehicle_doc)
+
+@api_router.put("/admin/fleet/{vehicle_id}", response_model=AdminVehicle)
+async def update_admin_vehicle(vehicle_id: str, vehicle: AdminVehicleUpdate, request: Request):
+    """Update an admin fleet vehicle."""
+    await require_admin(request)
+    existing = await db.admin_vehicles.find_one({"id": vehicle_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Véhicule non trouvé")
+    update_data = {k: v for k, v in vehicle.model_dump().items() if v is not None}
+    if update_data:
+        await db.admin_vehicles.update_one({"id": vehicle_id}, {"$set": update_data})
+    updated = await db.admin_vehicles.find_one({"id": vehicle_id}, {"_id": 0})
+    return AdminVehicle(**updated)
+
+@api_router.delete("/admin/fleet/{vehicle_id}")
+async def delete_admin_vehicle(vehicle_id: str, request: Request):
+    """Remove a vehicle from the admin fleet."""
+    await require_admin(request)
+    result = await db.admin_vehicles.delete_one({"id": vehicle_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Véhicule non trouvé")
+    return {"message": "Véhicule supprimé"}
 
 # ==================== PRICE ESTIMATION ROUTE ====================
 

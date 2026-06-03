@@ -15,6 +15,7 @@ import AdminDashboard from '@/pages/admin/AdminDashboard';
 import AdminDocuments from '@/pages/admin/AdminDocuments';
 import AdminDrivers from '@/pages/admin/AdminDrivers';
 import AdminFinancialDashboard from '@/pages/admin/AdminFinancialDashboard';
+import AdminFleet from '@/pages/admin/AdminFleet';
 import AdminPricing from '@/pages/admin/AdminPricing.jsx';
 import BookingDetail from '@/pages/BookingDetail';
 import ClientBookings from '@/pages/client/ClientBookings';
@@ -132,6 +133,16 @@ function AppRoutes() {
           <ProtectedRoute role="admin">
             <DashboardLayout title="Tarifs">
               <AdminPricing />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="admin/fleet"
+        element={
+          <ProtectedRoute role="admin">
+            <DashboardLayout title="Flotte Admin">
+              <AdminFleet />
             </DashboardLayout>
           </ProtectedRoute>
         }

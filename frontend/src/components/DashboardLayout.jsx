@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LogoDisplay from '@/components/LogoDisplay';
+import LanguageDropdown from '@/components/LanguageDropdown';
 import {
   House, CalendarCheck, Car, Users, SignOut, List, X, ChartBar, CarSimple, UserCircle, CurrencyEur, ChartLineUp, Percent, FileText, Money
 } from '@phosphor-icons/react';
@@ -30,6 +31,7 @@ const DashboardLayout = ({ children, title }) => {
           { name: 'Réservations', path: `${p}/admin/bookings`, icon: CalendarCheck },
           { name: 'Chauffeurs', path: `${p}/admin/drivers`, icon: CarSimple },
           { name: 'Clients', path: `${p}/admin/clients`, icon: Users },
+          { name: 'Flotte Admin', path: `${p}/admin/fleet`, icon: Car },
           { name: 'Tarifs', path: `${p}/admin/pricing`, icon: CurrencyEur },
           { name: 'Finance', path: `${p}/admin/financial`, icon: ChartLineUp },
           { name: 'Commissions', path: `${p}/admin/commissions`, icon: Percent },
@@ -134,6 +136,9 @@ const DashboardLayout = ({ children, title }) => {
                 {sidebarOpen ? <X size={24} /> : <List size={24} />}
               </button>
               <h1 className="text-xl md:text-2xl font-bold font-['Cormorant_Garamond']">{title}</h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <LanguageDropdown />
             </div>
           </div>
         </header>
