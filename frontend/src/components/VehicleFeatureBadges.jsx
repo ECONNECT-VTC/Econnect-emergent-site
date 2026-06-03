@@ -43,9 +43,28 @@ export const PremiumWifiIcon = ({ size = 16, className = '' }) => (
     aria-hidden="true"
     className={className}
   >
-    <rect x="4" y="14" width="3" height="6" rx="1.5" fill="currentColor" />
-    <rect x="10.5" y="10" width="3" height="10" rx="1.5" fill="currentColor" />
-    <rect x="17" y="6" width="3" height="14" rx="1.5" fill="currentColor" />
+    <path
+      d="M4 9.75a12.06 12.06 0 0 1 16 0"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M7.5 13.25a7.02 7.02 0 0 1 9 0"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M11 16.75a1.85 1.85 0 0 1 2 0"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <circle cx="12" cy="19" r="1.35" fill="currentColor" />
   </svg>
 );
 

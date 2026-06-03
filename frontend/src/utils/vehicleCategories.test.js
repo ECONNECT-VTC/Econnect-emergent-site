@@ -1,6 +1,7 @@
 import {
   CATEGORY_DISPLAY_NAMES,
   DISPOSITION_SERVICE_CATEGORY_KEYS,
+  VEHICLE_CATEGORY_CONFIG,
   getCategoryDisplayName,
   getOrderedDispositionCategoryNames,
   getVehicleCategoryPresentation,
@@ -43,6 +44,7 @@ describe('vehicleCategories utils', () => {
     });
     expect(getVehicleCategoryPresentation('Luxe')).toMatchObject({
       displayName: 'Prestige',
+      image: '/photo/Range_rover.png',
       passengers: 4,
       luggage: 3,
       hasWifi: true,
@@ -50,11 +52,18 @@ describe('vehicleCategories utils', () => {
     expect(getVehicleCategoryPresentation('Van')).toMatchObject({
       passengers: 7,
       luggage: 5,
-      hasWifi: false,
+      hasWifi: true,
     });
     expect(getVehicleCategoryPresentation('Confort Premium')).toMatchObject({
       backendName: 'Green',
       passengers: 4,
     });
+  });
+
+  it('keeps the four booking gammes illustrated and equipped with wifi metadata', () => {
+    expect(VEHICLE_CATEGORY_CONFIG).toHaveLength(4);
+    expect(
+      VEHICLE_CATEGORY_CONFIG.every((category) => Boolean(category.image) && category.hasWifi === true)
+    ).toBe(true);
   });
 });
