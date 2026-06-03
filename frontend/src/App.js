@@ -18,6 +18,8 @@ import AdminFinancialDashboard from '@/pages/admin/AdminFinancialDashboard';
 import AdminFleet from '@/pages/admin/AdminFleet';
 import AdminPricing from '@/pages/admin/AdminPricing.jsx';
 import BookingDetail from '@/pages/BookingDetail';
+import BookingPaymentCancel from '@/pages/BookingPaymentCancel';
+import BookingPaymentSuccess from '@/pages/BookingPaymentSuccess';
 import ClientBookings from '@/pages/client/ClientBookings';
 import ClientDashboard from '@/pages/client/ClientDashboard';
 import NewBooking from '@/pages/client/NewBooking';
@@ -45,6 +47,8 @@ function AppRoutes() {
       <Route path="register" element={<RegisterPage />} />
       <Route path="forgot-password" element={<ForgotPassword />} />
       <Route path="reset-password" element={<ResetPassword />} />
+      <Route path="booking/confirmation" element={<BookingPaymentSuccess />} />
+      <Route path="booking/cancel" element={<BookingPaymentCancel />} />
 
       {/* Admin routes */}
       <Route

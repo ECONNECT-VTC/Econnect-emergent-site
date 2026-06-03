@@ -33,8 +33,12 @@ const LoginPage = () => {
         driver: `/${lang}/driver`,
         admin: `/${lang}/admin`,
       };
-      const from = location.state?.from?.pathname || dashboards[user.role] || `/${lang}`;
-      navigate(from, { replace: true });
+      const from = location.state?.from;
+      if (from?.pathname) {
+        navigate(`${from.pathname}${from.search || ''}${from.hash || ''}`, { replace: true });
+      } else {
+        navigate(dashboards[user.role] || `/${lang}`, { replace: true });
+      }
     } catch (err) {
       const detail = err.response?.data?.detail;
       setError(typeof detail === 'string' ? detail : t('loginError') || 'Erreur de connexion');
@@ -135,7 +139,7 @@ const LoginPage = () => {
           {/* Register link */}
           <p className="text-center mt-6 text-[#A1A1AA]">
             {t('loginNoAccount') || 'Pas encore de compte ?'}{' '}
-            <Link to={`/${lang}/register`} className="text-[#D4AF37] hover:underline">
+            <Link to={`/${lang}/register`} state={location.state} className="text-[#D4AF37] hover:underline">
               {t('sinscrire')}
             </Link>
           </p>

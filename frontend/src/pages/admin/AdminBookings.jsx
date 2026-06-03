@@ -415,6 +415,23 @@ const AdminBookings = () => {
     return <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[status]}`}>{labels[status] || status}</span>;
   };
 
+  const getPaymentBadge = (paymentStatus) => {
+    const styles = {
+      pending: 'bg-yellow-500/20 text-yellow-300',
+      paid: 'bg-green-500/20 text-green-300',
+      failed: 'bg-red-500/20 text-red-300',
+      not_required: 'bg-zinc-500/20 text-zinc-300',
+    };
+    const labels = {
+      pending: 'Paiement en attente',
+      paid: 'Payée',
+      failed: 'Paiement échoué',
+      not_required: 'Sans paiement',
+    };
+    if (!paymentStatus) return null;
+    return <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[paymentStatus] || 'bg-zinc-500/20 text-zinc-300'}`}>{labels[paymentStatus] || paymentStatus}</span>;
+  };
+
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
@@ -461,6 +478,7 @@ const AdminBookings = () => {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                   {getStatusBadge(booking.status)}
+                  {getPaymentBadge(booking.payment_status)}
                   {booking.fulfilled_by_admin && (
                     <span className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-300">Admin</span>
                   )}

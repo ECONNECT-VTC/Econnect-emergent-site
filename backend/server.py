@@ -9,10 +9,12 @@ from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import List, Optional, Tuple
+from urllib.parse import urlencode
 
 # Third-party
 import bcrypt
 import jwt
+import stripe
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -41,6 +43,12 @@ db = client[os.environ['DB_NAME']]
 # JWT Configuration
 JWT_SECRET = os.environ.get('JWT_SECRET', secrets.token_hex(32))
 JWT_ALGORITHM = "HS256"
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY")
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 # Create the main app
 app = FastAPI(title="Econnect VTC API")
@@ -170,8 +178,24 @@ class BookingResponse(BaseModel):
     cancellation_previous_status: Optional[str] = None
     refund_amount: Optional[float] = None
     refunded_at: Optional[datetime] = None
+    payment_status: Optional[str] = None
+    payment_completed_at: Optional[datetime] = None
+    stripe_checkout_session_id: Optional[str] = None
+    stripe_payment_intent_id: Optional[str] = None
+    paid_amount: Optional[float] = None
+    paid_currency: Optional[str] = None
     created_at: datetime
     assigned_at: Optional[datetime] = None
+
+class BookingCheckoutCreate(BookingCreate):
+    success_path: Optional[str] = "/fr/booking/confirmation"
+    cancel_path: Optional[str] = "/fr/booking/cancel"
+
+class BookingCheckoutResponse(BaseModel):
+    booking_id: str
+    checkout_url: str
+    session_id: str
+    publishable_key: Optional[str] = None
 
 class AssignBooking(BaseModel):
     driver_id: str
@@ -1180,8 +1204,30 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
 
 def get_logo_url() -> str:
     """Return the absolute public URL for the Econnect VTC logo."""
-    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
-    return f"{frontend_url}/photo/logo.png"
+    return f"{FRONTEND_URL.rstrip('/')}/photo/logo.png"
+
+
+def _ensure_stripe_configured():
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Configuration Stripe absente")
+
+
+def _safe_frontend_url(path: Optional[str], fallback: str, extra_params: Optional[List[Tuple[str, str]]] = None) -> str:
+    target_path = (path or fallback).strip()
+    if not target_path.startswith("/"):
+        target_path = fallback
+    params = urlencode([(k, v) for k, v in (extra_params or []) if v is not None])
+    params = params.replace("%7BCHECKOUT_SESSION_ID%7D", "{CHECKOUT_SESSION_ID}")
+    if params:
+        delimiter = "&" if "?" in target_path else "?"
+        target_path = f"{target_path}{delimiter}{params}"
+    return f"{FRONTEND_URL}{target_path}"
+
+
+def _stripe_value(obj, key: str, default=None):
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
 
 
 def build_email_html(
@@ -1393,6 +1439,33 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
     )
     await send_notification_email(driver['email'], subject, html_content)
 
+
+async def send_booking_confirmation_to_client(booking: dict):
+    paid_amount = booking.get("paid_amount") if booking.get("paid_amount") is not None else booking.get("estimated_price")
+    amount_label = f"{float(paid_amount):.2f} €" if paid_amount is not None else "Montant indisponible"
+    currency = (booking.get("paid_currency") or "EUR").upper()
+    subject = f"✅ Confirmation de réservation #{booking.get('id', '')[:8].upper()} - Econnect VTC"
+
+    body_html = f"""
+<p style="margin: 0 0 12px 0;">Votre paiement a bien été confirmé. Merci pour votre réservation.</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size: 14px; margin-bottom: 16px;">
+  <tr><td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Numéro</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('id')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Date</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_date')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Heure</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_time')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Départ</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_address')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Arrivée</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('dropoff_address')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Montant payé</td><td style="padding: 6px 0; color: #FAFAFA;">{amount_label} ({currency})</td></tr>
+</table>
+"""
+
+    html_content = build_email_html(
+        title="Réservation confirmée",
+        body_html=body_html,
+        cta_label="Voir mes réservations",
+        cta_url=f"{FRONTEND_URL}/fr/client/bookings"
+    )
+    await send_notification_email(booking["client_email"], subject, html_content)
+
 # ==================== AUTH ROUTES ====================
 
 @api_router.post("/auth/register")
@@ -1564,20 +1637,9 @@ async def reset_password(data: PasswordResetConfirm):
 
 # ==================== CLIENT ROUTES ====================
 
-@api_router.post("/bookings", response_model=BookingResponse)
-async def create_booking(booking: BookingCreate, request: Request):
-    user = await get_current_user(request)
-
-    # Get vehicle category name if provided
-    vehicle_category_name = None
-    if booking.vehicle_category_id:
-        category = await db.vehicle_categories.find_one({"id": booking.vehicle_category_id})
-        if category:
-            vehicle_category_name = category["name"]
-
-    booking_id = str(uuid.uuid4())
-    booking_doc = {
-        "id": booking_id,
+def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_category_name: Optional[str]) -> dict:
+    return {
+        "id": str(uuid.uuid4()),
         "client_id": user["id"],
         "client_name": user["name"],
         "client_email": user["email"],
@@ -1599,6 +1661,12 @@ async def create_booking(booking: BookingCreate, request: Request):
         "notes": booking.notes,
         "disposition_hours": booking.disposition_hours,
         "status": "pending",
+        "payment_status": "pending",
+        "payment_completed_at": None,
+        "stripe_checkout_session_id": None,
+        "stripe_payment_intent_id": None,
+        "paid_amount": None,
+        "paid_currency": None,
         "driver_id": None,
         "driver_name": None,
         "driver_display_name": None,
@@ -1613,9 +1681,96 @@ async def create_booking(booking: BookingCreate, request: Request):
         "assigned_at": None
     }
 
+
+@api_router.post("/bookings", response_model=BookingResponse)
+async def create_booking(booking: BookingCreate, request: Request):
+    user = await get_current_user(request)
+
+    # Get vehicle category name if provided
+    vehicle_category_name = None
+    if booking.vehicle_category_id:
+        category = await db.vehicle_categories.find_one({"id": booking.vehicle_category_id})
+        if category:
+            vehicle_category_name = category["name"]
+
+    booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name)
+
     await db.bookings.insert_one(booking_doc)
     booking_doc.pop("_id", None)
     return BookingResponse(**booking_doc)
+
+
+@api_router.post("/bookings/checkout", response_model=BookingCheckoutResponse)
+async def create_booking_checkout(booking: BookingCheckoutCreate, request: Request):
+    _ensure_stripe_configured()
+    user = await get_current_user(request)
+
+    estimated_price = booking.estimated_price
+    if estimated_price is None or not isinstance(estimated_price, (int, float)) or float(estimated_price) <= 0:
+        raise HTTPException(status_code=400, detail="Le montant estimé est requis pour le paiement")
+
+    vehicle_category_name = None
+    if booking.vehicle_category_id:
+        category = await db.vehicle_categories.find_one({"id": booking.vehicle_category_id})
+        if category:
+            vehicle_category_name = category["name"]
+
+    booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name)
+    await db.bookings.insert_one(booking_doc)
+
+    unit_amount = int(round(float(estimated_price) * 100))
+    success_url = _safe_frontend_url(
+        booking.success_path,
+        "/fr/booking/confirmation",
+        [("booking_id", booking_doc["id"]), ("session_id", "{CHECKOUT_SESSION_ID}")]
+    )
+    cancel_url = _safe_frontend_url(
+        booking.cancel_path,
+        "/fr/booking/cancel",
+        [("booking_id", booking_doc["id"])]
+    )
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="payment",
+            payment_method_types=["card"],
+            line_items=[{
+                "quantity": 1,
+                "price_data": {
+                    "currency": "eur",
+                    "unit_amount": unit_amount,
+                    "product_data": {
+                        "name": f"Réservation VTC #{booking_doc['id'][:8].upper()}",
+                        "description": f"{booking_doc['pickup_address']} → {booking_doc['dropoff_address']}"
+                    },
+                }
+            }],
+            customer_email=user["email"],
+            metadata={
+                "booking_id": booking_doc["id"],
+                "client_id": user["id"]
+            },
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+    except Exception as exc:
+        await db.bookings.update_one(
+            {"id": booking_doc["id"]},
+            {"$set": {"payment_status": "failed"}}
+        )
+        raise HTTPException(status_code=502, detail=f"Impossible de créer la session Stripe: {exc}")
+
+    await db.bookings.update_one(
+        {"id": booking_doc["id"]},
+        {"$set": {"stripe_checkout_session_id": _stripe_value(session, "id")}}
+    )
+
+    return BookingCheckoutResponse(
+        booking_id=booking_doc["id"],
+        checkout_url=_stripe_value(session, "url"),
+        session_id=_stripe_value(session, "id"),
+        publishable_key=STRIPE_PUBLISHABLE_KEY
+    )
 
 @api_router.get("/bookings/my", response_model=List[BookingResponse])
 async def get_my_bookings(request: Request):
@@ -1632,6 +1787,56 @@ async def get_booking_detail_client(booking_id: str, request: Request):
     if booking.get("client_id") != user["id"]:
         raise HTTPException(status_code=403, detail="Accès refusé à cette réservation")
     return BookingResponse(**booking)
+
+
+async def _handle_checkout_session_completed(session: dict):
+    metadata = _stripe_value(session, "metadata") or {}
+    booking_id = _stripe_value(metadata, "booking_id")
+    if not booking_id:
+        return
+
+    paid_amount = _stripe_value(session, "amount_total")
+    paid_amount = round(paid_amount / 100, 2) if isinstance(paid_amount, int) else None
+    update_result = await db.bookings.update_one(
+        {"id": booking_id, "payment_status": {"$ne": "paid"}},
+        {"$set": {
+            "payment_status": "paid",
+            "status": "received",
+            "payment_completed_at": datetime.now(timezone.utc),
+            "stripe_checkout_session_id": _stripe_value(session, "id"),
+            "stripe_payment_intent_id": _stripe_value(session, "payment_intent"),
+            "paid_amount": paid_amount,
+            "paid_currency": (_stripe_value(session, "currency") or "eur").upper(),
+        }}
+    )
+    if update_result.modified_count == 0:
+        return
+
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if booking and booking.get("client_email"):
+        await send_booking_confirmation_to_client(booking)
+
+
+@api_router.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    _ensure_stripe_configured()
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(status_code=503, detail="Webhook Stripe non configuré")
+
+    payload = await request.body()
+    signature = request.headers.get("stripe-signature")
+    try:
+        event = stripe.Webhook.construct_event(payload, signature, STRIPE_WEBHOOK_SECRET)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Payload webhook invalide")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Signature webhook Stripe invalide")
+
+    if _stripe_value(event, "type") == "checkout.session.completed":
+        data = _stripe_value(event, "data") or {}
+        await _handle_checkout_session_completed(_stripe_value(data, "object", {}))
+
+    return {"received": True}
 
 @api_router.post("/bookings/{booking_id}/cancel-request")
 async def request_booking_cancellation(booking_id: str, payload: BookingCancelRequest, request: Request):
@@ -1808,7 +2013,13 @@ async def get_admin_stats(request: Request):
     await require_admin(request)
 
     total_bookings = await db.bookings.count_documents({})
-    pending_bookings = await db.bookings.count_documents({"status": "pending"})
+    pending_bookings = await db.bookings.count_documents({
+        "status": "pending",
+        "$or": [
+            {"payment_status": {"$exists": False}},
+            {"payment_status": {"$ne": "pending"}},
+        ]
+    })
     assigned_bookings = await db.bookings.count_documents({"status": "assigned"})
     completed_bookings = await db.bookings.count_documents({"status": "completed"})
     total_clients = await db.users.count_documents({"role": "client"})
@@ -1826,12 +2037,18 @@ async def get_admin_stats(request: Request):
     )
 
 @api_router.get("/admin/bookings", response_model=List[BookingResponse])
-async def get_all_bookings(request: Request, status: Optional[str] = None):
+async def get_all_bookings(request: Request, status: Optional[str] = None, include_unpaid_pending: bool = False):
     await require_admin(request)
 
     query = {}
     if status:
         query["status"] = status
+    if not include_unpaid_pending:
+        query["$or"] = [
+            {"payment_status": {"$exists": False}},
+            {"payment_status": {"$in": ["paid", "not_required", "failed"]}},
+            {"status": {"$ne": "pending"}},
+        ]
 
     bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return [BookingResponse(**b) for b in bookings]
@@ -1942,6 +2159,12 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "notes": booking.notes,
         "disposition_hours": booking.disposition_hours,
         "status": "received",
+        "payment_status": "not_required",
+        "payment_completed_at": None,
+        "stripe_checkout_session_id": None,
+        "stripe_payment_intent_id": None,
+        "paid_amount": None,
+        "paid_currency": None,
         "driver_id": None,
         "driver_name": None,
         "driver_display_name": None,

@@ -27,12 +27,14 @@ for mod_name in [
     "pydantic",
     "reportlab",
     "reportlab.lib",
+    "reportlab.lib.utils",
     "reportlab.lib.pagesizes",
     "reportlab.pdfgen",
     "reportlab.pdfgen.canvas",
     "sendgrid",
     "sendgrid.helpers",
     "sendgrid.helpers.mail",
+    "stripe",
     "starlette",
     "starlette.middleware",
     "starlette.middleware.cors",
@@ -94,6 +96,8 @@ motor_async.AsyncIOMotorClient = _MockMotorClient  # type: ignore
 # reportlab shims
 rl_pagesizes = sys.modules.setdefault("reportlab.lib.pagesizes", types.ModuleType("reportlab.lib.pagesizes"))
 rl_pagesizes.A4 = (595.27, 841.89)  # type: ignore
+rl_utils = sys.modules.setdefault("reportlab.lib.utils", types.ModuleType("reportlab.lib.utils"))
+rl_utils.ImageReader = object  # type: ignore
 rl_canvas = sys.modules.setdefault("reportlab.pdfgen.canvas", types.ModuleType("reportlab.pdfgen.canvas"))
 rl_canvas.Canvas = object  # type: ignore
 
@@ -120,30 +124,37 @@ jwt_mod.decode = lambda *a, **kw: {}  # type: ignore
 jwt_mod.ExpiredSignatureError = Exception  # type: ignore
 jwt_mod.InvalidTokenError = Exception  # type: ignore
 
+# stripe
+stripe_mod = sys.modules["stripe"]
+stripe_mod.api_key = None  # type: ignore
+stripe_mod.checkout = types.SimpleNamespace(Session=types.SimpleNamespace(create=lambda **kwargs: {}))
+stripe_mod.error = types.SimpleNamespace(SignatureVerificationError=Exception)
+stripe_mod.Webhook = types.SimpleNamespace(construct_event=lambda payload, signature, secret: {})
+
 # ---------------------------------------------------------------------------
 # Now import the two helpers we want to test directly from server.py
 # ---------------------------------------------------------------------------
 backend_dir = os.path.join(os.path.dirname(__file__), "..", "backend")
 sys.path.insert(0, backend_dir)
 
+import server  # noqa: E402
 from server import build_email_html, get_logo_url  # noqa: E402
 
 
 class TestGetLogoUrl(unittest.TestCase):
     def test_default_fallback(self):
-        with unittest.mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("FRONTEND_URL", None)
+        with unittest.mock.patch.object(server, "FRONTEND_URL", "http://localhost:3000"):
             url = get_logo_url()
         self.assertIn("/photo/logo.png", url)
         self.assertTrue(url.startswith("http"))
 
     def test_uses_frontend_url_env(self):
-        with unittest.mock.patch.dict(os.environ, {"FRONTEND_URL": "https://example.com"}):
+        with unittest.mock.patch.object(server, "FRONTEND_URL", "https://example.com"):
             url = get_logo_url()
         self.assertEqual(url, "https://example.com/photo/logo.png")
 
     def test_strips_trailing_slash(self):
-        with unittest.mock.patch.dict(os.environ, {"FRONTEND_URL": "https://example.com/"}):
+        with unittest.mock.patch.object(server, "FRONTEND_URL", "https://example.com/"):
             url = get_logo_url()
         self.assertEqual(url, "https://example.com/photo/logo.png")
 
@@ -154,7 +165,7 @@ class TestBuildEmailHtml(unittest.TestCase):
         self.assertIn("<img", html)
 
     def test_contains_logo_url(self):
-        with unittest.mock.patch.dict(os.environ, {"FRONTEND_URL": "https://mysite.com"}):
+        with unittest.mock.patch.object(server, "FRONTEND_URL", "https://mysite.com"):
             html = build_email_html("Test", "<p>Body</p>")
         self.assertIn("https://mysite.com/photo/logo.png", html)
 
