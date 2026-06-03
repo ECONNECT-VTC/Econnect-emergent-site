@@ -118,6 +118,8 @@ const ClientBookings = () => {
     return <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[status]}`}>{labels[status] || status}</span>;
   };
 
+  const getDisplayedDriverName = (booking) => booking.driver_display_name || booking.driver_name;
+
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
@@ -174,9 +176,9 @@ const ClientBookings = () => {
                   </div>
                 </div>
               </div>
-              {booking.driver_name && (
+              {getDisplayedDriverName(booking) && (
                 <div className="mt-4 pt-4 border-t border-white/10">
-                  <p className="text-sm"><span className="text-[#A1A1AA]">Chauffeur:</span> <span className="text-[#D4AF37]">{booking.driver_name}</span></p>
+                  <p className="text-sm"><span className="text-[#A1A1AA]">Chauffeur:</span> <span className="text-[#D4AF37]">{getDisplayedDriverName(booking)}</span></p>
                 </div>
               )}
 

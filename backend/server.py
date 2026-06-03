@@ -153,6 +153,7 @@ class BookingResponse(BaseModel):
     status: str  # pending, received, assigned, in_progress, completed, cancellation_requested, cancelled
     driver_id: Optional[str] = None
     driver_name: Optional[str] = None
+    driver_display_name: Optional[str] = None
     commission_override: Optional[float] = None
     fulfilled_by_admin: Optional[bool] = None
     admin_vehicle_plate: Optional[str] = None
@@ -195,6 +196,7 @@ class AdminVehicleUpdate(BaseModel):
 
 class AdminAssignSelfRequest(BaseModel):
     vehicle_id: Optional[str] = None
+    driver_display_name: Optional[str] = None
 
 class BookingStatusUpdate(BaseModel):
     status: str
@@ -1171,6 +1173,7 @@ async def create_booking(booking: BookingCreate, request: Request):
         "status": "pending",
         "driver_id": None,
         "driver_name": None,
+        "driver_display_name": None,
         "commission_override": None,
         "fulfilled_by_admin": None,
         "cancellation_reason": None,
@@ -1360,6 +1363,7 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
         "status": "received",
         "driver_id": None,
         "driver_name": None,
+        "driver_display_name": None,
         "assigned_at": None,
         "driver_cancellation_reason": payload.cancellation_reason,
         "cancellation_previous_status": booking.get("status")
@@ -1423,9 +1427,15 @@ async def admin_assign_self(booking_id: str, request: Request, body: AdminAssign
         raise HTTPException(status_code=400, detail="L'auto-affectation admin est uniquement possible lorsque la course est en attente ou réceptionnée (non encore assignée à un chauffeur)")
 
     assigned_at = datetime.now(timezone.utc)
+    driver_display_name = (
+        body.driver_display_name.strip()
+        if body and body.driver_display_name and body.driver_display_name.strip()
+        else admin["name"]
+    )
     update_fields = {
         "driver_id": admin["id"],
         "driver_name": admin["name"],
+        "driver_display_name": driver_display_name,
         "status": "assigned",
         "assigned_at": assigned_at,
         "fulfilled_by_admin": True,
@@ -1505,6 +1515,7 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "status": "received",
         "driver_id": None,
         "driver_name": None,
+        "driver_display_name": None,
         "commission_override": None,
         "fulfilled_by_admin": None,
         "cancellation_reason": None,
@@ -1539,6 +1550,7 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
         **booking,
         "driver_id": driver["id"],
         "driver_name": driver["name"],
+        "driver_display_name": driver["name"],
         "status": "assigned",
         "assigned_at": assigned_at
     }
@@ -1547,6 +1559,7 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
         {"$set": {
             "driver_id": driver["id"],
             "driver_name": driver["name"],
+            "driver_display_name": driver["name"],
             "status": "assigned",
             "assigned_at": assigned_at
         }}
@@ -1638,6 +1651,7 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
         "cancellation_reason": payload.cancellation_reason,
         "driver_id": None,
         "driver_name": None,
+        "driver_display_name": None,
         "assigned_at": None,
         "cancellation_previous_status": booking.get("status")
     }
