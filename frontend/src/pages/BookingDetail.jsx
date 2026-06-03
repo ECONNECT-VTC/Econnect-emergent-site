@@ -147,7 +147,7 @@ const BookingDetail = () => {
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyle}`}>{statusLabel}</span>
             </div>
 
-            {booking.fulfilled_by_admin && (
+            {booking.fulfilled_by_admin && user?.role === 'admin' && (
               <div className="mb-4 px-3 py-2 bg-purple-500/10 border border-purple-500/30 rounded-lg text-purple-300 text-sm flex items-center gap-2">
                 <CheckCircle size={16} />
                 Course réalisée par l'admin — exonérée de commission
@@ -299,11 +299,30 @@ const BookingDetail = () => {
           {/* Driver info */}
           {booking.driver_name && (
             <div className="glass rounded-xl p-6">
-              <h3 className="text-lg font-semibold mb-4">Chauffeur assigné</h3>
+              <h3 className="text-lg font-semibold mb-4">
+                {user?.role === 'admin' ? 'Chauffeur assigné' : 'Votre chauffeur'}
+              </h3>
               <div className="flex items-center gap-3">
                 <CarSimple size={20} className="text-[#D4AF37]" />
                 <span className="text-[#D4AF37]">{booking.driver_name}</span>
               </div>
+              {/* Vehicle info - show to all roles when admin vehicle is assigned */}
+              {(booking.admin_vehicle_brand || booking.admin_vehicle_model || booking.admin_vehicle_plate) && (
+                <div className="mt-4 pt-4 border-t border-white/10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Car size={16} className="text-[#D4AF37]" />
+                    <span className="text-sm font-medium text-[#D4AF37]">Véhicule</span>
+                  </div>
+                  <div className="space-y-1 text-sm text-[#A1A1AA]">
+                    {(booking.admin_vehicle_brand || booking.admin_vehicle_model) && (
+                      <p>{[booking.admin_vehicle_brand, booking.admin_vehicle_model].filter(Boolean).join(' ')}</p>
+                    )}
+                    {booking.admin_vehicle_plate && (
+                      <p className="font-mono text-white/70">{booking.admin_vehicle_plate}</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -71,6 +71,11 @@ const AdminBookings = () => {
   const [editingBooking, setEditingBooking] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [adminFleet, setAdminFleet] = useState([]);
+  const [assignSelfDialogOpen, setAssignSelfDialogOpen] = useState(false);
+  const [bookingToAssignSelf, setBookingToAssignSelf] = useState(null);
+  const [selectedFleetVehicle, setSelectedFleetVehicle] = useState('');
+  const [assigningSelf, setAssigningSelf] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState('');
   const [googleMapsReady, setGoogleMapsReady] = useState(Boolean(window.google?.maps?.places));
   const pickupRef = useRef(null);
@@ -216,13 +221,35 @@ const AdminBookings = () => {
     }
   };
 
-  const assignSelf = async (bookingId) => {
+  const openAssignSelfDialog = async (booking) => {
+    setBookingToAssignSelf(booking);
+    setSelectedFleetVehicle('');
+    try {
+      const res = await axios.get(`${API_URL}/api/admin/fleet`, { withCredentials: true });
+      setAdminFleet(res.data);
+    } catch {
+      setAdminFleet([]);
+    }
+    setAssignSelfDialogOpen(true);
+  };
+
+  const assignSelf = async () => {
+    if (!bookingToAssignSelf) return;
+    setAssigningSelf(true);
     setError('');
     try {
-      await axios.post(`${API_URL}/api/admin/bookings/${bookingId}/assign-self`, {}, { withCredentials: true });
+      await axios.post(
+        `${API_URL}/api/admin/bookings/${bookingToAssignSelf.id}/assign-self`,
+        { vehicle_id: selectedFleetVehicle || null },
+        { withCredentials: true }
+      );
+      setAssignSelfDialogOpen(false);
+      setBookingToAssignSelf(null);
       fetchData();
     } catch (err) {
       setError(parseError(err));
+    } finally {
+      setAssigningSelf(false);
     }
   };
 
@@ -440,7 +467,7 @@ const AdminBookings = () => {
                   )}
 
                   {(booking.status === 'pending' || booking.status === 'received') && (
-                    <Button size="sm" variant="outline" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/10" onClick={() => assignSelf(booking.id)}>
+                    <Button size="sm" variant="outline" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/10" onClick={() => openAssignSelfDialog(booking)}>
                       <CheckCircle size={16} className="mr-1" />S'affecter (admin)
                     </Button>
                   )}
@@ -812,6 +839,48 @@ const AdminBookings = () => {
             {error && <p className="text-sm text-red-400">{error}</p>}
             <Button onClick={handleEditSubmit} disabled={editSubmitting} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
               {editSubmitting ? 'Enregistrement...' : 'Enregistrer les modifications'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign self with vehicle selection dialog */}
+      <Dialog open={assignSelfDialogOpen} onOpenChange={(o) => { setAssignSelfDialogOpen(o); if (!o) { setBookingToAssignSelf(null); setSelectedFleetVehicle(''); } }}>
+        <DialogContent className="bg-[#141414] border-white/10 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-[#D4AF37]">Affecter à l'admin</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-[#A1A1AA]">
+              Course : {bookingToAssignSelf?.pickup_address} → {bookingToAssignSelf?.dropoff_address}
+            </p>
+            {adminFleet.length > 0 ? (
+              <div>
+                <p className="text-sm text-[#A1A1AA] mb-2">Choisir un véhicule de la flotte (optionnel)</p>
+                <Select value={selectedFleetVehicle || 'none'} onValueChange={(v) => setSelectedFleetVehicle(v === 'none' ? '' : v)}>
+                  <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                    <SelectValue placeholder="Aucun véhicule sélectionné" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1E1E1E] border-white/10">
+                    <SelectItem value="none">Aucun véhicule</SelectItem>
+                    {adminFleet.filter((v) => v.is_active).map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.brand} {v.model} — {v.plate}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <p className="text-sm text-[#A1A1AA]">Aucun véhicule dans la flotte admin.</p>
+            )}
+            {error && <p className="text-sm text-red-400">{error}</p>}
+            <Button
+              onClick={assignSelf}
+              disabled={assigningSelf}
+              className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold"
+            >
+              {assigningSelf ? 'Affectation...' : 'Confirmer l\'affectation'}
             </Button>
           </div>
         </DialogContent>

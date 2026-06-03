@@ -1111,6 +1111,14 @@ const translations = {
     footerNavReserver: 'Réserver',
     footerNavApropos: 'À propos',
     footerNavContact: 'Contact',
+    // Login page
+    loginBackHome: "Retour à l'accueil",
+    loginSubtitle: 'Accédez à votre espace personnel',
+    loginPassword: 'Mot de passe',
+    loginSubmit: 'Se connecter',
+    loginForgotPassword: 'Mot de passe oublié ?',
+    loginNoAccount: 'Pas encore de compte ?',
+    loginError: 'Erreur de connexion',
   },
   en: {
     // Navbar
@@ -1213,6 +1221,14 @@ const translations = {
     footerNavReserver: 'Book',
     footerNavApropos: 'About',
     footerNavContact: 'Contact',
+    // Login page
+    loginBackHome: 'Back to home',
+    loginSubtitle: 'Access your personal space',
+    loginPassword: 'Password',
+    loginSubmit: 'Sign in',
+    loginForgotPassword: 'Forgot password?',
+    loginNoAccount: 'No account yet?',
+    loginError: 'Connection error',
   },
   es: {
     // Navbar
@@ -1315,6 +1331,14 @@ const translations = {
     footerNavReserver: 'Reservar',
     footerNavApropos: 'Acerca de',
     footerNavContact: 'Contacto',
+    // Login page
+    loginBackHome: 'Volver al inicio',
+    loginSubtitle: 'Acceda a su espacio personal',
+    loginPassword: 'Contraseña',
+    loginSubmit: 'Iniciar sesión',
+    loginForgotPassword: '¿Olvidó su contraseña?',
+    loginNoAccount: '¿Aún no tiene cuenta?',
+    loginError: 'Error de conexión',
   },
 };
 

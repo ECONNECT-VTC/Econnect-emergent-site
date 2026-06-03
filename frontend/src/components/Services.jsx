@@ -2,7 +2,6 @@ import { motion } from 'framer-motion';
 import { Car, Clock, Airplane, Buildings } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { DISPOSITION_SERVICE_CATEGORY_KEYS } from '@/utils/vehicleCategories';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -48,7 +47,6 @@ const Services = () => {
       image:'/photo/mise_a_dispo.png',
       colSpan: 'md:col-span-6',
       rowSpan: '',
-      categoryKeys: DISPOSITION_SERVICE_CATEGORY_KEYS,
     },
     {
       id: 'transferts',
