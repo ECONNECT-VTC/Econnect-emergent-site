@@ -178,6 +178,10 @@ class BookingResponse(BaseModel):
     cancellation_previous_status: Optional[str] = None
     refund_amount: Optional[float] = None
     refunded_at: Optional[datetime] = None
+    stripe_refund_id: Optional[str] = None
+    refund_status: Optional[str] = None
+    refund_currency: Optional[str] = None
+    refund_initiated_by: Optional[str] = None
     payment_status: Optional[str] = None
     payment_completed_at: Optional[datetime] = None
     stripe_checkout_session_id: Optional[str] = None
@@ -251,6 +255,7 @@ class BookingCancellationDecision(BaseModel):
 
 class AdminCancellationRequest(BaseModel):
     cancellation_reason: Optional[str] = None
+    refund_amount: Optional[float] = None
 
 class DriverCancellationRequest(BaseModel):
     cancellation_reason: Optional[str] = None
@@ -1262,6 +1267,89 @@ def _normalized_stripe_value(obj, key: str) -> str:
     return str(_stripe_value(obj, key) or "").lower()
 
 
+def _resolve_refund_payment_status(booking: dict, refund_amount: Optional[float]) -> Optional[str]:
+    if refund_amount is None:
+        return None
+    paid_amount = booking.get("paid_amount")
+    if paid_amount is None:
+        paid_amount = booking.get("estimated_price")
+    if paid_amount is None:
+        return "refunded"
+    if round_amount(refund_amount) < round_amount(float(paid_amount)):
+        return "partially_refunded"
+    return "refunded"
+
+
+async def _refund_booking_payment(booking: dict, amount: Optional[float], initiated_by: str) -> dict:
+    existing_refund_id = booking.get("stripe_refund_id")
+    existing_payment_status = booking.get("payment_status")
+    if existing_refund_id or existing_payment_status in {"refunded", "partially_refunded"}:
+        return {
+            "stripe_refund_id": existing_refund_id,
+            "refund_amount": booking.get("refund_amount"),
+            "refund_currency": booking.get("refund_currency") or booking.get("paid_currency"),
+            "refund_status": booking.get("refund_status") or "succeeded",
+            "refunded_at": booking.get("refunded_at"),
+            "refund_initiated_by": booking.get("refund_initiated_by"),
+        }
+
+    if booking.get("payment_status") != "paid" or not booking.get("stripe_payment_intent_id"):
+        return {
+            "stripe_refund_id": None,
+            "refund_amount": None,
+            "refund_currency": None,
+            "refund_status": "none",
+            "refunded_at": None,
+            "refund_initiated_by": None,
+        }
+
+    paid_amount = booking.get("paid_amount")
+    if paid_amount is None:
+        paid_amount = booking.get("estimated_price")
+    if paid_amount is None:
+        raise HTTPException(status_code=400, detail="Montant payé introuvable pour cette réservation")
+    paid_amount = round_amount(float(paid_amount))
+
+    partial_refund = amount is not None
+    if partial_refund:
+        requested_amount = round_amount(float(amount))
+        if requested_amount <= 0 or requested_amount > paid_amount:
+            raise HTTPException(status_code=400, detail=f"Montant de remboursement invalide. Il doit être > 0 et <= {paid_amount:.2f}")
+        refund_amount = requested_amount
+    else:
+        refund_amount = paid_amount
+
+    _ensure_stripe_configured()
+
+    refund_payload = {"payment_intent": booking["stripe_payment_intent_id"]}
+    if partial_refund:
+        refund_payload["amount"] = int(round(refund_amount * 100))
+
+    try:
+        stripe_refund = stripe.Refund.create(**refund_payload)
+    except stripe.error.StripeError as exc:
+        raise HTTPException(status_code=502, detail=f"Échec du remboursement Stripe: {str(exc)}")
+
+    refunded_at = datetime.now(timezone.utc)
+    refund_created_at = _stripe_value(stripe_refund, "created")
+    if refund_created_at:
+        refunded_at = datetime.fromtimestamp(float(refund_created_at), tz=timezone.utc)
+
+    refund_amount_value = _stripe_amount_to_float(_stripe_value(stripe_refund, "amount"))
+    if refund_amount_value is None:
+        refund_amount_value = refund_amount
+    refund_currency = (_stripe_value(stripe_refund, "currency") or booking.get("paid_currency") or "EUR").upper()
+
+    return {
+        "stripe_refund_id": _stripe_value(stripe_refund, "id"),
+        "refund_amount": round_amount(float(refund_amount_value)),
+        "refund_currency": refund_currency,
+        "refund_status": _normalized_stripe_value(stripe_refund, "status") or "pending",
+        "refunded_at": refunded_at,
+        "refund_initiated_by": initiated_by,
+    }
+
+
 def build_email_html(
     title: str,
     body_html: str,
@@ -1498,6 +1586,45 @@ async def send_booking_confirmation_to_client(booking: dict):
     )
     await send_notification_email(booking["client_email"], subject, html_content)
 
+
+async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
+    if not booking.get("client_email"):
+        return
+
+    booking_reference = str(booking.get("id") or "").strip()[:8].upper() or "INCONNU"
+    refund_amount = refund_trace.get("refund_amount")
+    refund_currency = (refund_trace.get("refund_currency") or booking.get("paid_currency") or "EUR").upper()
+    amount_label = f"{float(refund_amount):.2f} {refund_currency}" if refund_amount is not None else "Montant indisponible"
+    subject = f"💸 Remboursement effectué - Réservation #{booking_reference} - Econnect VTC"
+    stripe_refund_row = ""
+    if refund_trace.get("stripe_refund_id"):
+        stripe_refund_row = (
+            "<tr><td style='padding: 6px 0; color: #A1A1AA;'>Référence Stripe</td>"
+            f"<td style='padding: 6px 0; color: #FAFAFA;'>{refund_trace.get('stripe_refund_id')}</td></tr>"
+        )
+
+    body_html = f"""
+<p style="margin: 0 0 12px 0;">Votre réservation a été annulée et votre remboursement Stripe a bien été déclenché.</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size: 14px; margin-bottom: 16px;">
+  <tr><td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Numéro</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('id')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Date</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_date')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Heure</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_time')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Départ</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_address')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Arrivée</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('dropoff_address')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Montant remboursé</td><td style="padding: 6px 0; color: #FAFAFA;">{amount_label}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Statut</td><td style="padding: 6px 0; color: #FAFAFA;">{refund_trace.get('refund_status') or 'pending'}</td></tr>
+  {stripe_refund_row}
+</table>
+"""
+
+    html_content = build_email_html(
+        title="Remboursement effectué",
+        body_html=body_html,
+        cta_label="Voir mes réservations",
+        cta_url=f"{FRONTEND_URL}/fr/client/bookings"
+    )
+    await send_notification_email(booking["client_email"], subject, html_content)
+
 # ==================== AUTH ROUTES ====================
 
 @api_router.post("/auth/register")
@@ -1709,6 +1836,10 @@ def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_catego
         "cancellation_previous_status": None,
         "refund_amount": None,
         "refunded_at": None,
+        "stripe_refund_id": None,
+        "refund_status": None,
+        "refund_currency": None,
+        "refund_initiated_by": None,
         "created_at": datetime.now(timezone.utc),
         "assigned_at": None
     }
@@ -2271,6 +2402,10 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "cancellation_previous_status": None,
         "refund_amount": None,
         "refunded_at": None,
+        "stripe_refund_id": None,
+        "refund_status": None,
+        "refund_currency": None,
+        "refund_initiated_by": None,
         "created_at": datetime.now(timezone.utc),
         "assigned_at": None
     }
@@ -2351,7 +2486,7 @@ async def update_booking_commission(booking_id: str, payload: BookingCommissionU
 
 @api_router.put("/admin/bookings/{booking_id}/cancellation")
 async def handle_booking_cancellation(booking_id: str, payload: BookingCancellationDecision, request: Request):
-    await require_admin(request)
+    admin = await require_admin(request)
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
@@ -2359,15 +2494,33 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
         raise HTTPException(status_code=400, detail="Cette réservation n'a pas de demande d'annulation en attente")
 
     if payload.approved:
+        refund_trace = await _refund_booking_payment(
+            booking=booking,
+            amount=payload.refund_amount,
+            initiated_by="admin_decision"
+        )
+        resolved_payment_status = booking.get("payment_status")
+        if refund_trace.get("refund_status") == "succeeded":
+            resolved_payment_status = _resolve_refund_payment_status(booking, refund_trace.get("refund_amount")) or booking.get("payment_status")
         await db.bookings.update_one(
             {"id": booking_id},
             {"$set": {
                 "status": "cancelled",
-                "refund_amount": payload.refund_amount,
-                "refunded_at": datetime.now(timezone.utc)
+                "refund_amount": refund_trace.get("refund_amount"),
+                "refunded_at": refund_trace.get("refunded_at"),
+                "stripe_refund_id": refund_trace.get("stripe_refund_id"),
+                "refund_status": refund_trace.get("refund_status"),
+                "refund_currency": refund_trace.get("refund_currency"),
+                "refund_initiated_by": refund_trace.get("refund_initiated_by"),
+                "payment_status": resolved_payment_status,
             }}
         )
-        return {"message": "Annulation approuvée", "status": "cancelled"}
+        if refund_trace.get("refund_status") == "succeeded":
+            try:
+                await send_refund_confirmation_to_client(booking, refund_trace)
+            except Exception as exc:
+                logger.error(f"Failed to send refund email for booking {booking_id}: {exc}")
+        return {"message": "Annulation approuvée", "status": "cancelled", "refund": refund_trace, "processed_by": admin.get("id")}
 
     fallback_status = booking.get("cancellation_previous_status")
     if fallback_status not in ["pending", "assigned"]:
@@ -2378,14 +2531,18 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
         {"$set": {
             "status": fallback_status,
             "refund_amount": None,
-            "refunded_at": None
+            "refunded_at": None,
+            "stripe_refund_id": None,
+            "refund_status": None,
+            "refund_currency": None,
+            "refund_initiated_by": None
         }}
     )
     return {"message": "Annulation refusée", "status": fallback_status}
 
 @api_router.put("/admin/bookings/{booking_id}/cancel")
 async def cancel_booking_admin(booking_id: str, payload: AdminCancellationRequest, request: Request):
-    await require_admin(request)
+    admin = await require_admin(request)
 
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
@@ -2394,6 +2551,15 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
     if booking.get("status") not in ["pending", "received", "assigned"]:
         raise HTTPException(status_code=400, detail="Cette réservation ne peut pas être annulée")
 
+    refund_trace = await _refund_booking_payment(
+        booking=booking,
+        amount=payload.refund_amount,
+        initiated_by=f"admin:{admin.get('id')}" if admin.get("id") else "admin"
+    )
+    resolved_payment_status = booking.get("payment_status")
+    if refund_trace.get("refund_status") == "succeeded":
+        resolved_payment_status = _resolve_refund_payment_status(booking, refund_trace.get("refund_amount")) or booking.get("payment_status")
+
     update_data = {
         "status": "cancelled",
         "cancellation_reason": payload.cancellation_reason,
@@ -2401,12 +2567,25 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
         "driver_name": None,
         "driver_display_name": None,
         "assigned_at": None,
-        "cancellation_previous_status": booking.get("status")
+        "cancellation_previous_status": booking.get("status"),
+        "refund_amount": refund_trace.get("refund_amount"),
+        "refunded_at": refund_trace.get("refunded_at"),
+        "stripe_refund_id": refund_trace.get("stripe_refund_id"),
+        "refund_status": refund_trace.get("refund_status"),
+        "refund_currency": refund_trace.get("refund_currency"),
+        "refund_initiated_by": refund_trace.get("refund_initiated_by"),
+        "payment_status": resolved_payment_status
     }
 
     await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
 
-    return {"message": "Course annulée par l'administration", "status": "cancelled"}
+    if refund_trace.get("refund_status") == "succeeded":
+        try:
+            await send_refund_confirmation_to_client(booking, refund_trace)
+        except Exception as exc:
+            logger.error(f"Failed to send refund email for booking {booking_id}: {exc}")
+
+    return {"message": "Course annulée par l'administration", "status": "cancelled", "refund": refund_trace}
 
 @api_router.put("/admin/bookings/{booking_id}/status")
 async def update_booking_status_admin(booking_id: str, status_update: BookingStatusUpdate, request: Request):

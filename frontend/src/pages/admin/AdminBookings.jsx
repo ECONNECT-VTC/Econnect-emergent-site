@@ -68,6 +68,7 @@ const AdminBookings = () => {
   const [error, setError] = useState('');
   const [adminCancelDialogOpen, setAdminCancelDialogOpen] = useState(false);
   const [adminCancelReason, setAdminCancelReason] = useState('');
+  const [adminCancelRefundAmount, setAdminCancelRefundAmount] = useState('');
   const [bookingToAdminCancel, setBookingToAdminCancel] = useState(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
@@ -324,7 +325,7 @@ const AdminBookings = () => {
   const openCancellationDialog = (booking, action) => {
     setSelectedBooking(booking);
     setCancellationAction(action);
-    setRefundAmount(booking.refund_amount?.toString() || '');
+    setRefundAmount('');
     setCancellationDialogOpen(true);
   };
 
@@ -353,6 +354,7 @@ const AdminBookings = () => {
   const openAdminCancelDialog = (booking) => {
     setBookingToAdminCancel(booking);
     setAdminCancelReason('');
+    setAdminCancelRefundAmount('');
     setAdminCancelDialogOpen(true);
   };
 
@@ -394,12 +396,19 @@ const AdminBookings = () => {
     try {
       await axios.put(
         `${API_URL}/api/admin/bookings/${bookingToAdminCancel.id}/cancel`,
-        { cancellation_reason: adminCancelReason || null },
+        {
+          cancellation_reason: adminCancelReason || null,
+          refund_amount:
+            bookingToAdminCancel.payment_status === 'paid' && adminCancelRefundAmount !== ''
+              ? Number(adminCancelRefundAmount)
+              : null,
+        },
         { withCredentials: true }
       );
       setAdminCancelDialogOpen(false);
       setBookingToAdminCancel(null);
       setAdminCancelReason('');
+      setAdminCancelRefundAmount('');
       fetchData();
     } catch (err) {
       setError(parseError(err));
@@ -446,12 +455,16 @@ const AdminBookings = () => {
     const styles = {
       pending: 'bg-yellow-500/20 text-yellow-300',
       paid: 'bg-green-500/20 text-green-300',
+      refunded: 'bg-emerald-500/20 text-emerald-300',
+      partially_refunded: 'bg-emerald-500/20 text-emerald-300',
       failed: 'bg-red-500/20 text-red-300',
       not_required: 'bg-zinc-500/20 text-zinc-300',
     };
     const labels = {
       pending: 'Paiement en attente',
       paid: 'Payée',
+      refunded: 'Remboursée',
+      partially_refunded: 'Partiellement remboursée',
       failed: 'Paiement échoué',
       not_required: 'Sans paiement',
     };
@@ -623,8 +636,21 @@ const AdminBookings = () => {
                   {booking.cancellation_reason && (
                     <p className="text-orange-300">Motif annulation: {booking.cancellation_reason}</p>
                   )}
-                  {booking.refund_amount != null && (
-                    <p className="text-green-400">Remboursement: {Number(booking.refund_amount).toFixed(2)}€</p>
+                  {(booking.refund_amount != null || booking.refund_status || booking.stripe_refund_id || booking.refunded_at) && (
+                    <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 space-y-1">
+                      {booking.refund_amount != null && (
+                        <p className="text-green-300">Remboursement: {Number(booking.refund_amount).toFixed(2)}€</p>
+                      )}
+                      {booking.refund_status && (
+                        <p className="text-xs text-emerald-200">Statut: {booking.refund_status}</p>
+                      )}
+                      {booking.stripe_refund_id && (
+                        <p className="text-xs text-emerald-200 break-all">Stripe refund ID: {booking.stripe_refund_id}</p>
+                      )}
+                      {booking.refunded_at && (
+                        <p className="text-xs text-emerald-200">Remboursée le: {new Date(booking.refunded_at).toLocaleString('fr-FR')}</p>
+                      )}
+                    </div>
                   )}
                 </div>
               )}
@@ -812,9 +838,10 @@ const AdminBookings = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-[#A1A1AA]">Client: {selectedBooking?.client_name}</p>
-            {cancellationAction === 'approve' && (
+            {cancellationAction === 'approve' && selectedBooking?.payment_status === 'paid' && (
               <div>
                 <p className="text-sm text-[#A1A1AA] mb-2">Montant remboursé (€)</p>
+                <p className="text-xs text-[#71717A] mb-2">Laisser vide pour rembourser la totalité.</p>
                 <Input
                   type="number"
                   min="0"
@@ -857,6 +884,21 @@ const AdminBookings = () => {
                 placeholder="Ex: manque de chauffeurs disponibles"
               />
             </div>
+            {bookingToAdminCancel?.payment_status === 'paid' && (
+              <div>
+                <p className="text-sm text-[#A1A1AA] mb-2">Montant remboursé (€)</p>
+                <p className="text-xs text-[#71717A] mb-2">Laisser vide pour rembourser la totalité.</p>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={adminCancelRefundAmount}
+                  onChange={(e) => setAdminCancelRefundAmount(e.target.value)}
+                  className="bg-[#1E1E1E] border-white/10"
+                  placeholder="Ex: 25.00"
+                />
+              </div>
+            )}
             <Button
               onClick={handleAdminCancellation}
               className="w-full bg-red-600 hover:bg-red-700 text-white"
