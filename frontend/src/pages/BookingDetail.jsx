@@ -294,6 +294,9 @@ const BookingDetail = () => {
               {booking.refund_amount != null && (
                 <p className="text-sm text-green-400 mt-2">Remboursement: {Number(booking.refund_amount).toFixed(2)}€</p>
               )}
+              {booking.refund_status && (
+                <p className="text-xs text-green-300 mt-1">Statut remboursement: {booking.refund_status}</p>
+              )}
             </div>
           )}
 
@@ -328,7 +331,7 @@ const BookingDetail = () => {
           )}
 
           {/* Cancellation info */}
-          {(booking.cancellation_reason || booking.driver_cancellation_reason) && (
+          {(booking.cancellation_reason || booking.driver_cancellation_reason || booking.refund_amount != null || booking.refund_status || booking.stripe_refund_id || booking.refunded_at) && (
             <div className="glass rounded-xl p-6 border border-orange-500/30">
               <h3 className="text-lg font-semibold mb-4 text-orange-400">Annulation</h3>
               {booking.cancellation_reason && (
@@ -336,6 +339,27 @@ const BookingDetail = () => {
               )}
               {booking.driver_cancellation_reason && (
                 <p className="text-sm text-[#A1A1AA] mt-2">Retrait chauffeur: {booking.driver_cancellation_reason}</p>
+              )}
+              {(booking.refund_amount != null || booking.refund_status) && (
+                <div className="mt-3 rounded-md border border-emerald-500/20 bg-emerald-500/10 p-3 space-y-1">
+                  {booking.refund_amount != null && (
+                    <p className="text-sm text-emerald-300">
+                      Montant remboursé: {Number(booking.refund_amount).toFixed(2)}€{booking.refund_currency ? ` (${booking.refund_currency})` : ''}
+                    </p>
+                  )}
+                  {booking.refund_status && (
+                    <p className="text-xs text-emerald-200">Statut: {booking.refund_status}</p>
+                  )}
+                  {booking.refunded_at && (
+                    <p className="text-xs text-emerald-200">Date: {new Date(booking.refunded_at).toLocaleString('fr-FR')}</p>
+                  )}
+                  {user?.role === 'admin' && booking.stripe_refund_id && (
+                    <p className="text-xs text-emerald-200 break-all">Stripe refund ID: {booking.stripe_refund_id}</p>
+                  )}
+                  {user?.role === 'admin' && booking.refund_initiated_by && (
+                    <p className="text-xs text-emerald-200">Initié par: {booking.refund_initiated_by}</p>
+                  )}
+                </div>
               )}
             </div>
           )}
