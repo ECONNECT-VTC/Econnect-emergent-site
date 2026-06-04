@@ -1591,10 +1591,17 @@ async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
     if not booking.get("client_email"):
         return
 
+    booking_reference = str(booking.get("id") or "").strip()[:8].upper() or "INCONNU"
     refund_amount = refund_trace.get("refund_amount")
     refund_currency = (refund_trace.get("refund_currency") or booking.get("paid_currency") or "EUR").upper()
-    amount_label = f"{float(refund_amount):.2f} {refund_currency}" if refund_amount is not None else f"Montant indisponible ({refund_currency})"
-    subject = f"💸 Remboursement effectué - Réservation #{booking.get('id', '')[:8].upper()} - Econnect VTC"
+    amount_label = f"{float(refund_amount):.2f} {refund_currency}" if refund_amount is not None else "Montant indisponible"
+    subject = f"💸 Remboursement effectué - Réservation #{booking_reference} - Econnect VTC"
+    stripe_refund_row = ""
+    if refund_trace.get("stripe_refund_id"):
+        stripe_refund_row = (
+            "<tr><td style='padding: 6px 0; color: #A1A1AA;'>Référence Stripe</td>"
+            f"<td style='padding: 6px 0; color: #FAFAFA;'>{refund_trace.get('stripe_refund_id')}</td></tr>"
+        )
 
     body_html = f"""
 <p style="margin: 0 0 12px 0;">Votre réservation a été annulée et votre remboursement Stripe a bien été déclenché.</p>
@@ -1606,7 +1613,7 @@ async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
   <tr><td style="padding: 6px 0; color: #A1A1AA;">Arrivée</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('dropoff_address')}</td></tr>
   <tr><td style="padding: 6px 0; color: #A1A1AA;">Montant remboursé</td><td style="padding: 6px 0; color: #FAFAFA;">{amount_label}</td></tr>
   <tr><td style="padding: 6px 0; color: #A1A1AA;">Statut</td><td style="padding: 6px 0; color: #FAFAFA;">{refund_trace.get('refund_status') or 'pending'}</td></tr>
-  {f"<tr><td style='padding: 6px 0; color: #A1A1AA;'>Référence Stripe</td><td style='padding: 6px 0; color: #FAFAFA;'>{refund_trace.get('stripe_refund_id')}</td></tr>" if refund_trace.get('stripe_refund_id') else ""}
+  {stripe_refund_row}
 </table>
 """
 

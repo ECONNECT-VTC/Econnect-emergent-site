@@ -325,7 +325,7 @@ const AdminBookings = () => {
   const openCancellationDialog = (booking, action) => {
     setSelectedBooking(booking);
     setCancellationAction(action);
-    setRefundAmount(booking.refund_amount?.toString() || '');
+    setRefundAmount('');
     setCancellationDialogOpen(true);
   };
 
@@ -354,7 +354,7 @@ const AdminBookings = () => {
   const openAdminCancelDialog = (booking) => {
     setBookingToAdminCancel(booking);
     setAdminCancelReason('');
-    setAdminCancelRefundAmount(booking.refund_amount != null ? String(booking.refund_amount) : '');
+    setAdminCancelRefundAmount('');
     setAdminCancelDialogOpen(true);
   };
 
