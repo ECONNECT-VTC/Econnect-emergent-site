@@ -1892,7 +1892,9 @@ async def confirm_booking_payment(
         raise HTTPException(status_code=400, detail="La session Stripe ne correspond pas à cette réservation")
 
     stored_session_id = booking.get("stripe_checkout_session_id")
-    if stored_session_id and stored_session_id != _stripe_value(session, "id"):
+    if not stored_session_id:
+        raise HTTPException(status_code=409, detail="Session de paiement introuvable pour cette réservation")
+    if stored_session_id != _stripe_value(session, "id"):
         raise HTTPException(status_code=400, detail="La session Stripe ne correspond pas à cette réservation")
 
     updated_booking, _ = await _mark_booking_paid(session)

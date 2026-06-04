@@ -187,7 +187,7 @@ const BookingSection = () => {
   // Smooth scroll to the top of the booking form panel on step changes (Bug 3b)
   const scrollToFormPanel = useCallback(() => {
     window.requestAnimationFrame(() => {
-      formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, []);
 

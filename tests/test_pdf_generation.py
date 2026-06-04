@@ -123,7 +123,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self.assertTrue(any("Montant TVA (" in text for text in captured_strings))
         self.assertFalse(any("Règle TVA" in text for text in captured_strings))
 
-    def test_legal_mentions_section_is_drawn(self):
+    def test_legal_mentions_section_contains_required_text(self):
         captured_strings = []
         original_draw_string = server.canvas.Canvas.drawString
 
