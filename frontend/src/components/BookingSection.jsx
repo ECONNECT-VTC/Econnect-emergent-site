@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer, Users, Briefcase } from '@phosphor-icons/react';
+import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer, Users, Briefcase, Lock } from '@phosphor-icons/react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -203,7 +203,11 @@ const BookingSection = () => {
       alert('Veuillez choisir une gamme de véhicule.');
       return;
     }
-    setStep(3);
+    if (!user) {
+      setStep('auth');
+    } else {
+      setStep(3);
+    }
   };
 
   const getStartingPriceLabel = useCallback((startingPrice) => {
@@ -327,6 +331,28 @@ const BookingSection = () => {
     }
   }, [date, pickup, dropoff, time, transferType, selectedCategory, dispositionHours, distanceKm]);
 
+  const handleAuthChoice = (authPath) => {
+    const payload = buildCheckoutPayload();
+    if (payload) {
+      saveBookingCheckoutDraft({
+        date: date ? date.toISOString() : null,
+        pickup,
+        dropoff,
+        time,
+        transferType,
+        selectedCategory,
+        dispositionHours,
+        distanceKm,
+        step: 3,
+        autoPayAfterAuth: true,
+        checkoutPayload: payload,
+      });
+    }
+    navigate(`/${lang}/${authPath}`, {
+      state: { from: { pathname: `/${lang}`, hash: '#reserver' } },
+    });
+  };
+
   // Keep submitCheckoutRef current so the auto-checkout effect can use the latest version
   // without needing to list it as a dependency (Bug 1 fix)
   useEffect(() => {
@@ -380,6 +406,7 @@ const BookingSection = () => {
     }
 
     if (!user) {
+      // Safety fallback: show auth choice if user somehow reached step 3 unauthenticated
       saveBookingCheckoutDraft({
         date: date ? date.toISOString() : null,
         pickup,
@@ -393,10 +420,7 @@ const BookingSection = () => {
         autoPayAfterAuth: true,
         checkoutPayload: payload,
       });
-      setBookingNotice('Connectez-vous ou créez un compte pour valider le paiement sécurisé Stripe.');
-      navigate(`/${lang}/login`, {
-        state: { from: { pathname: `/${lang}`, hash: '#reserver' } },
-      });
+      setStep('auth');
       return;
     }
 
@@ -445,7 +469,7 @@ const BookingSection = () => {
                 ))}
               </div>
               <span className="text-sm tracking-[0.18em] uppercase text-[#C7B588]">
-                {step === 1 ? t('typeTransfert') || 'Votre trajet' : step === 2 ? 'Choisir votre véhicule' : 'Valider votre demande'}
+                {step === 1 ? t('typeTransfert') || 'Votre trajet' : step === 2 ? 'Choisir votre véhicule' : step === 'auth' ? 'Identifiez-vous' : 'Valider votre demande'}
               </span>
             </div>
 
@@ -660,14 +684,12 @@ const BookingSection = () => {
                             data-testid={`vehicle-cat-${cat.id}`}
                           >
                             <div className={`relative aspect-[4/3] overflow-hidden ${VEHICLE_CARD_IMAGE_BG_CLASS}`}>
-                              <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-5">
-                                <img
-                                  src={cat.image}
-                                  alt={cat.name}
-                                  className="max-h-full w-full object-contain object-center transition-transform duration-500 hover:scale-105"
-                                />
-                              </div>
-                              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#141414]/85 via-[#141414]/15 to-transparent" />
+                              <img
+                                src={cat.image}
+                                alt={cat.name}
+                                className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 hover:scale-105"
+                              />
+                              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#141414]/60 via-[#141414]/10 to-transparent" />
                             </div>
                             <div className="space-y-3 p-4">
                               <div className="flex items-center justify-between gap-3">
@@ -804,6 +826,75 @@ const BookingSection = () => {
                     </Button>
                   </div>
                 </motion.form>
+              )}
+
+              {step === 'auth' && (
+                <motion.div
+                  key="step-auth"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.3 }}
+                  className="flex-1 flex flex-col space-y-6"
+                  data-testid="auth-choice-step"
+                >
+                  {/* Icon + heading */}
+                  <div className="flex flex-col items-center text-center space-y-3">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#D4AF37]/10 border border-[#D4AF37]/30">
+                      <Lock size={28} className="text-[#D4AF37]" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-white">Identifiez-vous pour continuer</h3>
+                    <p className="text-[#A1A1AA] text-sm max-w-xs">
+                      Pour sécuriser votre paiement, connectez-vous ou créez un compte gratuitement. Votre réservation sera automatiquement reprise après l'authentification.
+                    </p>
+                  </div>
+
+                  {/* Booking recap */}
+                  <div className="rounded-xl border border-[#D4AF37]/20 bg-[#1E1E1E] p-4 text-sm text-[#C7B588] space-y-1">
+                    <p className="flex items-center gap-2"><MapPin size={14} className="text-[#D4AF37]" /> {pickup} → {dropoff}</p>
+                    {date && (
+                      <p className="flex items-center gap-2">
+                        <Calendar size={14} className="text-[#D4AF37]" />
+                        {format(date, 'dd/MM/yyyy', { locale: fr })} à {time}
+                      </p>
+                    )}
+                    <p className="flex items-center gap-2"><CarSimple size={14} className="text-[#D4AF37]" /> {VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.name}</p>
+                  </div>
+
+                  {/* Auth actions */}
+                  <div className="flex flex-col gap-3">
+                    <Button
+                      type="button"
+                      className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-5 text-base"
+                      onClick={() => handleAuthChoice('login')}
+                      data-testid="auth-login-btn"
+                    >
+                      Se connecter
+                      <ArrowRight size={18} className="ml-2" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full border-[#D4AF37]/50 text-[#D4AF37] hover:bg-[#D4AF37]/10 py-5 text-base"
+                      onClick={() => handleAuthChoice('register')}
+                      data-testid="auth-register-btn"
+                    >
+                      Créer un compte
+                      <ArrowRight size={18} className="ml-2" />
+                    </Button>
+                  </div>
+
+                  <div className="mt-auto">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-white/10 text-[#A1A1AA] hover:bg-white/5"
+                      onClick={() => setStep(2)}
+                    >
+                      Retour
+                    </Button>
+                  </div>
+                </motion.div>
               )}
             </AnimatePresence>
             </div>
