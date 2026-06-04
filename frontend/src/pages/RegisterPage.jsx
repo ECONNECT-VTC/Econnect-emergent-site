@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Envelope, Lock, User, Phone, ArrowLeft, CircleNotch } from '@phosphor-icons/react';
+import { getBookingCheckoutResumeState } from '@/utils/bookingCheckout';
 
 const RegisterPage = () => {
   const [name, setName] = useState('');
@@ -19,6 +20,11 @@ const RegisterPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { lang = 'fr' } = useParams();
+  const resumeState = useMemo(
+    () => getBookingCheckoutResumeState(lang, location.state),
+    [lang, location.state]
+  );
+  const isBookingCheckoutResume = resumeState?.from?.hash === '#reserver';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -38,7 +44,7 @@ const RegisterPage = () => {
 
     try {
       await register(email, password, name, phone);
-      const from = location.state?.from;
+      const from = resumeState?.from;
       if (from?.pathname) {
         navigate(`${from.pathname}${from.search || ''}${from.hash || ''}`, { replace: true });
       } else {
@@ -78,6 +84,12 @@ const RegisterPage = () => {
           {error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6" data-testid="register-error">
               {error}
+            </div>
+          )}
+
+          {isBookingCheckoutResume && (
+            <div className="mb-6 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-3 text-sm text-[#F3D67A]">
+              Créez votre compte pour récupérer votre profil puis reprendre automatiquement le paiement Stripe.
             </div>
           )}
 
@@ -180,7 +192,7 @@ const RegisterPage = () => {
           {/* Login link */}
           <p className="text-center mt-6 text-[#A1A1AA]">
             Déjà un compte ?{' '}
-            <Link to={`/${lang}/login`} state={location.state} className="text-[#D4AF37] hover:underline">
+            <Link to={`/${lang}/login`} state={resumeState} className="text-[#D4AF37] hover:underline">
               Se connecter
             </Link>
           </p>

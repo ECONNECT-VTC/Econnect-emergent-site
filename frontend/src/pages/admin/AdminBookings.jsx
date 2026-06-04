@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -84,8 +84,6 @@ const AdminBookings = () => {
   const pickupRef = useRef(null);
   const dropoffRef = useRef(null);
 
-  useEffect(() => { fetchData(); }, []);
-
   useEffect(() => {
     if (!GOOGLE_MAPS_API_KEY) return;
 
@@ -136,10 +134,12 @@ const AdminBookings = () => {
     };
   }, [createDialogOpen, googleMapsReady]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (includeUnpaidPending = false) => {
+    setLoading(true);
     try {
+      const bookingParams = includeUnpaidPending ? { include_unpaid_pending: true } : undefined;
       const [bookingsRes, driversRes, clientsRes, categoriesRes] = await Promise.all([
-        axios.get(`${API_URL}/api/admin/bookings`, { withCredentials: true }),
+        axios.get(`${API_URL}/api/admin/bookings`, { withCredentials: true, params: bookingParams }),
         axios.get(`${API_URL}/api/admin/drivers`, { withCredentials: true }),
         axios.get(`${API_URL}/api/admin/clients`, { withCredentials: true }),
         axios.get(`${API_URL}/api/vehicle-categories`, { withCredentials: true })
@@ -153,7 +153,9 @@ const AdminBookings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => { fetchData(filter === 'awaiting_payment'); }, [fetchData, filter]);
 
   const updateCreateField = (field, value) => {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
@@ -404,7 +406,11 @@ const AdminBookings = () => {
     }
   };
 
-  const filteredBookings = filter === 'all' ? bookings : bookings.filter((b) => b.status === filter);
+  const filteredBookings = filter === 'all'
+    ? bookings
+    : filter === 'awaiting_payment'
+      ? bookings.filter((b) => b.payment_status === 'pending')
+      : bookings.filter((b) => b.status === filter);
   const canCreateBooking =
     createForm.client_name.trim() &&
     createForm.client_email.trim() &&
@@ -464,9 +470,10 @@ const AdminBookings = () => {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {['all', 'pending', 'received', 'assigned', 'in_progress', 'completed', 'cancellation_requested', 'cancelled'].map((s) => (
+        {['all', 'awaiting_payment', 'pending', 'received', 'assigned', 'in_progress', 'completed', 'cancellation_requested', 'cancelled'].map((s) => (
           <button key={s} onClick={() => setFilter(s)} className={`px-4 py-2 rounded-lg text-sm font-medium ${filter === s ? 'bg-[#D4AF37] text-[#0A0A0A]' : 'bg-[#1E1E1E] text-[#A1A1AA]'}`}>
             {s === 'all' ? 'Toutes' :
+              s === 'awaiting_payment' ? 'En attente de paiement' :
               s === 'pending' ? 'En attente' :
               s === 'received' ? 'Réceptionnées' :
               s === 'assigned' ? 'Assignées' :
@@ -486,7 +493,12 @@ const AdminBookings = () => {
         </div>
       ) : (
         <div className="space-y-4" data-testid="admin-bookings">
-          {filteredBookings.map((booking) => (
+          {filteredBookings.map((booking) => {
+            const paymentPending = booking.payment_status === 'pending';
+            const canReceive = booking.status === 'pending' && !paymentPending;
+            const canSelfAssign = booking.status === 'received' && !paymentPending;
+
+            return (
             <div key={booking.id} className="glass rounded-xl p-6">
               <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
                 <div>
@@ -504,13 +516,13 @@ const AdminBookings = () => {
                     <span className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-300">Admin</span>
                   )}
 
-                  {booking.status === 'pending' && (
+                  {canReceive && (
                     <Button size="sm" className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => receiveBooking(booking.id)}>
                       <CheckCircle size={16} className="mr-1" />Réceptionner
                     </Button>
                   )}
 
-                  {(booking.status === 'pending' || booking.status === 'received') && (
+                  {canSelfAssign && (
                     <Button size="sm" variant="outline" className="border-purple-500/50 text-purple-300 hover:bg-purple-500/10" onClick={() => openAssignSelfDialog(booking)}>
                       <CheckCircle size={16} className="mr-1" />S'affecter (admin)
                     </Button>
@@ -538,7 +550,7 @@ const AdminBookings = () => {
                     </Button>
                   )}
 
-                  {booking.status === 'received' && (
+                  {booking.status === 'received' && !paymentPending && (
                     <Button size="sm" className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => openAssignDialog(booking)} data-testid={`assign-btn-${booking.id}`}>
                       <CarSimple size={16} className="mr-1" />Assigner à un chauffeur
                     </Button>
@@ -567,6 +579,12 @@ const AdminBookings = () => {
                   )}
                 </div>
               </div>
+
+              {paymentPending && booking.status === 'pending' && (
+                <p className="mb-4 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
+                  Paiement Stripe en attente de confirmation : cette réservation reste visible pour diagnostic mais ne peut pas encore être affectée.
+                </p>
+              )}
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="flex items-start gap-3">
@@ -630,7 +648,8 @@ const AdminBookings = () => {
 
               <BookingComments bookingId={booking.id} />
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
 

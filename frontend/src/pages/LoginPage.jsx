@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Envelope, Lock, ArrowLeft, CircleNotch } from '@phosphor-icons/react';
 import LanguageDropdown from '@/components/LanguageDropdown';
+import { getBookingCheckoutResumeState } from '@/utils/bookingCheckout';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -19,6 +20,11 @@ const LoginPage = () => {
   const location = useLocation();
   const { lang = 'fr' } = useParams();
   const { t } = useLanguage();
+  const resumeState = useMemo(
+    () => getBookingCheckoutResumeState(lang, location.state),
+    [lang, location.state]
+  );
+  const isBookingCheckoutResume = resumeState?.from?.hash === '#reserver';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -33,7 +39,7 @@ const LoginPage = () => {
         driver: `/${lang}/driver`,
         admin: `/${lang}/admin`,
       };
-      const from = location.state?.from;
+      const from = resumeState?.from;
       if (from?.pathname) {
         navigate(`${from.pathname}${from.search || ''}${from.hash || ''}`, { replace: true });
       } else {
@@ -76,6 +82,12 @@ const LoginPage = () => {
           {error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6" data-testid="login-error">
               {error}
+            </div>
+          )}
+
+          {isBookingCheckoutResume && (
+            <div className="mb-6 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-3 text-sm text-[#F3D67A]">
+              Connectez-vous pour retrouver votre réservation et reprendre automatiquement le paiement sécurisé.
             </div>
           )}
 
@@ -139,7 +151,7 @@ const LoginPage = () => {
           {/* Register link */}
           <p className="text-center mt-6 text-[#A1A1AA]">
             {t('loginNoAccount') || 'Pas encore de compte ?'}{' '}
-            <Link to={`/${lang}/register`} state={location.state} className="text-[#D4AF37] hover:underline">
+            <Link to={`/${lang}/register`} state={resumeState} className="text-[#D4AF37] hover:underline">
               {t('sinscrire')}
             </Link>
           </p>

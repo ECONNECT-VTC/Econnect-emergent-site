@@ -123,6 +123,22 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self.assertTrue(any("Montant TVA (" in text for text in captured_strings))
         self.assertFalse(any("Règle TVA" in text for text in captured_strings))
 
+    def test_legal_mentions_section_is_drawn(self):
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "order", "000010")
+
+        self._assert_valid_pdf(pdf, "order (legal mentions section)")
+        self.assertIn("Mentions légales", captured_strings)
+        self.assertTrue(any("Conditions : Paiement sous 30 jours." in text for text in captured_strings))
+        self.assertTrue(any("Bon de réservation émis à titre contractuel" in text for text in captured_strings))
+
 
 if __name__ == "__main__":
     unittest.main()

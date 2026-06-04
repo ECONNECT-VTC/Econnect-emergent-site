@@ -197,6 +197,14 @@ class BookingCheckoutResponse(BaseModel):
     session_id: str
     publishable_key: Optional[str] = None
 
+class BookingPaymentConfirmationRequest(BaseModel):
+    session_id: str
+
+class BookingPaymentConfirmationResponse(BaseModel):
+    verified: bool
+    payment_status: Optional[str] = None
+    booking: BookingResponse
+
 class AssignBooking(BaseModel):
     driver_id: str
 
@@ -1082,8 +1090,20 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     # ================================================================
     # TOTAL BOX  — gold fill, prominent amount
     # ================================================================
-    footer_top_y = 78
-    min_total_start_y = footer_top_y + 66
+    legal_lines = [
+        "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.",
+        f"TVA non récupérable par le preneur. {issuer['name']} - {issuer['address']}",
+    ]
+    if document_type == "order":
+        legal_lines.insert(
+            1,
+            "Bon de réservation émis à titre contractuel selon les informations disponibles dans l'application."
+        )
+
+    footer_top_y = 60
+    legal_box_y = footer_top_y + 12
+    legal_box_h = 24 + (len(legal_lines) * 11)
+    min_total_start_y = legal_box_y + legal_box_h + 26
     y = max(y - 6, min_total_start_y)
 
     box_h = 30
@@ -1098,37 +1118,45 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     y -= box_h + 16
 
     # ================================================================
-    # FOOTER  — anchored legal and issuer section
+    # FOOTER  — anchored issuer section + dedicated legal notice block
     # ================================================================
+    set_fill(LIGHT_BG)
+    set_stroke((0.87, 0.80, 0.55))
+    c.setLineWidth(0.8)
+    c.roundRect(36, legal_box_y, width - 72, legal_box_h, 10, fill=1, stroke=1)
+
+    set_fill(GOLD)
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(48, legal_box_y + legal_box_h - 14, "Mentions légales")
+
+    set_fill(MID_GREY)
+    c.setFont("Helvetica", 7.4)
+    legal_text_y = legal_box_y + legal_box_h - 26
+    for line in legal_lines:
+        c.drawString(48, legal_text_y, line)
+        legal_text_y -= 10
+
     set_stroke(GOLD)
     c.setLineWidth(1)
     c.line(36, footer_top_y, width - 36, footer_top_y)
 
     set_fill(MID_GREY)
-    c.setFont("Helvetica", 7)
-    c.drawCentredString(width / 2, footer_top_y - 11, issuer["name"])
-    c.setFont("Helvetica-Oblique", 6.8)
-    c.drawCentredString(width / 2, footer_top_y - 20, "Service de transport privé premium")
+    c.setFont("Helvetica", 7.2)
+    c.drawCentredString(width / 2, footer_top_y - 12, issuer["name"])
+    c.setFont("Helvetica-Oblique", 7)
+    c.drawCentredString(width / 2, footer_top_y - 22, "Service de transport privé premium")
 
-    c.setFont("Helvetica", 6.6)
+    c.setFont("Helvetica", 6.9)
     c.drawCentredString(
         width / 2,
-        footer_top_y - 29,
+        footer_top_y - 33,
         f"{issuer['address']}  |  {issuer['email']}  |  Tél : {issuer['phone']}"
     )
     c.drawCentredString(
         width / 2,
-        footer_top_y - 37,
+        footer_top_y - 43,
         f"SIRET : {issuer['siret']}  |  N° VTC : {issuer['vtc_number']}"
     )
-
-    c.setFont("Helvetica", 6.4)
-    c.drawString(36, footer_top_y - 47, "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.")
-    if document_type == "order":
-        c.drawString(36, footer_top_y - 55, "Bon de réservation émis à titre contractuel selon les informations disponibles dans l'application.")
-        c.drawString(36, footer_top_y - 63, f"TVA non récupérable par le preneur. {issuer['name']} - {issuer['address']}")
-    else:
-        c.drawString(36, footer_top_y - 55, f"TVA non récupérable par le preneur. {issuer['name']} - {issuer['address']}")
 
     c.showPage()
     c.save()
@@ -1789,14 +1817,32 @@ async def get_booking_detail_client(booking_id: str, request: Request):
     return BookingResponse(**booking)
 
 
-async def _handle_checkout_session_completed(session: dict):
+def _is_paid_checkout_session(session: dict) -> bool:
+    payment_status = (_stripe_value(session, "payment_status") or "").lower()
+    session_status = (_stripe_value(session, "status") or "").lower()
+    return payment_status == "paid" or session_status == "complete"
+
+
+def _stripe_amount_to_float(amount) -> Optional[float]:
+    if isinstance(amount, (int, float)):
+        return round(float(amount) / 100, 2)
+    return None
+
+
+async def _mark_booking_paid(session: dict) -> Tuple[Optional[dict], bool]:
     metadata = _stripe_value(session, "metadata") or {}
     booking_id = _stripe_value(metadata, "booking_id")
     if not booking_id:
-        return
+        return None, False
 
-    paid_amount = _stripe_value(session, "amount_total")
-    paid_amount = round(paid_amount / 100, 2) if isinstance(paid_amount, int) else None
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        return None, False
+
+    if booking.get("payment_status") == "paid" or not _is_paid_checkout_session(session):
+        return booking, False
+
+    paid_amount = _stripe_amount_to_float(_stripe_value(session, "amount_total"))
     update_result = await db.bookings.update_one(
         {"id": booking_id, "payment_status": {"$ne": "paid"}},
         {"$set": {
@@ -1809,12 +1855,56 @@ async def _handle_checkout_session_completed(session: dict):
             "paid_currency": (_stripe_value(session, "currency") or "eur").upper(),
         }}
     )
-    if update_result.modified_count == 0:
-        return
-
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if update_result.modified_count == 0:
+        return booking, False
+
     if booking and booking.get("client_email"):
         await send_booking_confirmation_to_client(booking)
+    return booking, True
+
+
+@api_router.post("/bookings/{booking_id}/confirm-payment", response_model=BookingPaymentConfirmationResponse)
+async def confirm_booking_payment(
+    booking_id: str,
+    payload: BookingPaymentConfirmationRequest,
+    request: Request
+):
+    _ensure_stripe_configured()
+    user = await get_current_user(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("client_id") != user["id"]:
+        raise HTTPException(status_code=403, detail="Accès refusé à cette réservation")
+
+    try:
+        session = stripe.checkout.Session.retrieve(payload.session_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Impossible de vérifier le paiement Stripe: {exc}")
+
+    session_booking_id = _stripe_value(_stripe_value(session, "metadata") or {}, "booking_id")
+    if session_booking_id != booking_id:
+        raise HTTPException(status_code=400, detail="La session Stripe ne correspond pas à cette réservation")
+
+    stored_session_id = booking.get("stripe_checkout_session_id")
+    if stored_session_id and stored_session_id != _stripe_value(session, "id"):
+        raise HTTPException(status_code=400, detail="La session Stripe ne correspond pas à cette réservation")
+
+    updated_booking, _ = await _mark_booking_paid(session)
+    resolved_booking = updated_booking or await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not resolved_booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    return BookingPaymentConfirmationResponse(
+        verified=resolved_booking.get("payment_status") == "paid",
+        payment_status=resolved_booking.get("payment_status") or _stripe_value(session, "payment_status"),
+        booking=BookingResponse(**resolved_booking)
+    )
+
+
+async def _handle_checkout_session_completed(session: dict):
+    await _mark_booking_paid(session)
 
 
 @api_router.post("/stripe/webhook")

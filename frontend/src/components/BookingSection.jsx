@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Calendar, Clock, ArrowRight, CarSimple, Timer, Users, Briefcase } from '@phosphor-icons/react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +29,7 @@ import { VEHICLE_CATEGORY_CONFIG, findDispositionEstimateForCategory, findVehicl
 import API_URL from '@/config';
 import {
   createCheckoutSession,
+  clearBookingCheckoutDraft,
   readBookingCheckoutDraft,
   saveBookingCheckoutDraft,
 } from '@/utils/bookingCheckout';
@@ -46,6 +47,7 @@ const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
 
 const BookingSection = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { lang = 'fr' } = useParams();
   const { user } = useAuth();
   const [step, setStep] = useState(1);
@@ -70,8 +72,9 @@ const BookingSection = () => {
   const submitCheckoutRef = useRef(null);
   // Ref to the form panel for smooth scroll on step changes (Bug 3b)
   const formPanelRef = useRef(null);
+  const previousStepRef = useRef(1);
   const { t } = useLanguage();
-  const bookingPanelMinHeight = 'lg:min-h-[680px]';
+  const bookingPanelMinHeight = 'min-h-[760px] sm:min-h-[800px] lg:min-h-[680px]';
 
   const fetchPricingCategories = useCallback(async () => {
     try {
@@ -180,16 +183,15 @@ const BookingSection = () => {
 
   // Smooth scroll to the top of the booking form panel on step changes (Bug 3b)
   const scrollToFormPanel = useCallback(() => {
-    setTimeout(() => {
+    window.requestAnimationFrame(() => {
       formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 50);
+    });
   }, []);
 
   const handleStep1Submit = (e) => {
     e.preventDefault();
     if (!canProceedToStep2) return;
     setStep(2);
-    scrollToFormPanel();
   };
 
   const handleStep2Submit = (e) => {
@@ -199,15 +201,14 @@ const BookingSection = () => {
       return;
     }
     setStep(3);
-    scrollToFormPanel();
   };
 
-  const getStartingPriceLabel = (startingPrice) => {
+  const getStartingPriceLabel = useCallback((startingPrice) => {
     const parsed = Number(String(startingPrice).replace(/[^\d.,]/g, '').replace(',', '.'));
     if (!Number.isFinite(parsed)) return startingPrice;
     const total = transferType === 'retour' ? parsed * 2 : parsed;
     return `${Math.round(total)}€`;
-  };
+  }, [transferType]);
 
   const pricingMinFareByCategory = useMemo(
     () => Object.fromEntries(
@@ -225,8 +226,11 @@ const BookingSection = () => {
     [pricingMinFareByCategory]
   );
 
-  const getCategoryStartingPriceLabel = (categoryId, fallbackStartingPrice) =>
-    getStartingPriceLabel(getCategoryStartingPrice(categoryId, fallbackStartingPrice));
+  const getCategoryStartingPriceLabel = useCallback(
+    (categoryId, fallbackStartingPrice) =>
+      getStartingPriceLabel(getCategoryStartingPrice(categoryId, fallbackStartingPrice)),
+    [getCategoryStartingPrice, getStartingPriceLabel]
+  );
 
   // Returns a formatted price label for a given category in step 2 vehicle cards (Bug 3a)
   const getCategoryPriceLabel = useCallback((categoryId, fallbackStartingPrice) => {
@@ -311,6 +315,7 @@ const BookingSection = () => {
       if (!checkout?.checkout_url) {
         throw new Error('URL de paiement Stripe manquante');
       }
+      clearBookingCheckoutDraft();
       window.location.href = checkout.checkout_url;
     } catch (error) {
       setBookingError(error?.response?.data?.detail || 'Impossible de lancer le paiement Stripe.');
@@ -349,6 +354,19 @@ const BookingSection = () => {
     autoCheckoutStartedRef.current = true;
     submitCheckoutRef.current(draft.checkoutPayload, { ...draft, autoPayAfterAuth: false });
   }, [user]);
+
+  useEffect(() => {
+    if (previousStepRef.current !== step) {
+      previousStepRef.current = step;
+      scrollToFormPanel();
+    }
+  }, [step, scrollToFormPanel]);
+
+  useEffect(() => {
+    if (location.hash === '#reserver') {
+      scrollToFormPanel();
+    }
+  }, [location.hash, scrollToFormPanel]);
 
   const handleStep3Submit = async (e) => {
     e.preventDefault();
@@ -410,7 +428,7 @@ const BookingSection = () => {
             transition={{ duration: 0.6 }}
             className="w-full h-full flex flex-col"
           >
-            <div ref={formPanelRef} className={`glass rounded-2xl p-8 md:p-10 flex-1 flex flex-col ${bookingPanelMinHeight}`}>
+            <div ref={formPanelRef} className={`glass rounded-2xl p-8 md:p-10 flex-1 flex flex-col overflow-hidden ${bookingPanelMinHeight}`}>
             {/* Step indicators */}
             <div className="mb-8 flex flex-col items-center gap-4 text-center flex-shrink-0">
               <div className="flex w-full items-center justify-center gap-2 sm:gap-3">
@@ -638,13 +656,15 @@ const BookingSection = () => {
                             }`}
                             data-testid={`vehicle-cat-${cat.id}`}
                           >
-                            <div className="relative h-36 overflow-hidden bg-[#141414]">
-                              <img
-                                src={cat.image}
-                                alt={cat.name}
-                                className="h-full w-full object-contain transition-transform duration-500 hover:scale-105"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/30 to-transparent" />
+                            <div className="relative aspect-[4/3] overflow-hidden bg-[#141414]">
+                              <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-5">
+                                <img
+                                  src={cat.image}
+                                  alt={cat.name}
+                                  className="max-h-full w-full object-contain object-center transition-transform duration-500 hover:scale-105"
+                                />
+                              </div>
+                              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#141414]/85 via-[#141414]/15 to-transparent" />
                             </div>
                             <div className="space-y-3 p-4">
                               <div className="flex items-center justify-between gap-3">
@@ -697,7 +717,7 @@ const BookingSection = () => {
                       type="button"
                       variant="outline"
                       className="border-white/10 text-[#A1A1AA] hover:bg-white/5"
-                      onClick={() => { setStep(1); scrollToFormPanel(); }}
+                      onClick={() => setStep(1)}
                     >
                       Retour
                     </Button>
@@ -766,7 +786,7 @@ const BookingSection = () => {
                       type="button"
                       variant="outline"
                       className="border-white/10 text-[#A1A1AA] hover:bg-white/5"
-                      onClick={() => { setStep(2); scrollToFormPanel(); }}
+                      onClick={() => setStep(2)}
                     >
                       Retour
                     </Button>

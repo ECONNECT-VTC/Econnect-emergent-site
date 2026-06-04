@@ -38,6 +38,23 @@ const clearBookingCheckoutDraft = () => {
 const shouldAutoCheckout = (draft) =>
   draft?.autoPayAfterAuth === true && draft?.checkoutPayload != null;
 
+const buildBookingCheckoutResumeState = (lang = 'fr', currentState = null, draft = null) => {
+  if (currentState?.from?.pathname) {
+    return currentState;
+  }
+
+  if (draft?.autoPayAfterAuth && draft?.checkoutPayload) {
+    return {
+      from: {
+        pathname: `/${lang}`,
+        hash: '#reserver',
+      },
+    };
+  }
+
+  return currentState || null;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // sessionStorage is available in jsdom (the Jest test environment)
 
@@ -115,5 +132,24 @@ describe('draft does NOT block login — autoPayAfterAuth gating (Bug 1)', () =>
   test('corrupted storage → no auto-checkout (safe fallback)', () => {
     sessionStorage.setItem(BOOKING_CHECKOUT_DRAFT_KEY, '{bad json');
     expect(shouldAutoCheckout(readBookingCheckoutDraft())).toBe(false);
+  });
+
+  test('explicit auth redirect state stays unchanged for normal login/register flows', () => {
+    const currentState = { from: { pathname: '/fr/client', search: '?tab=bookings' } };
+    expect(buildBookingCheckoutResumeState('fr', currentState, null)).toEqual(currentState);
+  });
+
+  test('booking draft can restore the reservation section after login or registration', () => {
+    expect(
+      buildBookingCheckoutResumeState('fr', null, {
+        autoPayAfterAuth: true,
+        checkoutPayload: { estimated_price: 55 },
+      })
+    ).toEqual({
+      from: {
+        pathname: '/fr',
+        hash: '#reserver',
+      },
+    });
   });
 });
