@@ -23,9 +23,38 @@ export const clearBookingCheckoutDraft = () => {
   sessionStorage.removeItem(BOOKING_CHECKOUT_DRAFT_KEY);
 };
 
+export const buildBookingCheckoutResumeState = (lang = 'fr', currentState = null, draft = null) => {
+  if (currentState?.from?.pathname) {
+    return currentState;
+  }
+
+  if (draft?.autoPayAfterAuth && draft?.checkoutPayload) {
+    return {
+      from: {
+        pathname: `/${lang}`,
+        hash: '#reserver',
+      },
+    };
+  }
+
+  return currentState || null;
+};
+
+export const getBookingCheckoutResumeState = (lang = 'fr', currentState = null) =>
+  buildBookingCheckoutResumeState(lang, currentState, readBookingCheckoutDraft());
+
 export const createCheckoutSession = async (payload) => {
   const response = await axios.post(`${API_URL}/api/bookings/checkout`, payload, {
     withCredentials: true,
   });
+  return response.data;
+};
+
+export const confirmBookingPayment = async (bookingId, sessionId) => {
+  const response = await axios.post(
+    `${API_URL}/api/bookings/${bookingId}/confirm-payment`,
+    { session_id: sessionId },
+    { withCredentials: true }
+  );
   return response.data;
 };
