@@ -186,17 +186,17 @@ describe('auth-choice step — draft written before login OR register redirect',
     expect(draft?.checkoutPayload).toEqual(payload);
   });
 
-  test('auto-checkout condition is met after login — same draft used for both login and register paths', () => {
+  test('auto-checkout condition is met once user is set (login path)', () => {
     const payload = { estimated_price: 90, vehicle_category_id: 'Prestige' };
     simulateHandleAuthChoice(payload);
-    // Whether the user chose "Se connecter" or "Créer un compte", the draft is identical.
+    // draft written by handleAuthChoice has autoPayAfterAuth=true
     expect(shouldAutoCheckout(readBookingCheckoutDraft())).toBe(true);
   });
 
-  test('auto-checkout condition is met after registration — draft survives the navigation', () => {
+  test('auto-checkout condition is met once user is set (register path) — draft survives navigation', () => {
     const payload = { estimated_price: 120, vehicle_category_id: 'Van' };
     simulateHandleAuthChoice(payload);
-    // Simulate navigating away and back (sessionStorage persists within the same jsdom session).
+    // sessionStorage persists in jsdom — simulates navigating to /register and back
     const draft = readBookingCheckoutDraft();
     expect(shouldAutoCheckout(draft)).toBe(true);
     expect(draft?.step).toBe(3);
@@ -216,17 +216,23 @@ describe('auth-choice step — draft written before login OR register redirect',
     expect(shouldAutoCheckout(readBookingCheckoutDraft())).toBe(false);
   });
 
-  test('buildBookingCheckoutResumeState returns #reserver hash for both login and register', () => {
+  test('buildBookingCheckoutResumeState routes to #reserver when no prior location state (login path)', () => {
     const payload = { estimated_price: 80 };
     simulateHandleAuthChoice(payload);
     const draft = readBookingCheckoutDraft();
+    // LoginPage: no prior location.state → derive from draft
+    const resumeState = buildBookingCheckoutResumeState('fr', null, draft);
+    expect(resumeState).toEqual({ from: { pathname: '/fr', hash: '#reserver' } });
+  });
 
-    // Both LoginPage and RegisterPage call getBookingCheckoutResumeState which uses this function.
-    const resumeStateViaLogin = buildBookingCheckoutResumeState('fr', null, draft);
-    const resumeStateViaRegister = buildBookingCheckoutResumeState('fr', null, draft);
-
-    expect(resumeStateViaLogin).toEqual({ from: { pathname: '/fr', hash: '#reserver' } });
-    expect(resumeStateViaRegister).toEqual({ from: { pathname: '/fr', hash: '#reserver' } });
+  test('buildBookingCheckoutResumeState preserves existing location state (register path with forwarded state)', () => {
+    const payload = { estimated_price: 80 };
+    simulateHandleAuthChoice(payload);
+    const draft = readBookingCheckoutDraft();
+    // RegisterPage: location.state was forwarded from LoginPage (already has from.pathname)
+    const forwardedState = { from: { pathname: '/fr', hash: '#reserver' } };
+    const resumeState = buildBookingCheckoutResumeState('fr', forwardedState, draft);
+    expect(resumeState).toEqual(forwardedState);
   });
 
   test('a normal login (no booking draft) is never affected — no auto-checkout', () => {
