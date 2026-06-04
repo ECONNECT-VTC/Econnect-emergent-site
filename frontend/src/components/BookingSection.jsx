@@ -45,6 +45,9 @@ const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
   startingPrice: category.startingPrice,
 }));
 
+const BOOKING_PANEL_MIN_HEIGHT_CLASSES = 'min-h-[760px] sm:min-h-[800px] lg:min-h-[680px]';
+const VEHICLE_CARD_IMAGE_BG_CLASS = 'bg-[#141414]';
+
 const BookingSection = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -74,7 +77,7 @@ const BookingSection = () => {
   const formPanelRef = useRef(null);
   const previousStepRef = useRef(1);
   const { t } = useLanguage();
-  const bookingPanelMinHeight = 'min-h-[760px] sm:min-h-[800px] lg:min-h-[680px]';
+  const bookingPanelMinHeight = BOOKING_PANEL_MIN_HEIGHT_CLASSES;
 
   const fetchPricingCategories = useCallback(async () => {
     try {
@@ -656,7 +659,7 @@ const BookingSection = () => {
                             }`}
                             data-testid={`vehicle-cat-${cat.id}`}
                           >
-                            <div className="relative aspect-[4/3] overflow-hidden bg-[#141414]">
+                            <div className={`relative aspect-[4/3] overflow-hidden ${VEHICLE_CARD_IMAGE_BG_CLASS}`}>
                               <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-5">
                                 <img
                                   src={cat.image}

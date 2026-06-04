@@ -1258,6 +1258,10 @@ def _stripe_value(obj, key: str, default=None):
     return getattr(obj, key, default)
 
 
+def _normalized_stripe_value(obj, key: str) -> str:
+    return str(_stripe_value(obj, key) or "").lower()
+
+
 def build_email_html(
     title: str,
     body_html: str,
@@ -1818,8 +1822,8 @@ async def get_booking_detail_client(booking_id: str, request: Request):
 
 
 def _is_paid_checkout_session(session: dict) -> bool:
-    payment_status = (_stripe_value(session, "payment_status") or "").lower()
-    session_status = (_stripe_value(session, "status") or "").lower()
+    payment_status = _normalized_stripe_value(session, "payment_status")
+    session_status = _normalized_stripe_value(session, "status")
     return payment_status == "paid" or session_status == "complete"
 
 
