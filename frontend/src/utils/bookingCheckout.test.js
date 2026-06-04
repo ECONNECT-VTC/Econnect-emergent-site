@@ -153,3 +153,84 @@ describe('draft does NOT block login — autoPayAfterAuth gating (Bug 1)', () =>
     });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth-choice step: draft written with autoPayAfterAuth=true before redirecting
+// to /login or /register (Demand 2 — new auth-choice step in BookingSection)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Mirrors handleAuthChoice in BookingSection: saves the draft then navigates.
+const simulateHandleAuthChoice = (checkoutPayload) => {
+  if (!checkoutPayload) return; // no payload = no draft
+  saveBookingCheckoutDraft({
+    date: '2026-07-01T10:00:00.000Z',
+    pickup: 'Paris',
+    dropoff: 'CDG',
+    time: '10:00',
+    transferType: 'simple',
+    selectedCategory: 'Confort',
+    dispositionHours: '',
+    distanceKm: '25',
+    step: 3,
+    autoPayAfterAuth: true,
+    checkoutPayload,
+  });
+};
+
+describe('auth-choice step — draft written before login OR register redirect', () => {
+  test('draft has autoPayAfterAuth=true after vehicle selection (unauthenticated visitor)', () => {
+    const payload = { estimated_price: 75, vehicle_category_id: 'Confort' };
+    simulateHandleAuthChoice(payload);
+    const draft = readBookingCheckoutDraft();
+    expect(draft?.autoPayAfterAuth).toBe(true);
+    expect(draft?.checkoutPayload).toEqual(payload);
+  });
+
+  test('auto-checkout condition is met after login — same draft used for both login and register paths', () => {
+    const payload = { estimated_price: 90, vehicle_category_id: 'Prestige' };
+    simulateHandleAuthChoice(payload);
+    // Whether the user chose "Se connecter" or "Créer un compte", the draft is identical.
+    expect(shouldAutoCheckout(readBookingCheckoutDraft())).toBe(true);
+  });
+
+  test('auto-checkout condition is met after registration — draft survives the navigation', () => {
+    const payload = { estimated_price: 120, vehicle_category_id: 'Van' };
+    simulateHandleAuthChoice(payload);
+    // Simulate navigating away and back (sessionStorage persists within the same jsdom session).
+    const draft = readBookingCheckoutDraft();
+    expect(shouldAutoCheckout(draft)).toBe(true);
+    expect(draft?.step).toBe(3);
+  });
+
+  test('no draft is saved when buildCheckoutPayload returns null (price unavailable)', () => {
+    simulateHandleAuthChoice(null); // null payload → no draft saved
+    expect(readBookingCheckoutDraft()).toBeNull();
+  });
+
+  test('draft is cleared after checkout launches (no involuntary replay)', () => {
+    const payload = { estimated_price: 60, vehicle_category_id: 'Confort Classique' };
+    simulateHandleAuthChoice(payload);
+    // Simulate submitCheckout completing successfully:
+    clearBookingCheckoutDraft();
+    expect(readBookingCheckoutDraft()).toBeNull();
+    expect(shouldAutoCheckout(readBookingCheckoutDraft())).toBe(false);
+  });
+
+  test('buildBookingCheckoutResumeState returns #reserver hash for both login and register', () => {
+    const payload = { estimated_price: 80 };
+    simulateHandleAuthChoice(payload);
+    const draft = readBookingCheckoutDraft();
+
+    // Both LoginPage and RegisterPage call getBookingCheckoutResumeState which uses this function.
+    const resumeStateViaLogin = buildBookingCheckoutResumeState('fr', null, draft);
+    const resumeStateViaRegister = buildBookingCheckoutResumeState('fr', null, draft);
+
+    expect(resumeStateViaLogin).toEqual({ from: { pathname: '/fr', hash: '#reserver' } });
+    expect(resumeStateViaRegister).toEqual({ from: { pathname: '/fr', hash: '#reserver' } });
+  });
+
+  test('a normal login (no booking draft) is never affected — no auto-checkout', () => {
+    // No draft in storage — normal user logs in.
+    expect(shouldAutoCheckout(readBookingCheckoutDraft())).toBe(false);
+  });
+});
