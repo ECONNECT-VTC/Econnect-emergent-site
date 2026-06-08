@@ -40,17 +40,17 @@ const InvoiceDriverTemplate = ({ booking, settings, clientInvoiceNumber }) => {
   const commissionRate = Math.round((booking.commission_rate || settings?.commission_rate || 0.1) * 100);
 
   return (
-    <div className="bg-[#1E1E1E] border border-[#D4AF37]/20 rounded-lg shadow-2xl max-w-3xl mx-auto text-[#FAFAFA]">
+    <div className="bg-[#1E1E1E] border border-[#303030] rounded-lg shadow-2xl max-w-3xl mx-auto text-[#FAFAFA]">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#0A0A0A] to-[#141414] px-8 py-6 border-b border-[#D4AF37]/30 rounded-t-lg">
+      <div className="bg-gradient-to-r from-[#0A0A0A] to-[#141414] px-8 py-6 border-b border-[#3A3A3A] rounded-t-lg">
         <div className="flex justify-between items-start">
           <div>
             <LogoDisplay className="h-[160px]" priority />
             <p className="text-[#A1A1AA] text-xs uppercase tracking-widest mt-1">Service de Transport Privé Premium</p>
           </div>
           <div className="text-right">
-            <p className="text-[#D4AF37] text-xs uppercase tracking-widest font-semibold">Facture Chauffeur</p>
-            <p className="text-2xl font-bold text-[#D4AF37] font-mono mt-1">{invoiceNumber}</p>
+            <p className="text-[#E5E5E5] text-xs uppercase tracking-widest font-semibold">Facture Chauffeur</p>
+            <p className="text-2xl font-bold text-[#FAFAFA] font-mono mt-1">{invoiceNumber}</p>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-4 text-xs text-[#A1A1AA]">
@@ -76,28 +76,28 @@ const InvoiceDriverTemplate = ({ booking, settings, clientInvoiceNumber }) => {
         {clientRef && (
           <div className="bg-[#141414] rounded-lg px-4 py-3 text-sm">
             <span className="text-[#A1A1AA]">Référence facture client : </span>
-            <span className="text-[#D4AF37] font-mono font-semibold">{clientRef}</span>
+            <span className="text-[#FAFAFA] font-mono font-semibold">{clientRef}</span>
           </div>
         )}
 
         {/* Parties */}
-        <div className="grid grid-cols-2 gap-8 pb-6 border-b border-[#D4AF37]/20">
+        <div className="grid grid-cols-2 gap-8 pb-6 border-b border-[#3A3A3A]">
           <div>
-            <p className="text-[#D4AF37] text-xs uppercase tracking-widest font-semibold mb-3">Émetteur</p>
+            <p className="text-[#E5E5E5] text-xs uppercase tracking-widest font-semibold mb-3">Émetteur</p>
             <p className="font-semibold">{companyName}</p>
             <p className="text-[#A1A1AA] text-sm mt-1">{companyAddress}</p>
             <p className="text-[#A1A1AA] text-sm">{companyEmail}</p>
           </div>
           <div>
-            <p className="text-[#D4AF37] text-xs uppercase tracking-widest font-semibold mb-3">Destinataire (Chauffeur)</p>
+            <p className="text-[#E5E5E5] text-xs uppercase tracking-widest font-semibold mb-3">Destinataire (Chauffeur)</p>
             <p className="font-semibold">{booking.driver_name || 'Chauffeur VTC'}</p>
             <p className="text-[#A1A1AA] text-sm mt-1">Chauffeur Partenaire</p>
           </div>
         </div>
 
         {/* Trip details */}
-        <div className="pb-6 border-b border-[#D4AF37]/20">
-          <p className="text-[#D4AF37] text-xs uppercase tracking-widest font-semibold mb-3">Détails du trajet attribué</p>
+        <div className="pb-6 border-b border-[#3A3A3A]">
+          <p className="text-[#E5E5E5] text-xs uppercase tracking-widest font-semibold mb-3">Détails du trajet attribué</p>
           <div className="bg-[#141414] rounded-lg p-4 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-[#A1A1AA]">Type de service</span>
@@ -111,7 +111,7 @@ const InvoiceDriverTemplate = ({ booking, settings, clientInvoiceNumber }) => {
               <span className="text-[#A1A1AA]">Destination</span>
               <span className="text-right max-w-[60%]">{booking.dropoff_address}</span>
             </div>
-            <div className="flex justify-between border-t border-[#D4AF37]/20 pt-2 mt-2">
+            <div className="flex justify-between border-t border-[#3A3A3A] pt-2 mt-2">
               <span className="text-[#A1A1AA]">Date / Heure</span>
               <span>{booking.pickup_date} à {booking.pickup_time}</span>
             </div>
@@ -119,30 +119,30 @@ const InvoiceDriverTemplate = ({ booking, settings, clientInvoiceNumber }) => {
         </div>
 
         {/* Financial breakdown */}
-        <div className="pb-6 border-b border-[#D4AF37]/20 space-y-2 text-sm">
-          <p className="text-[#D4AF37] text-xs uppercase tracking-widest font-semibold mb-3">Décompte financier</p>
+        <div className="pb-6 border-b border-[#3A3A3A] space-y-2 text-sm">
+          <p className="text-[#E5E5E5] text-xs uppercase tracking-widest font-semibold mb-3">Décompte financier</p>
           <div className="flex justify-between">
             <span className="text-[#A1A1AA]">Montant course TTC</span>
             <span className="font-mono">{formatCurrency(booking.price_ttc)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-[#A1A1AA]">Commission prélevée TTC ({commissionRate}%)</span>
-            <span className="font-mono text-red-400">− {formatCurrency(booking.commission_ttc)}</span>
+            <span className="font-mono">− {formatCurrency(booking.commission_ttc)}</span>
           </div>
         </div>
 
         {/* Total */}
-        <div className="bg-gradient-to-r from-green-500/10 to-green-500/5 border-2 border-green-500/50 rounded-lg p-5">
+        <div className="bg-[#111111] border-2 border-[#2A2A2A] rounded-lg p-5">
           <div className="flex justify-between items-center">
-            <span className="text-green-400 font-bold uppercase tracking-widest">Montant à verser (HT)</span>
-            <span className="text-green-400 text-3xl font-bold font-mono">{formatCurrency(booking.driver_earning)}</span>
+            <span className="text-white font-bold uppercase tracking-widest">Montant à verser (HT)</span>
+            <span className="text-white text-3xl font-bold font-mono">{formatCurrency(booking.driver_earning)}</span>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="pt-4 border-t border-[#D4AF37]/20 text-xs text-[#A1A1AA] space-y-1">
+        <div className="pt-4 border-t border-[#3A3A3A] text-xs text-[#A1A1AA] space-y-1">
           <p>Paiement effectué par virement bancaire sous 30 jours.</p>
-          <p className="text-center text-[#D4AF37]/60 mt-4">{companyName} © {new Date().getFullYear()} — Merci de votre partenariat.</p>
+          <p className="text-center text-[#737373] mt-4">{companyName} © {new Date().getFullYear()} — Merci de votre partenariat.</p>
         </div>
       </div>
     </div>

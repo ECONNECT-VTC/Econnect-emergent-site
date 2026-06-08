@@ -106,6 +106,11 @@ sg_mod = sys.modules["sendgrid"]
 sg_mod.SendGridAPIClient = object  # type: ignore
 sg_mail = sys.modules.setdefault("sendgrid.helpers.mail", types.ModuleType("sendgrid.helpers.mail"))
 sg_mail.Mail = object  # type: ignore
+sg_mail.Attachment = object  # type: ignore
+sg_mail.FileContent = lambda value: value  # type: ignore
+sg_mail.FileName = lambda value: value  # type: ignore
+sg_mail.FileType = lambda value: value  # type: ignore
+sg_mail.Disposition = lambda value: value  # type: ignore
 
 # starlette cors
 st_cors = sys.modules.setdefault("starlette.middleware.cors", types.ModuleType("starlette.middleware.cors"))

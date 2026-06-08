@@ -108,7 +108,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "order", "000008")
         self._assert_valid_pdf(pdf, "order (disposition)")
 
-    def test_invoice_does_not_draw_tva_rule_explanation(self):
+    def test_invoice_keeps_financial_tva_line_without_legal_tva_notice(self):
         captured_strings = []
         original_draw_string = server.canvas.Canvas.drawString
 
@@ -121,7 +121,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
 
         self._assert_valid_pdf(pdf, "invoice (no TVA rule explanation)")
         self.assertTrue(any("Montant TVA (" in text for text in captured_strings))
-        self.assertFalse(any("Règle TVA" in text for text in captured_strings))
+        self.assertFalse(any("TVA non récupérable par le preneur" in text for text in captured_strings))
 
     def test_legal_mentions_section_contains_required_text(self):
         captured_strings = []
