@@ -20,6 +20,7 @@ describe('vehicleCategories utils', () => {
   });
 
   it('maps admin category names to the expected public labels', () => {
+    expect(getCategoryDisplayName('Berline')).toBe('Confort Classique');
     expect(CATEGORY_DISPLAY_NAMES.Green).toBe('Confort Premium');
     expect(getCategoryDisplayName('Luxe')).toBe('Prestige');
     expect(getCategoryDisplayName('Unknown')).toBe('Unknown');
