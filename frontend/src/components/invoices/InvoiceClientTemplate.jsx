@@ -5,7 +5,6 @@ import {
   formatCurrency,
   formatInvoiceNumber,
   getClientVatRate,
-  CLIENT_TVA_RATES,
   computeHtFromTtc,
 } from '@/utils/invoiceUtils';
 import LogoDisplay from '@/components/LogoDisplay';
@@ -62,17 +61,17 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const paymentMethod = normalizePaymentMethod();
 
   return (
-    <div className="bg-white border border-[#D4AF37] rounded-lg shadow max-w-3xl mx-auto text-[#111111]">
+    <div className="bg-white border border-[#2A2A2A] rounded-lg shadow max-w-3xl mx-auto text-[#111111]">
       {/* Header */}
-      <div className="px-8 py-6 border-b border-[#D4AF37] rounded-t-lg">
+      <div className="px-8 py-6 border-b border-[#2A2A2A] rounded-t-lg">
         <div className="flex justify-between items-start">
           <div>
             <LogoDisplay className="h-[160px]" priority />
             <p className="text-[#525252] text-xs uppercase tracking-widest mt-1">Service de Transport Privé Premium</p>
           </div>
           <div className="text-right">
-            <p className="text-[#D4AF37] text-xs uppercase tracking-widest font-semibold">Facture Client</p>
-            <p className="text-2xl font-bold text-[#D4AF37] font-mono mt-1">{invoiceNumber}</p>
+            <p className="text-[#111111] text-xs uppercase tracking-widest font-semibold">Facture Client</p>
+            <p className="text-2xl font-bold text-[#111111] font-mono mt-1">{invoiceNumber}</p>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-4 text-xs text-[#525252]">
@@ -97,39 +96,39 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         </div>
 
         {/* Parties */}
-        <div className="grid grid-cols-2 gap-8 pb-6 border-b border-[#D4AF37]">
+        <div className="grid grid-cols-2 gap-8 pb-6 border-b border-[#2A2A2A]">
           <div>
-            <p className="text-[#D4AF37] text-xs uppercase tracking-widest font-semibold mb-3">Émetteur</p>
+            <p className="text-[#111111] text-xs uppercase tracking-widest font-semibold mb-3">Émetteur</p>
             <p className="font-semibold">{companyName}</p>
             <p className="text-[#525252] text-sm mt-1">{companyAddress}</p>
             <p className="text-[#525252] text-sm">{companyEmail}</p>
           </div>
           <div>
-            <p className="text-[#D4AF37] text-xs uppercase tracking-widest font-semibold mb-3">Facturé à</p>
+            <p className="text-[#111111] text-xs uppercase tracking-widest font-semibold mb-3">Facturé à</p>
             <p className="font-semibold">{booking.client_name}</p>
             <p className="text-[#525252] text-sm mt-1">{booking.client_email}</p>
           </div>
         </div>
 
         {/* Amounts table */}
-        <div className="pb-6 border-b border-[#D4AF37]">
+        <div className="pb-6 border-b border-[#2A2A2A]">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b-2 border-[#D4AF37]">
-                <th className="text-left py-3 text-[#D4AF37] text-xs uppercase tracking-widest">Désignation</th>
-                <th className="text-right py-3 text-[#D4AF37] text-xs uppercase tracking-widest">Nombre de km</th>
-                <th className="text-right py-3 text-[#D4AF37] text-xs uppercase tracking-widest">Tarif au km HT</th>
-                <th className="text-right py-3 text-[#D4AF37] text-xs uppercase tracking-widest">Prix HT</th>
+              <tr className="border-b-2 border-[#2A2A2A]">
+                <th className="text-left py-3 text-[#111111] text-xs uppercase tracking-widest">Désignation</th>
+                <th className="text-right py-3 text-[#111111] text-xs uppercase tracking-widest">Nombre de km</th>
+                <th className="text-right py-3 text-[#111111] text-xs uppercase tracking-widest">Tarif au km HT</th>
+                <th className="text-right py-3 text-[#111111] text-xs uppercase tracking-widest">Prix HT</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-[#D4AF37]/40">
+              <tr className="border-b border-[#D4D4D4]">
                 <td className="py-3">Adresse de départ : {booking.pickup_address || 'N/A'}</td>
                 <td className="text-right">—</td>
                 <td className="text-right">—</td>
                 <td className="text-right">—</td>
               </tr>
-              <tr className="border-b border-[#D4AF37]/40">
+              <tr className="border-b border-[#D4D4D4]">
                 <td className="py-3">Adresse d'arrivée : {booking.dropoff_address || 'N/A'}</td>
                 <td className="text-right font-mono">{distanceKm != null ? distanceKm.toFixed(2) : '—'}</td>
                 <td className="text-right font-mono">{unitPriceHt != null ? formatCurrency(unitPriceHt) : '—'}</td>
@@ -137,7 +136,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
               </tr>
             </tbody>
           </table>
-          <div className="mt-4 border border-[#D4AF37] rounded-lg p-3 text-sm">
+          <div className="mt-4 border border-[#2A2A2A] rounded-lg p-3 text-sm">
             <p className="text-[#525252]">Mode de paiement</p>
             <div className="mt-2 flex flex-wrap gap-4">
               <span>{paymentMethod === 'cb' ? '☑' : '☐'} CB</span>
@@ -154,28 +153,22 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
               <span className="text-[#525252]">Montant TVA ({tvaRate}%)</span>
               <span className="font-mono">{formatCurrency(resolvedTvaAmount)}</span>
             </div>
-            <div className="flex justify-between border-t border-[#D4AF37] pt-2">
-              <span className="font-semibold text-[#D4AF37]">Total TTC</span>
-              <span className="font-mono font-bold text-[#D4AF37]">{formatCurrency(resolvedPriceTtc)}</span>
+            <div className="flex justify-between items-center bg-[#111111] text-white rounded-md px-3 py-2">
+              <span className="font-semibold">Total TTC</span>
+              <span className="font-mono font-bold">{formatCurrency(resolvedPriceTtc)}</span>
             </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="pt-4 border-t border-[#D4AF37] text-xs text-[#525252] space-y-1">
-          <p>
-            TVA appliquée : {resolvedTvaRate === CLIENT_TVA_RATES.disposition
-              ? `${Math.round(CLIENT_TVA_RATES.disposition * 100)}% (mise à disposition)`
-              : `${Math.round(CLIENT_TVA_RATES.standardCourse * 100)}% (course hors mise à disposition)`}.
-          </p>
+        <div className="pt-4 border-t border-[#2A2A2A] text-xs text-[#525252] space-y-1">
           {isDriverIssued && (
-            <p className="font-semibold text-[#7A5A00]">
+            <p className="font-semibold text-[#111111]">
               Facture éditée par la société Econnect VTC pour la société à laquelle le chauffeur est rattaché.
             </p>
           )}
           <p>Paiement sous 30 jours. Tout retard entraîne des pénalités de 3× le taux légal.</p>
-          <p>TVA non récupérable par le preneur – {companyName} assujetti à la TVA.</p>
-          <p className="text-center text-[#D4AF37]/60 mt-4">{companyName} © {new Date().getFullYear()} — Merci de votre confiance.</p>
+          <p className="text-center text-[#525252] mt-4">{companyName} © {new Date().getFullYear()} — Merci de votre confiance.</p>
         </div>
       </div>
     </div>

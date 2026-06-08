@@ -5,7 +5,9 @@ import os
 import secrets
 import unicodedata
 import uuid
+from base64 import b64encode
 from datetime import datetime, timedelta, timezone
+from html import escape as html_escape
 from io import BytesIO
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -23,7 +25,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import Attachment, Disposition, FileContent, FileName, FileType, Mail
 from starlette.middleware.cors import CORSMiddleware
 
 # Load environment variables before accessing os.environ
@@ -689,11 +691,12 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     width, height = A4
 
     # ---- colour palette ----
-    GOLD      = (0.83, 0.69, 0.22)
-    GOLD_LIGHT = (0.98, 0.95, 0.80)   # very light gold for fills
+    GOLD      = (0.0, 0.0, 0.0)
+    GOLD_LIGHT = (0.92, 0.92, 0.92)   # light grey for table headers
     DARK      = (0.08, 0.08, 0.08)
+    DARK_GREY = (0.12, 0.12, 0.12)
     MID_GREY  = (0.30, 0.30, 0.30)
-    LIGHT_BG  = (0.96, 0.96, 0.96)    # light grey panel background
+    LIGHT_BG  = (0.97, 0.97, 0.97)    # light grey panel background
     WHITE     = (1.0,  1.0,  1.0)
 
     def set_fill(rgb):
@@ -913,7 +916,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(36, y, f"Service : {'Mise à disposition' if is_disposition_transfer(booking.get('transfer_type')) else 'Course'}")
     if document_type == "invoice" and issuer.get("is_driver_issuer"):
         y -= 12
-        set_fill((0.45, 0.33, 0.0))
+        set_fill(DARK_GREY)
         c.setFont("Helvetica-Oblique", 8)
         c.drawString(
             36,
@@ -1097,7 +1100,6 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     # ================================================================
     legal_lines = [
         "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.",
-        f"TVA non récupérable par le preneur. {issuer['name']} - {issuer['address']}",
     ]
     if document_type == "order":
         legal_lines.insert(
@@ -1112,11 +1114,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     y = max(y - 6, min_total_start_y)
 
     box_h = 30
-    set_fill(GOLD)
-    set_stroke(GOLD)
+    set_fill(DARK)
+    set_stroke(DARK)
     c.setLineWidth(1.5)
     c.rect(36, y - box_h + 10, width - 72, box_h, fill=1, stroke=1)
-    set_fill(DARK)
+    set_fill(WHITE)
     c.setFont("Helvetica-Bold", 12)
     c.drawString(44, y - 4, total_label)
     c.drawRightString(width - 44, y - 4, f"{total_value:.2f} EUR")
@@ -1126,7 +1128,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     # FOOTER  — anchored issuer section + dedicated legal notice block
     # ================================================================
     set_fill(LIGHT_BG)
-    set_stroke((0.87, 0.80, 0.55))
+    set_stroke(DARK_GREY)
     c.setLineWidth(0.8)
     c.roundRect(36, legal_box_y, width - 72, legal_box_h, 10, fill=1, stroke=1)
 
@@ -1468,7 +1470,13 @@ def build_email_html(
 </html>"""
 
 
-async def send_notification_email(to_email: str, subject: str, html_content: str):
+async def send_notification_email(
+    to_email: str,
+    subject: str,
+    html_content: str,
+    attachment_bytes: Optional[bytes] = None,
+    attachment_filename: Optional[str] = None,
+):
     """Send email notification via SendGrid"""
     sendgrid_key = os.environ.get('SENDGRID_API_KEY')
     sender_email = os.environ.get('SENDER_EMAIL', 'noreply@econnect-vtc.com')
@@ -1484,6 +1492,15 @@ async def send_notification_email(to_email: str, subject: str, html_content: str
             subject=subject,
             html_content=html_content
         )
+        if attachment_bytes:
+            filename = attachment_filename or "document.pdf"
+            encoded_file = b64encode(attachment_bytes).decode()
+            message.attachment = Attachment(
+                FileContent(encoded_file),
+                FileName(filename),
+                FileType("application/pdf"),
+                Disposition("attachment"),
+            )
         sg = SendGridAPIClient(sendgrid_key)
         response = sg.send(message)
         return response.status_code == 202
@@ -1585,6 +1602,72 @@ async def send_booking_confirmation_to_client(booking: dict):
         cta_url=f"{FRONTEND_URL}/fr/client/bookings"
     )
     await send_notification_email(booking["client_email"], subject, html_content)
+
+
+async def send_invoice_to_client(booking: dict):
+    booking_id = booking.get("id")
+    client_email = booking.get("client_email")
+    if not booking_id or not client_email:
+        return False
+
+    if booking.get("invoice_email_sent_at"):
+        return False
+
+    try:
+        existing_flag = await db.bookings.find_one({"id": booking_id}, {"_id": 0, "invoice_email_sent_at": 1})
+        if existing_flag and existing_flag.get("invoice_email_sent_at"):
+            return False
+
+        settings = await get_commission_settings()
+        pdf_bytes, _ = await generate_and_store_document(booking, settings, "invoice")
+
+        amount_raw = booking.get("paid_amount") if booking.get("paid_amount") is not None else booking.get("estimated_price")
+        try:
+            amount_ttc = round_amount(float(amount_raw)) if amount_raw is not None else 0.0
+        except (TypeError, ValueError):
+            amount_ttc = 0.0
+
+        safe_booking_id = html_escape(str(booking.get("id", "")))
+        safe_pickup_date = html_escape(str(booking.get("pickup_date", "")))
+        safe_pickup_time = html_escape(str(booking.get("pickup_time", "")))
+        safe_pickup_address = html_escape(str(booking.get("pickup_address", "")))
+        safe_dropoff_address = html_escape(str(booking.get("dropoff_address", "")))
+
+        body_html = f"""
+<p style="margin: 0 0 12px 0;">Votre course est terminée. Veuillez trouver votre facture en pièce jointe.</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size: 14px; margin-bottom: 16px;">
+  <tr><td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Numéro</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_booking_id}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Date</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_pickup_date}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Heure</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_pickup_time}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Départ</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_pickup_address}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Arrivée</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_dropoff_address}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Montant TTC</td><td style="padding: 6px 0; color: #FAFAFA;">{amount_ttc:.2f} €</td></tr>
+</table>
+"""
+
+        html_content = build_email_html(
+            title="Votre facture Econnect VTC",
+            body_html=body_html,
+            cta_label="Voir mes réservations",
+            cta_url=f"{FRONTEND_URL}/fr/client/bookings",
+        )
+
+        sent = await send_notification_email(
+            client_email,
+            f"📄 Votre facture Econnect VTC #{str(booking_id)[:8].upper()}",
+            html_content,
+            attachment_bytes=pdf_bytes,
+            attachment_filename=f"facture-{str(booking_id)[:8].upper()}.pdf",
+        )
+        if sent:
+            await db.bookings.update_one(
+                {"id": booking_id, "invoice_email_sent_at": {"$exists": False}},
+                {"$set": {"invoice_email_sent_at": datetime.now(timezone.utc)}},
+            )
+        return sent
+    except Exception as exc:
+        logger.error(f"Failed to send invoice email for booking {booking_id}: {exc}")
+        return False
 
 
 async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
@@ -2190,12 +2273,18 @@ async def update_booking_status_driver(booking_id: str, status_update: BookingSt
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
 
-    validate_booking_status_transition(booking.get("status"), status_update.status)
+    previous_status = booking.get("status")
+    validate_booking_status_transition(previous_status, status_update.status)
 
     await db.bookings.update_one(
         {"id": booking_id},
         {"$set": {"status": status_update.status}}
     )
+
+    if status_update.status == "completed" and previous_status != "completed":
+        updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+        if updated_booking:
+            await send_invoice_to_client(updated_booking)
 
     return {"message": "Statut mis à jour", "status": status_update.status}
 
@@ -2344,12 +2433,18 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
             detail="Seul l'admin affecté à cette course peut la démarrer ou la clôturer",
         )
 
-    validate_booking_status_transition(booking.get("status"), status_update.status)
+    previous_status = booking.get("status")
+    validate_booking_status_transition(previous_status, status_update.status)
 
     await db.bookings.update_one(
         {"id": booking_id},
         {"$set": {"status": status_update.status}}
     )
+
+    if status_update.status == "completed" and previous_status != "completed":
+        updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+        if updated_booking:
+            await send_invoice_to_client(updated_booking)
 
     return {"message": "Statut mis à jour", "status": status_update.status}
 
@@ -2595,14 +2690,18 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
 
-    valid_statuses = ["pending", "received", "assigned", "in_progress", "completed", "cancellation_requested", "cancelled"]
-    if status_update.status not in valid_statuses:
-        raise HTTPException(status_code=400, detail=f"Statut invalide. Valeurs acceptées: {valid_statuses}")
+    previous_status = booking.get("status")
+    validate_booking_status_transition(previous_status, status_update.status)
 
     await db.bookings.update_one(
         {"id": booking_id},
         {"$set": {"status": status_update.status}}
     )
+
+    if status_update.status == "completed" and previous_status != "completed":
+        updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+        if updated_booking:
+            await send_invoice_to_client(updated_booking)
 
     return {"message": "Statut mis à jour", "status": status_update.status}
 
