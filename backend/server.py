@@ -2,6 +2,7 @@
 import hashlib
 import logging
 import os
+import re
 import secrets
 import unicodedata
 import uuid
@@ -1845,16 +1846,36 @@ def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_catego
     }
 
 
+async def resolve_vehicle_category_name(category_ref: Optional[str]) -> Optional[str]:
+    if category_ref is None:
+        return None
+
+    normalized_ref = str(category_ref).strip()
+    if not normalized_ref:
+        return None
+
+    category = await db.vehicle_categories.find_one({"id": normalized_ref})
+    if category and category.get("name"):
+        return category["name"]
+
+    category = await db.vehicle_categories.find_one({"name": normalized_ref})
+    if category and category.get("name"):
+        return category["name"]
+
+    category = await db.vehicle_categories.find_one(
+        {"name": {"$regex": f"^{re.escape(normalized_ref)}$", "$options": "i"}}
+    )
+    if category and category.get("name"):
+        return category["name"]
+
+    return normalized_ref
+
+
 @api_router.post("/bookings", response_model=BookingResponse)
 async def create_booking(booking: BookingCreate, request: Request):
     user = await get_current_user(request)
 
-    # Get vehicle category name if provided
-    vehicle_category_name = None
-    if booking.vehicle_category_id:
-        category = await db.vehicle_categories.find_one({"id": booking.vehicle_category_id})
-        if category:
-            vehicle_category_name = category["name"]
+    vehicle_category_name = await resolve_vehicle_category_name(booking.vehicle_category_id)
 
     booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name)
 
@@ -1872,11 +1893,7 @@ async def create_booking_checkout(booking: BookingCheckoutCreate, request: Reque
     if estimated_price is None or not isinstance(estimated_price, (int, float)) or float(estimated_price) <= 0:
         raise HTTPException(status_code=400, detail="Le montant estimé est requis pour le paiement")
 
-    vehicle_category_name = None
-    if booking.vehicle_category_id:
-        category = await db.vehicle_categories.find_one({"id": booking.vehicle_category_id})
-        if category:
-            vehicle_category_name = category["name"]
+    vehicle_category_name = await resolve_vehicle_category_name(booking.vehicle_category_id)
 
     booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name)
     await db.bookings.insert_one(booking_doc)

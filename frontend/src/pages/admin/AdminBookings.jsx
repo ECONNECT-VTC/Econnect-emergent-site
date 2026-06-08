@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CalendarCheck, CarSimple, CheckCircle, MapPin, User } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
-import { CATEGORY_DISPLAY_NAMES } from '@/utils/vehicleCategories';
+import { getCategoryDisplayName } from '@/utils/vehicleCategories';
 import { useAuth } from '@/contexts/AuthContext';
 
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
@@ -616,8 +616,11 @@ const AdminBookings = () => {
                 </div>
               </div>
 
-              {(booking.driver_name || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin) && (
+              {(booking.vehicle_category_name || booking.driver_name || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin) && (
                 <div className="mt-4 pt-4 border-t border-white/10 space-y-1 text-sm">
+                  {booking.vehicle_category_name && (
+                    <p className="text-[#A1A1AA]">🚘 Gamme: <span className="text-white">{getCategoryDisplayName(booking.vehicle_category_name)}</span></p>
+                  )}
                   {booking.disposition_hours != null && (
                     <p className="text-[#A1A1AA]">⏱ Mise à disposition: <span className="text-white">{booking.disposition_hours}h</span></p>
                   )}
@@ -775,7 +778,7 @@ const AdminBookings = () => {
                   <SelectItem value="none">Aucune</SelectItem>
                   {vehicleCategories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
-                      {CATEGORY_DISPLAY_NAMES[category.name] || category.name} - {category.price_per_km.toFixed(2)}€/km
+                      {getCategoryDisplayName(category.name)} - {category.price_per_km.toFixed(2)}€/km
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '@/contexts/AuthContext';
 import API_URL from '@/config';
+import { getCategoryDisplayName } from '@/utils/vehicleCategories';
 import {
   ArrowLeft,
   CalendarCheck,
@@ -230,7 +231,7 @@ const BookingDetail = () => {
                   <CarSimple size={20} className="text-[#D4AF37]" />
                   <div>
                     <p className="text-xs text-[#A1A1AA]">Gamme véhicule</p>
-                    <p className="font-medium">{booking.vehicle_category_name}</p>
+                    <p className="font-medium">{getCategoryDisplayName(booking.vehicle_category_name)}</p>
                   </div>
                 </div>
               )}

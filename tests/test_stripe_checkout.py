@@ -54,6 +54,46 @@ class InMemoryBookingsCollection:
 
 
 class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
+    async def test_resolve_vehicle_category_name_prefers_id_lookup(self):
+        vehicle_categories = SimpleNamespace(find_one=AsyncMock(return_value={"id": "uuid-1", "name": "Green"}))
+        fake_db = SimpleNamespace(vehicle_categories=vehicle_categories)
+
+        with patch.object(server, "db", fake_db):
+            resolved = await server.resolve_vehicle_category_name("uuid-1")
+
+        self.assertEqual(resolved, "Green")
+        vehicle_categories.find_one.assert_awaited_once_with({"id": "uuid-1"})
+
+    async def test_resolve_vehicle_category_name_falls_back_to_name_lookup(self):
+        vehicle_categories = SimpleNamespace(
+            find_one=AsyncMock(side_effect=[None, {"id": "uuid-2", "name": "Berline"}])
+        )
+        fake_db = SimpleNamespace(vehicle_categories=vehicle_categories)
+
+        with patch.object(server, "db", fake_db):
+            resolved = await server.resolve_vehicle_category_name("Berline")
+
+        self.assertEqual(resolved, "Berline")
+        self.assertEqual(vehicle_categories.find_one.await_count, 2)
+        self.assertEqual(
+            vehicle_categories.find_one.await_args_list[0].args[0],
+            {"id": "Berline"},
+        )
+        self.assertEqual(
+            vehicle_categories.find_one.await_args_list[1].args[0],
+            {"name": "Berline"},
+        )
+
+    async def test_resolve_vehicle_category_name_returns_reference_as_last_resort(self):
+        vehicle_categories = SimpleNamespace(find_one=AsyncMock(side_effect=[None, None, None]))
+        fake_db = SimpleNamespace(vehicle_categories=vehicle_categories)
+
+        with patch.object(server, "db", fake_db):
+            resolved = await server.resolve_vehicle_category_name("Confort Premium")
+
+        self.assertEqual(resolved, "Confort Premium")
+        self.assertEqual(vehicle_categories.find_one.await_count, 3)
+
     async def test_create_booking_checkout_creates_session(self):
         bookings = InMemoryBookingsCollection()
         vehicle_categories = SimpleNamespace(find_one=AsyncMock(return_value={"id": "berline", "name": "Berline"}))
