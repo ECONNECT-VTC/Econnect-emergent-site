@@ -93,6 +93,18 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(resolved, "Confort Premium")
         self.assertEqual(vehicle_categories.find_one.await_count, 3)
+        self.assertEqual(
+            vehicle_categories.find_one.await_args_list[0].args[0],
+            {"id": "Confort Premium"},
+        )
+        self.assertEqual(
+            vehicle_categories.find_one.await_args_list[1].args[0],
+            {"name": "Confort Premium"},
+        )
+        self.assertEqual(
+            vehicle_categories.find_one.await_args_list[2].args[0],
+            {"name": {"$regex": "^Confort\\ Premium$", "$options": "i"}},
+        )
 
     async def test_create_booking_checkout_creates_session(self):
         bookings = InMemoryBookingsCollection()
