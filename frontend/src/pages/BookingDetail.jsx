@@ -129,10 +129,12 @@ const BookingDetail = () => {
 
   const statusStyle = STATUS_STYLES[booking.status] || 'bg-gray-500/20 text-gray-400';
   const statusLabel = STATUS_LABELS[booking.status] || booking.status;
-  const displayedDriverName = getClientFacingDriverName(booking);
   const shouldRenderDriverCard = user?.role === 'admin'
     ? shouldRenderAssignedDriverForAdmin(booking)
     : true;
+  const displayedDriverName = user?.role === 'admin'
+    ? (booking.driver_display_name || booking.driver_name)
+    : getClientFacingDriverName(booking);
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">

@@ -200,7 +200,7 @@ const AdminBookings = () => {
     });
     if (!queryString) return;
 
-    const timer = setTimeout(async () => {
+    const debounceTimer = setTimeout(async () => {
       try {
         const response = await axios.post(
           `${API_URL}/api/estimate-price?${queryString}`,
@@ -213,16 +213,16 @@ const AdminBookings = () => {
         const selectedEstimate = createForm.vehicle_category_id
           ? estimates.find((estimate) => estimate.category_id === createForm.vehicle_category_id)
           : estimates[0];
-        const nextPrice = toOptionalNumber(selectedEstimate?.final_price);
-        if (nextPrice === null) return;
+        const estimatedPrice = toOptionalNumber(selectedEstimate?.final_price);
+        if (estimatedPrice === null) return;
 
-        setCreateForm((prev) => ({ ...prev, estimated_price: String(nextPrice) }));
+        setCreateForm((prev) => ({ ...prev, estimated_price: String(estimatedPrice) }));
       } catch {
         // keep manual value if estimate endpoint is unavailable
       }
     }, 450);
 
-    return () => clearTimeout(timer);
+    return () => clearTimeout(debounceTimer);
   }, [
     createDialogOpen,
     createForm.transfer_type,
