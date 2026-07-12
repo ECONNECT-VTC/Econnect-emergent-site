@@ -241,7 +241,7 @@ const DriverDashboard = () => {
                   className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60"
                 >
                   <Play size={18} className="mr-2" />
-                  {actionLoadingId === booking.id ? 'Démarrage...' : 'Démarrer la course'}
+                  {actionLoadingId === booking.id ? 'Démarrage en cours...' : 'Démarrer la course'}
                 </Button>
               )}
               {booking.status === 'assigned' && (
@@ -260,7 +260,7 @@ const DriverDashboard = () => {
                   className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60"
                 >
                   <CheckCircle size={18} className="mr-2" />
-                  {actionLoadingId === booking.id ? 'Finalisation...' : 'Terminer la course'}
+                  {actionLoadingId === booking.id ? 'Finalisation en cours...' : 'Terminer la course'}
                 </Button>
               )}
               {booking.status === 'completed' && (

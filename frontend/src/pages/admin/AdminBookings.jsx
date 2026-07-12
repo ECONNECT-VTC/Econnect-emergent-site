@@ -128,8 +128,8 @@ const AdminBookings = () => {
             const element = response.rows?.[0]?.elements?.[0];
             if (element?.status === 'OK' && element.distance) {
               const km = Math.round((element.distance.value / 1000) * 10) / 10;
-              const mins = Math.round(element.duration.value / 60);
-              setCreateForm((prev) => ({ ...prev, distance_km: String(km), duration_minutes: String(mins) }));
+              const mins = element.duration?.value ? Math.round(element.duration.value / 60) : null;
+              setCreateForm((prev) => ({ ...prev, distance_km: String(km), duration_minutes: mins != null ? String(mins) : prev.duration_minutes }));
             }
           }
         }
@@ -870,7 +870,7 @@ const AdminBookings = () => {
                 </SelectContent>
               </Select>
               {createForm.payment_mode === 'immediate' && (
-                <p className="mt-1 text-xs text-yellow-400">Un email avec le récapitulatif de la course sera envoyé au client. Si le client n'a pas encore de compte, il recevra une invitation à s'inscrire.</p>
+                <p className="mt-1 text-xs text-yellow-400">Un email avec le récapitulatif de la course sera envoyé au client. S'il n'a pas encore de compte, il recevra également une invitation à s'inscrire.</p>
               )}
               {createForm.payment_mode === 'deferred' && (
                 <p className="mt-1 text-xs text-[#A1A1AA]">La course sera créée sans paiement obligatoire. Le client pourra la consulter dans son espace s'il a un compte.</p>

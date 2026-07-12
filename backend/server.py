@@ -2619,9 +2619,9 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
             pickup_time = html_escape(str(booking.get('pickup_time', '')))
             subject = f"Nouvelle course créée - {pickup_date} à {pickup_time}"
             payment_note = (
-                "<p style='margin:0 0 12px 0;color:#D4AF37;'>Le règlement sera demandé ultérieurement par votre conseiller.</p>"
+                '<p style="margin:0 0 12px 0;color:#D4AF37;">Le règlement sera demandé ultérieurement par votre conseiller.</p>'
                 if payment_mode == "deferred"
-                else "<p style='margin:0 0 12px 0;'>Votre conseiller vous contactera pour le règlement.</p>"
+                else '<p style="margin:0 0 12px 0;">Votre conseiller vous contactera pour le règlement.</p>'
             )
             body_html = f"""
 <p style="margin:0 0 12px 0;">Bonjour <strong>{html_escape(client_name)}</strong>,</p>
