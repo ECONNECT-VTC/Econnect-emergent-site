@@ -4,9 +4,10 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { CalendarCheck, MapPin } from '@phosphor-icons/react';
+import { CalendarCheck, MapPin, DownloadSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
+import { downloadClientInvoicePdf } from '@/utils/invoiceGenerator';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -98,6 +99,7 @@ const ClientBookings = () => {
 
   const getStatusBadge = (status) => {
     const styles = {
+      awaiting_payment: 'bg-amber-500/20 text-amber-300',
       pending: 'bg-yellow-500/20 text-yellow-400',
       received: 'bg-blue-500/20 text-blue-300',
       assigned: 'bg-cyan-500/20 text-cyan-300',
@@ -107,6 +109,7 @@ const ClientBookings = () => {
       cancelled: 'bg-red-500/20 text-red-400',
     };
     const labels = {
+      awaiting_payment: 'En attente de paiement',
       pending: 'En attente',
       received: 'Réceptionnée',
       assigned: 'Assignée',
@@ -115,7 +118,7 @@ const ClientBookings = () => {
       cancellation_requested: 'Annulation demandée',
       cancelled: 'Annulée',
     };
-    return <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[status]}`}>{labels[status] || status}</span>;
+    return <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[status] || 'bg-zinc-500/20 text-zinc-300'}`}>{labels[status] || status}</span>;
   };
 
   const getDisplayedDriverName = (booking) => booking.driver_display_name || booking.driver_name;
@@ -141,10 +144,11 @@ const ClientBookings = () => {
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {['all', 'pending', 'received', 'assigned', 'in_progress', 'completed', 'cancellation_requested', 'cancelled'].map((s) => (
+        {['all', 'awaiting_payment', 'pending', 'received', 'assigned', 'in_progress', 'completed', 'cancellation_requested', 'cancelled'].map((s) => (
           <button key={s} onClick={() => setFilter(s)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === s ? 'bg-[#D4AF37] text-[#0A0A0A]' : 'bg-[#1E1E1E] text-[#A1A1AA] hover:bg-white/10'}`}>
             {s === 'all' ? 'Toutes' :
+              s === 'awaiting_payment' ? 'En attente paiement' :
               s === 'pending' ? 'En attente' :
               s === 'received' ? 'Réceptionnées' :
               s === 'assigned' ? 'Assignées' :
@@ -222,6 +226,16 @@ const ClientBookings = () => {
 
               {booking.refund_amount != null && (
                 <p className="mt-3 text-sm text-green-400">Remboursement: {Number(booking.refund_amount).toFixed(2)}€</p>
+              )}
+
+              {booking.status === 'completed' && (
+                <Button
+                  onClick={() => downloadClientInvoicePdf(API_URL, booking.id)}
+                  variant="outline"
+                  className="mt-3 w-full border-green-500/50 text-green-400 hover:bg-green-500/10"
+                >
+                  <DownloadSimple size={16} className="mr-2" />Télécharger ma facture
+                </Button>
               )}
 
               <div className="mt-3">

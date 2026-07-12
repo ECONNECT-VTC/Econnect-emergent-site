@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CalendarCheck, CarSimple, CheckCircle, MapPin, User } from '@phosphor-icons/react';
+import { CalendarCheck, CarSimple, CheckCircle, MapPin, User, DownloadSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
 import { useAuth } from '@/contexts/AuthContext';
+import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
 
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
@@ -35,7 +36,10 @@ const getInitialCreateForm = () => ({
   vehicle_category_id: '',
   notes: '',
   estimated_price: '',
-  disposition_hours: ''
+  distance_km: '',
+  duration_minutes: '',
+  disposition_hours: '',
+  payment_mode: 'deferred'
 });
 
 const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
@@ -114,13 +118,40 @@ const AdminBookings = () => {
   useEffect(() => {
     if (!createDialogOpen || !window.google?.maps?.places) return;
 
+    const calculateDistance = (origin, destination) => {
+      if (!origin || !destination || !window.google?.maps?.DistanceMatrixService) return;
+      const service = new window.google.maps.DistanceMatrixService();
+      service.getDistanceMatrix(
+        { origins: [origin], destinations: [destination], travelMode: window.google.maps.TravelMode.DRIVING },
+        (response, status) => {
+          if (status === 'OK') {
+            const element = response.rows?.[0]?.elements?.[0];
+            if (element?.status === 'OK' && element.distance) {
+              const km = Math.round((element.distance.value / 1000) * 10) / 10;
+              const mins = element.duration?.value ? Math.round(element.duration.value / 60) : null;
+              setCreateForm((prev) => ({ ...prev, distance_km: String(km), duration_minutes: mins != null ? String(mins) : prev.duration_minutes }));
+            }
+          }
+        }
+      );
+    };
+
     const setupAutocomplete = (inputRef, field) => {
       if (!inputRef.current) return null;
 
       const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, { types: ['address'] });
       autocomplete.addListener('place_changed', () => {
         const place = autocomplete.getPlace();
-        setCreateForm((prev) => ({ ...prev, [field]: place.formatted_address || '' }));
+        const address = place.formatted_address || '';
+        setCreateForm((prev) => {
+          const next = { ...prev, [field]: address };
+          const pickup = field === 'pickup_address' ? address : prev.pickup_address;
+          const dropoff = field === 'dropoff_address' ? address : prev.dropoff_address;
+          if (pickup && dropoff) {
+            setTimeout(() => calculateDistance(pickup, dropoff), 0);
+          }
+          return next;
+        });
       });
 
       return autocomplete;
@@ -204,7 +235,9 @@ const AdminBookings = () => {
           ...createForm,
           vehicle_category_id: createForm.vehicle_category_id || null,
           estimated_price: createForm.estimated_price === '' ? null : Number(createForm.estimated_price),
-          disposition_hours: createForm.disposition_hours === '' ? null : Number(createForm.disposition_hours)
+          distance_km: createForm.distance_km === '' ? null : Number(createForm.distance_km),
+          disposition_hours: createForm.disposition_hours === '' ? null : Number(createForm.disposition_hours),
+          payment_mode: createForm.payment_mode || 'deferred'
         },
         { withCredentials: true }
       );
@@ -616,8 +649,15 @@ const AdminBookings = () => {
                 </div>
               </div>
 
-              {(booking.vehicle_category_name || booking.driver_name || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin) && (
+              {(booking.vehicle_category_name || booking.driver_name || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin || booking.distance_km != null) && (
                 <div className="mt-4 pt-4 border-t border-white/10 space-y-1 text-sm">
+                  {booking.distance_km != null && !isNaN(Number(booking.distance_km)) && (
+                    <p className="text-[#A1A1AA]">📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>
+                      {booking.estimated_price != null && !isNaN(Number(booking.estimated_price)) && (
+                        <span className="ml-3">💶 Prix estimé : <span className="text-[#D4AF37] font-medium">{Number(booking.estimated_price).toFixed(2)} €</span></span>
+                      )}
+                    </p>
+                  )}
                   {booking.vehicle_category_name && (
                     <p className="text-[#A1A1AA]">🚘 Gamme: <span className="text-white">{getCategoryDisplayName(booking.vehicle_category_name)}</span></p>
                   )}
@@ -673,6 +713,26 @@ const AdminBookings = () => {
                 >
                   ✏️ Modifier
                 </Button>
+                {booking.status === 'assigned' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-purple-500/50 text-purple-300 hover:bg-purple-500/10"
+                    onClick={() => downloadInvoicePdf(API_URL, booking.id, 'order')}
+                  >
+                    <DownloadSimple size={14} className="mr-1" />Bon de commande
+                  </Button>
+                )}
+                {booking.status === 'completed' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-green-500/50 text-green-300 hover:bg-green-500/10"
+                    onClick={() => downloadInvoicePdf(API_URL, booking.id, 'invoice')}
+                  >
+                    <DownloadSimple size={14} className="mr-1" />Facture client
+                  </Button>
+                )}
               </div>
 
               <BookingComments bookingId={booking.id} />
@@ -787,6 +847,34 @@ const AdminBookings = () => {
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Prix estimé (€)</p>
               <Input type="number" min="0" step="0.01" value={createForm.estimated_price} onChange={(e) => updateCreateField('estimated_price', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Distance (km) {GOOGLE_MAPS_API_KEY ? <span className="text-xs text-green-400">— calculée auto</span> : null}</p>
+              <Input
+                type="number" min="0" step="0.1"
+                value={createForm.distance_km}
+                onChange={(e) => updateCreateField('distance_km', e.target.value)}
+                placeholder={GOOGLE_MAPS_API_KEY ? 'Calculée automatiquement' : 'Ex: 15.5'}
+                className="bg-[#1E1E1E] border-white/10"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <p className="text-sm text-[#A1A1AA] mb-2">Mode de paiement</p>
+              <Select value={createForm.payment_mode} onValueChange={(v) => updateCreateField('payment_mode', v)}>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1E1E1E] border-white/10">
+                  <SelectItem value="deferred">Paiement différé (sans règlement immédiat)</SelectItem>
+                  <SelectItem value="immediate">Paiement immédiat (lien envoyé au client)</SelectItem>
+                </SelectContent>
+              </Select>
+              {createForm.payment_mode === 'immediate' && (
+                <p className="mt-1 text-xs text-yellow-400">Un email avec le récapitulatif de la course sera envoyé au client. S'il n'a pas encore de compte, il recevra également une invitation à s'inscrire.</p>
+              )}
+              {createForm.payment_mode === 'deferred' && (
+                <p className="mt-1 text-xs text-[#A1A1AA]">La course sera créée sans paiement obligatoire. Le client pourra la consulter dans son espace s'il a un compte.</p>
+              )}
             </div>
             <div className="md:col-span-2">
               <p className="text-sm text-[#A1A1AA] mb-2">Notes</p>

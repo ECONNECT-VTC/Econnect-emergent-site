@@ -70,7 +70,7 @@ const DashboardLayout = ({ children, title }) => {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 p-4 space-y-2">
+          <nav className="flex-1 overflow-y-auto p-4 space-y-2">
             {navLinks.map((link) => {
               const isActive = location.pathname === link.path;
               return (
@@ -93,7 +93,7 @@ const DashboardLayout = ({ children, title }) => {
           </nav>
 
           {/* User & Logout */}
-          <div className="p-4 border-t border-white/10">
+          <div className="p-4 border-t border-white/10 flex-shrink-0">
             <div className="flex items-center gap-3 px-4 py-3 mb-2">
               <UserCircle size={32} className="text-[#D4AF37]" />
               <div>
