@@ -70,7 +70,9 @@ const BookingSection = () => {
   const [submittingCheckout, setSubmittingCheckout] = useState(false);
   const [bookingError, setBookingError] = useState('');
   const [bookingNotice, setBookingNotice] = useState('');
+  const [fromStripeCancel, setFromStripeCancel] = useState(false);
   const autoCheckoutStartedRef = useRef(false);
+  const handledStripeReturnStateRef = useRef(false);
   // Ref to access the latest submitCheckout without it being a dependency
   const submitCheckoutRef = useRef(null);
   // Ref to the form panel for smooth scroll on step changes (Bug 3b)
@@ -190,6 +192,27 @@ const BookingSection = () => {
       formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }, []);
+
+  const resetBookingForm = useCallback(() => {
+    setDate(undefined);
+    setPickup('');
+    setDropoff('');
+    setTime('');
+    setTransferType('');
+    setSelectedCategory('');
+    setDispositionHours('');
+    setDistanceKm('');
+    setDispositionPrices([]);
+    setPriceEstimates([]);
+    setStep(1);
+    setSubmittingCheckout(false);
+    setBookingError('');
+    setBookingNotice('');
+    setFromStripeCancel(false);
+    autoCheckoutStartedRef.current = false;
+    clearBookingCheckoutDraft();
+    scrollToFormPanel();
+  }, [scrollToFormPanel]);
 
   const handleStep1Submit = (e) => {
     e.preventDefault();
@@ -374,6 +397,27 @@ const BookingSection = () => {
     if (draft.step) setStep(draft.step);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only: adding state setters as deps would re-run on every field change, causing an infinite loop where setDate(new Date(x)) always produces a new object reference
 
+  useEffect(() => {
+    const hasStripeReturnState = Boolean(location.state?.fromBookingSuccess || location.state?.fromBookingCancel);
+    if (!hasStripeReturnState) {
+      handledStripeReturnStateRef.current = false;
+      return;
+    }
+    if (handledStripeReturnStateRef.current) return;
+    handledStripeReturnStateRef.current = true;
+
+    if (location.state?.fromBookingSuccess) {
+      resetBookingForm();
+      navigate(`${location.pathname}${location.hash || ''}`, { replace: true, state: null });
+      return;
+    }
+
+    if (location.state?.fromBookingCancel) {
+      setFromStripeCancel(true);
+      navigate(`${location.pathname}${location.hash || ''}`, { replace: true, state: null });
+    }
+  }, [location, navigate, resetBookingForm]);
+
   // Effect 2: Auto-checkout when user logs in after saving a draft (Bug 1 fix)
   // Depends only on `user`; uses submitCheckoutRef to avoid stale-closure issues.
   useEffect(() => {
@@ -427,6 +471,8 @@ const BookingSection = () => {
     await submitCheckout(payload);
   };
 
+  const stepIndicatorText = step === 'auth' ? 'Authentification' : `Étape ${step}/3`;
+
   return (
     <section id="reserver" className="pt-20 pb-10 md:pt-24 md:pb-14 bg-[#141414]" data-testid="booking-section">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
@@ -472,6 +518,34 @@ const BookingSection = () => {
                 {step === 1 ? t('typeTransfert') || 'Votre trajet' : step === 2 ? 'Choisir votre véhicule' : step === 'auth' ? 'Identifiez-vous' : 'Valider votre demande'}
               </span>
             </div>
+
+            <div className="mb-4 flex items-center justify-between">
+              <span className="text-sm text-[#A1A1AA]">
+                {stepIndicatorText}
+              </span>
+              {(step === 2 || step === 3 || step === 'auth') && (
+                <button
+                  type="button"
+                  onClick={resetBookingForm}
+                  className="text-xs text-[#D4AF37] hover:underline"
+                  aria-label="Commencer une nouvelle réservation"
+                  data-testid="new-booking-reset-button"
+                >
+                  🔄 Nouvelle réservation
+                </button>
+              )}
+            </div>
+
+            {fromStripeCancel && (
+              <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+                <p className="mb-2 text-sm text-amber-300">
+                  Votre paiement a été annulé. Vous pouvez recommencer en cliquant ci-dessous.
+                </p>
+                <Button onClick={resetBookingForm} variant="outline" size="sm" type="button">
+                  Nouvelle réservation
+                </Button>
+              </div>
+            )}
 
             <AnimatePresence mode="wait">
               {step === 1 && (

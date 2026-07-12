@@ -17,7 +17,8 @@ const BookingPaymentCancel = () => {
 
         <div className="mt-8">
           <Link
-            to={`/${lang}#reserver`}
+            to={{ pathname: `/${lang}`, hash: '#reserver' }}
+            state={{ fromBookingCancel: true }}
             className="inline-flex items-center gap-2 rounded-lg bg-[#D4AF37] px-4 py-2 font-semibold text-[#0A0A0A]"
             data-testid="booking-cancel-back-to-form"
           >
