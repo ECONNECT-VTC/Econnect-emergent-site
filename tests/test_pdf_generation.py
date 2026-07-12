@@ -123,7 +123,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self.assertTrue(any("Montant TVA (" in text for text in captured_strings))
         self.assertFalse(any("TVA non récupérable par le preneur" in text for text in captured_strings))
 
-    def test_legal_mentions_section_contains_required_text(self):
+    def test_order_legal_notice_contains_r3120_2_and_arrete_date(self):
         captured_strings = []
         original_draw_string = server.canvas.Canvas.drawString
 
@@ -134,10 +134,39 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
             pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "order", "000010")
 
-        self._assert_valid_pdf(pdf, "order (legal mentions section)")
-        self.assertIn("Mentions légales", captured_strings)
-        self.assertTrue(any("Conditions : Paiement sous 30 jours." in text for text in captured_strings))
-        self.assertTrue(any("Bon de réservation émis à titre contractuel" in text for text in captured_strings))
+        self._assert_valid_pdf(pdf, "order (legal notice)")
+        self.assertIn("Justification réglementaire", captured_strings)
+        self.assertTrue(any("Article R3120-2 du code des transports" in text for text in captured_strings))
+        self.assertTrue(any("Arrêté du 6 août 2025" in text for text in captured_strings))
+
+    def test_activity_total_label_is_ttc_and_legal_box_is_removed(self):
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "activity", "000011")
+
+        self._assert_valid_pdf(pdf, "activity (ttc total)")
+        self.assertIn("TOTAL ACTIVITÉ TTC", captured_strings)
+        self.assertNotIn("Mentions légales", captured_strings)
+
+    def test_order_removes_designation_table_header(self):
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "order", "000012")
+
+        self._assert_valid_pdf(pdf, "order (no designation)")
+        self.assertNotIn("DÉSIGNATION", captured_strings)
 
 
 if __name__ == "__main__":

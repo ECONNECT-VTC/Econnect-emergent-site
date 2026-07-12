@@ -604,7 +604,12 @@ def get_client_tva_rate_for_booking(booking: Optional[dict]) -> float:
         return CLIENT_TVA_RATE_DISPOSITION
     return CLIENT_TVA_RATE_STANDARD_COURSE
 
-async def build_document_issuer_profile(booking: dict, settings: dict) -> dict:
+async def get_document_driver_profile(booking: dict) -> Optional[dict]:
+    if bool(booking.get("fulfilled_by_admin")) or not booking.get("driver_id"):
+        return None
+    return await db.users.find_one({"id": booking.get("driver_id"), "role": "driver"}, {"_id": 0})
+
+async def build_document_issuer_profile(booking: dict, settings: dict, driver: Optional[dict] = None) -> dict:
     """Build issuer details for generated documents.
 
     Uses main company information for admin-fulfilled bookings, and switches to
@@ -623,7 +628,7 @@ async def build_document_issuer_profile(booking: dict, settings: dict) -> dict:
     if bool(booking.get("fulfilled_by_admin")) or not booking.get("driver_id"):
         return issuer
 
-    driver = await db.users.find_one({"id": booking.get("driver_id"), "role": "driver"}, {"_id": 0})
+    driver = driver or await get_document_driver_profile(booking)
     if not driver:
         return issuer
 
@@ -727,7 +732,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         "activity": "RELEVÉ D'ACTIVITÉ",
     }
     title = title_map.get(document_type, "DOCUMENT")
-    is_client_invoice = document_type in ("invoice", "order")
+    is_order_document = document_type == "order"
+    is_invoice_document = document_type == "invoice"
     is_driver_statement = document_type in ("driver", "activity")
     issuer = booking.get("issuer", {
         "name": settings["company_name"],
@@ -778,6 +784,34 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     if distance_km and unit_price_ht:
         line_price_ht = round_amount(distance_km * unit_price_ht)
     payment_method = detect_payment_method_label()
+    is_admin_fulfillment = bool(booking.get("fulfilled_by_admin"))
+    driver_display_name = (
+        booking.get("document_driver_name")
+        or booking.get("driver_name")
+        or settings["company_name"]
+        or "N/A"
+    )
+    driver_company_name = (
+        booking.get("document_driver_company")
+        or (settings["company_name"] if is_admin_fulfillment else issuer.get("name"))
+        or settings["company_name"]
+        or "N/A"
+    )
+    driver_phone = (
+        booking.get("document_driver_phone")
+        or (settings.get("company_phone") if is_admin_fulfillment else issuer.get("phone"))
+        or "À compléter"
+    )
+    driver_vtc_number = (
+        booking.get("document_driver_vtc_number")
+        or (settings.get("company_vtc_number") if is_admin_fulfillment else issuer.get("vtc_number"))
+        or "À compléter"
+    )
+    driver_vehicle_plate = (
+        booking.get("document_driver_vehicle_plate")
+        or booking.get("admin_vehicle_plate")
+        or "À compléter"
+    )
 
     # ================================================================
     # HEADER BAND  (top 90 pt — white background with logo + title)
@@ -856,7 +890,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     col2_x = 36 + col_w + 8
 
     # Panel background for both columns
-    panel_h = 58
+    panel_h = 68
     set_fill(LIGHT_BG)
     c.rect(col1_x, y - panel_h + 12, col_w, panel_h, fill=1, stroke=0)
     c.rect(col2_x, y - panel_h + 12, col_w, panel_h, fill=1, stroke=0)
@@ -865,14 +899,15 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     set_fill(GOLD)
     c.setFont("Helvetica-Bold", 8)
     c.drawString(col1_x + 4, y + 6, "ÉMETTEUR")
-    c.drawString(col2_x + 4, y + 6, "DESTINATAIRE" if not is_driver_statement else "CHAUFFEUR")
+    right_column_label = "CHAUFFEUR" if is_driver_statement else ("PASSAGER" if is_order_document else "DESTINATAIRE")
+    c.drawString(col2_x + 4, y + 6, right_column_label)
     y -= 4
 
     set_fill(DARK)
     c.setFont("Helvetica-Bold", 9)
     c.drawString(col1_x + 4, y, issuer["name"])
     if is_driver_statement:
-        c.drawString(col2_x + 4, y, booking.get("driver_name", "N/A"))
+        c.drawString(col2_x + 4, y, driver_display_name)
     else:
         c.drawString(col2_x + 4, y, booking.get("client_name", "N/A"))
     y -= 12
@@ -881,15 +916,32 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.setFont("Helvetica", 8)
     c.drawString(col1_x + 4, y, issuer["address"])
     if is_driver_statement:
-        c.drawString(col2_x + 4, y, "Chauffeur VTC Partenaire")
+        c.drawString(col2_x + 4, y, "Administrateur" if is_admin_fulfillment else driver_company_name)
     else:
         c.drawString(col2_x + 4, y, booking.get("client_email", "N/A"))
     y -= 11
 
     c.drawString(col1_x + 4, y, issuer["email"])
     y -= 11
-    c.drawString(col1_x + 4, y, f"N° VTC : {issuer['vtc_number']}  |  Tél : {issuer['phone']}")
-    y -= 20
+    c.drawString(col1_x + 4, y, f"Tél : {issuer['phone']}")
+    if not is_driver_statement and booking.get("client_phone"):
+        c.drawString(col2_x + 4, y, f"Tél : {booking.get('client_phone')}")
+    y -= 18
+
+    if is_order_document:
+        detail_h = 48
+        set_fill(LIGHT_BG)
+        c.rect(36, y - detail_h + 10, width - 72, detail_h, fill=1, stroke=0)
+        set_fill(GOLD)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(40, y + 2, "CHAUFFEUR ASSIGNÉ")
+        set_fill(MID_GREY)
+        c.setFont("Helvetica", 8)
+        c.drawString(40, y - 8, f"Nom : {driver_display_name}")
+        c.drawString(40, y - 18, f"Tél : {driver_phone}")
+        c.drawString(300, y - 8, f"N° VTC : {driver_vtc_number}")
+        c.drawString(300, y - 18, f"Plaque d'immatriculation : {driver_vehicle_plate}")
+        y -= detail_h + 6
 
     # Gold divider
     set_stroke(GOLD)
@@ -912,10 +964,10 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.drawString(36, y, f"Arrivée : {booking.get('dropoff_address', 'N/A')}")
     y -= 12
     c.drawString(36, y, f"Date : {booking.get('pickup_date', 'N/A')} à {booking.get('pickup_time', 'N/A')}")
-    if document_type == "order":
+    if is_order_document:
         y -= 12
         c.drawString(36, y, f"Service : {'Mise à disposition' if is_disposition_transfer(booking.get('transfer_type')) else 'Course'}")
-    if document_type == "invoice" and issuer.get("is_driver_issuer"):
+    if is_invoice_document and issuer.get("is_driver_issuer"):
         y -= 12
         set_fill(DARK_GREY)
         c.setFont("Helvetica-Oblique", 8)
@@ -954,7 +1006,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
                 c.drawString(x, y + 2, text)
         y -= band_h
 
-    if is_client_invoice:
+    if is_invoice_document:
         x_desc, x_km, x_rate, x_ht = 40, 365, 455, width - 36
         draw_table_header_band(
             ["DÉSIGNATION", "KM", "TARIF/KM HT", "PRIX HT"],
@@ -1001,6 +1053,29 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         y -= table_row_h
         total_label = "TOTAL TTC"
         total_value = breakdown['price_ttc']
+
+    elif is_order_document:
+        set_fill(MID_GREY)
+        c.setFont("Helvetica", 9)
+        c.drawString(36, y, "Récapitulatif de la réservation")
+        y -= 12
+
+        set_fill(DARK)
+        c.drawString(36, y, "Mode de paiement :")
+        c.drawString(138, y, f"{'[X]' if payment_method == 'cb' else '[ ]'} CB")
+        c.drawString(216, y, f"{'[X]' if payment_method == 'cash' else '[ ]'} Espèces")
+        c.drawString(316, y, f"{'[X]' if payment_method == 'virement' else '[ ]'} Virement bancaire")
+        y -= 14
+
+        set_fill(MID_GREY)
+        c.drawString(36, y, "Montant HT")
+        c.drawRightString(width - 36, y, f"{breakdown['price_ht']:.2f} EUR")
+        y -= table_row_h
+        c.drawString(36, y, f"Montant TVA ({round_amount(resolved_client_tva_rate * 100):.0f}%)")
+        c.drawRightString(width - 36, y, f"{breakdown['tva_client']:.2f} EUR")
+        y -= table_row_h
+        total_label = "TOTAL TTC"
+        total_value = breakdown["price_ttc"]
 
     else:
         # Driver / commission / activity
@@ -1059,7 +1134,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             c.drawRightString(width - 36, y, f"- {breakdown['commission_ttc']:.2f} EUR")
             y -= 16
 
-        total_label = "TOTAL ACTIVITÉ (HT)" if document_type == "activity" else "MONTANT À VERSER (HT)"
+        total_label = "TOTAL ACTIVITÉ TTC" if document_type == "activity" else "MONTANT À VERSER (HT)"
         total_value = breakdown['driver_earning']
 
     elif document_type == "commission":
@@ -1099,28 +1174,29 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     # ================================================================
     # TOTAL BOX  — gold fill, prominent amount
     # ================================================================
-    legal_lines = [
-        "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.",
-    ]
-    if document_type == "order":
-        legal_lines.insert(
-            1,
-            "Bon de réservation émis à titre contractuel selon les informations disponibles dans l'application."
-        )
+    legal_lines = []
+    if is_order_document:
+        legal_lines = [
+            "Justification de réservation préalable : Article R3120-2 du code des transports – Arrêté du 6 août 2025."
+        ]
+    elif document_type != "activity":
+        legal_lines = [
+            "Conditions : Paiement sous 30 jours. Tout retard entraîne des pénalités de 3 fois le taux d'intérêt légal.",
+        ]
 
     footer_top_y = 60
-    legal_box_y = footer_top_y + 12
-    legal_box_h = 24 + (len(legal_lines) * 11)
-    min_total_start_y = legal_box_y + legal_box_h + 26
+    legal_box_y = footer_top_y + 12 if legal_lines else None
+    legal_box_h = 24 + (len(legal_lines) * 11) if legal_lines else 0
+    min_total_start_y = (legal_box_y + legal_box_h + 26) if legal_lines else (footer_top_y + 44)
     y = max(y - 6, min_total_start_y)
 
     box_h = 30
-    set_fill(DARK)
-    set_stroke(DARK)
+    set_fill(DARK_GREY)
+    set_stroke(DARK_GREY)
     c.setLineWidth(1.5)
     c.rect(36, y - box_h + 10, width - 72, box_h, fill=1, stroke=1)
     set_fill(WHITE)
-    c.setFont("Helvetica-Bold", 12)
+    c.setFont("Helvetica-Bold", 11)
     c.drawString(44, y - 4, total_label)
     c.drawRightString(width - 44, y - 4, f"{total_value:.2f} EUR")
     y -= box_h + 16
@@ -1128,42 +1204,43 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     # ================================================================
     # FOOTER  — anchored issuer section + dedicated legal notice block
     # ================================================================
-    set_fill(LIGHT_BG)
-    set_stroke(DARK_GREY)
-    c.setLineWidth(0.8)
-    c.roundRect(36, legal_box_y, width - 72, legal_box_h, 10, fill=1, stroke=1)
+    if legal_lines:
+        set_fill(LIGHT_BG)
+        set_stroke(DARK_GREY)
+        c.setLineWidth(0.8)
+        c.roundRect(36, legal_box_y, width - 72, legal_box_h, 10, fill=1, stroke=1)
 
-    set_fill(GOLD)
-    c.setFont("Helvetica-Bold", 8)
-    c.drawString(48, legal_box_y + legal_box_h - 14, "Mentions légales")
+        set_fill(GOLD)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(48, legal_box_y + legal_box_h - 14, "Justification réglementaire" if is_order_document else "Mentions légales")
 
-    set_fill(MID_GREY)
-    c.setFont("Helvetica", 7.4)
-    legal_text_y = legal_box_y + legal_box_h - 26
-    for line in legal_lines:
-        c.drawString(48, legal_text_y, line)
-        legal_text_y -= 10
+        set_fill(MID_GREY)
+        c.setFont("Helvetica", 7.4)
+        legal_text_y = legal_box_y + legal_box_h - 26
+        for line in legal_lines:
+            c.drawString(48, legal_text_y, line)
+            legal_text_y -= 10
 
     set_stroke(GOLD)
     c.setLineWidth(1)
     c.line(36, footer_top_y, width - 36, footer_top_y)
 
     set_fill(MID_GREY)
-    c.setFont("Helvetica", 7.2)
-    c.drawCentredString(width / 2, footer_top_y - 12, issuer["name"])
-    c.setFont("Helvetica-Oblique", 7)
-    c.drawCentredString(width / 2, footer_top_y - 22, "Service de transport privé premium")
+    c.setFont("Helvetica", 7.6)
+    c.drawCentredString(width / 2, footer_top_y - 11, issuer["name"])
+    c.setFont("Helvetica-Oblique", 7.1)
+    c.drawCentredString(width / 2, footer_top_y - 21, "Service de transport privé premium")
 
-    c.setFont("Helvetica", 6.9)
+    c.setFont("Helvetica", 7.1)
     c.drawCentredString(
         width / 2,
         footer_top_y - 33,
-        f"{issuer['address']}  |  {issuer['email']}  |  Tél : {issuer['phone']}"
+        f"{issuer['address']}  |  Tél : {issuer['phone']}"
     )
     c.drawCentredString(
         width / 2,
         footer_top_y - 43,
-        f"SIRET : {issuer['siret']}  |  N° VTC : {issuer['vtc_number']}"
+        f"{issuer['email']}  |  SIRET : {issuer['siret']}"
     )
 
     c.showPage()
@@ -1174,7 +1251,34 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
 async def generate_and_store_document(booking: dict, settings: dict, document_type: str) -> Tuple[bytes, dict]:
     enriched_booking = {**booking}
-    enriched_booking["issuer"] = await build_document_issuer_profile(booking, settings)
+    driver_profile = await get_document_driver_profile(booking)
+    enriched_booking["issuer"] = await build_document_issuer_profile(booking, settings, driver=driver_profile)
+    enriched_booking["document_driver_name"] = (
+        booking.get("driver_name")
+        or (driver_profile or {}).get("name")
+        or settings["company_name"]
+    )
+    enriched_booking["document_driver_company"] = (
+        (driver_profile or {}).get("company_name")
+        or (driver_profile or {}).get("name")
+        or settings["company_name"]
+    )
+    enriched_booking["document_driver_phone"] = (
+        (driver_profile or {}).get("company_phone")
+        or (driver_profile or {}).get("phone")
+        or settings.get("company_phone")
+        or "À compléter"
+    )
+    enriched_booking["document_driver_vtc_number"] = (
+        (driver_profile or {}).get("company_vtc_number")
+        or settings.get("company_vtc_number")
+        or "À compléter"
+    )
+    enriched_booking["document_driver_vehicle_plate"] = (
+        (driver_profile or {}).get("vehicle_plate")
+        or booking.get("admin_vehicle_plate")
+        or "À compléter"
+    )
     resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
 
     existing_document = await db.invoices.find_one(
