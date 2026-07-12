@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
-import { CarSimple, CheckCircle, Clock, MapPin, Phone, Play, User } from '@phosphor-icons/react';
+import { CarSimple, CheckCircle, Clock, MapPin, Phone, Play, User, DownloadSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
+import { downloadDriverDocPdf } from '@/utils/invoiceGenerator';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -26,6 +27,7 @@ const DriverDashboard = () => {
   const [isAvailable, setIsAvailable] = useState(true);
   const [filter, setFilter] = useState('assigned');
   const [error, setError] = useState('');
+  const [actionLoadingId, setActionLoadingId] = useState(null);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [withdrawReason, setWithdrawReason] = useState('');
   const [bookingToWithdraw, setBookingToWithdraw] = useState(null);
@@ -55,11 +57,16 @@ const DriverDashboard = () => {
   };
 
   const updateBookingStatus = async (bookingId, status) => {
+    if (actionLoadingId) return;
+    setActionLoadingId(bookingId);
+    setError('');
     try {
       await axios.put(`${API_URL}/api/driver/bookings/${bookingId}/status`, { status }, { withCredentials: true });
       fetchBookings();
     } catch (err) {
       setError(parseError(err));
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -219,12 +226,22 @@ const DriverDashboard = () => {
                   </div>
                 </div>
               </div>
+              {booking.distance_km != null && (
+                <p className="text-xs text-[#A1A1AA] mb-4">
+                  📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>
+                  {booking.estimated_price != null && (
+                    <span className="ml-3">💶 Prix estimé : <span className="text-[#D4AF37] font-medium">{Number(booking.estimated_price).toFixed(2)} €</span></span>
+                  )}
+                </p>
+              )}
               {booking.status === 'assigned' && (
                 <Button
                   onClick={() => updateBookingStatus(booking.id, 'in_progress')}
-                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  disabled={actionLoadingId === booking.id}
+                  className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60"
                 >
-                  <Play size={18} className="mr-2" />Démarrer
+                  <Play size={18} className="mr-2" />
+                  {actionLoadingId === booking.id ? 'Démarrage...' : 'Démarrer la course'}
                 </Button>
               )}
               {booking.status === 'assigned' && (
@@ -239,10 +256,30 @@ const DriverDashboard = () => {
               {booking.status === 'in_progress' && (
                 <Button
                   onClick={() => updateBookingStatus(booking.id, 'completed')}
-                  className="w-full bg-green-600 hover:bg-green-700"
+                  disabled={actionLoadingId === booking.id}
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60"
                 >
-                  <CheckCircle size={18} className="mr-2" />Terminer
+                  <CheckCircle size={18} className="mr-2" />
+                  {actionLoadingId === booking.id ? 'Finalisation...' : 'Terminer la course'}
                 </Button>
+              )}
+              {booking.status === 'completed' && (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Button
+                    onClick={() => downloadDriverDocPdf(API_URL, booking.id, 'driver')}
+                    variant="outline"
+                    className="border-green-500/50 text-green-400 hover:bg-green-500/10 text-xs"
+                  >
+                    <DownloadSimple size={15} className="mr-1" />Facture
+                  </Button>
+                  <Button
+                    onClick={() => downloadDriverDocPdf(API_URL, booking.id, 'activity')}
+                    variant="outline"
+                    className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10 text-xs"
+                  >
+                    <DownloadSimple size={15} className="mr-1" />Relevé d'activité
+                  </Button>
+                </div>
               )}
               <Button
                 onClick={() => window.open(`${API_URL}/api/driver/bookings/${booking.id}/order-pdf`, '_blank')}

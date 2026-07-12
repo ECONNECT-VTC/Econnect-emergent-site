@@ -48,3 +48,12 @@ export const downloadDriverDocPdf = (apiUrl, bookingId, type) => {
 
   window.open(`${apiUrl}${pathMap[type] || pathMap.driver}`, '_blank');
 };
+
+/**
+ * Download the client's own invoice PDF for a completed booking.
+ * @param {string} apiUrl
+ * @param {string} bookingId
+ */
+export const downloadClientInvoicePdf = (apiUrl, bookingId) => {
+  window.open(`${apiUrl}/api/client/invoices/${bookingId}/pdf`, '_blank');
+};

@@ -1,4 +1,5 @@
 # Standard library
+import asyncio
 import hashlib
 import logging
 import os
@@ -143,6 +144,9 @@ class AdminBookingCreate(BaseModel):
     estimated_price: Optional[float] = None
     vehicle_category_id: Optional[str] = None
     disposition_hours: Optional[float] = None
+    distance_km: Optional[float] = None
+    duration_minutes: Optional[float] = None
+    payment_mode: Optional[str] = None  # "immediate" | "deferred" | None (defaults to deferred)
 
 class BookingResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -191,6 +195,7 @@ class BookingResponse(BaseModel):
     stripe_payment_intent_id: Optional[str] = None
     paid_amount: Optional[float] = None
     paid_currency: Optional[str] = None
+    payment_mode: Optional[str] = None
     created_at: datetime
     assigned_at: Optional[datetime] = None
 
@@ -2569,9 +2574,78 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
 
     return {"message": "Statut mis à jour", "status": status_update.status}
 
+async def _send_admin_booking_notification(booking: dict, is_guest: bool, payment_mode: str) -> None:
+    """Send booking notification or guest invitation when admin creates a booking."""
+    client_email = booking.get("client_email")
+    client_name = booking.get("client_name", "Client")
+    if not client_email:
+        return
+
+    booking_id = booking.get("id", "")
+    price_label = f"{float(booking['estimated_price']):.2f} €" if booking.get("estimated_price") is not None else "À définir"
+    distance_label = f"{float(booking['distance_km']):.1f} km" if booking.get("distance_km") is not None else "—"
+
+    trip_rows = f"""
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Date</td><td style="padding:6px 0;color:#FAFAFA;">{booking.get('pickup_date')} à {booking.get('pickup_time')}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Départ</td><td style="padding:6px 0;color:#FAFAFA;">{booking.get('pickup_address')}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Arrivée</td><td style="padding:6px 0;color:#FAFAFA;">{booking.get('dropoff_address')}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Distance</td><td style="padding:6px 0;color:#FAFAFA;">{distance_label}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Prix estimé</td><td style="padding:6px 0;color:#D4AF37;">{price_label}</td></tr>
+"""
+
+    if is_guest:
+        subject = f"🚗 Invitation Econnect VTC — Course réservée en votre nom"
+        register_url = f"{FRONTEND_URL}/fr/register"
+        body_html = f"""
+<p style="margin:0 0 12px 0;">Bonjour <strong>{html_escape(client_name)}</strong>,</p>
+<p style="margin:0 0 12px 0;">Une course a été réservée en votre nom par notre équipe :</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;margin-bottom:16px;">
+{trip_rows}
+</table>
+<p style="margin:0 0 12px 0;">Pour consulter et valider cette course, créez votre compte Econnect VTC en cliquant sur le bouton ci-dessous.</p>
+<p style="margin:0 0 12px 0;font-size:13px;color:#A1A1AA;">
+  Après inscription, connectez-vous avec l'adresse email <strong>{html_escape(client_email)}</strong> pour retrouver votre course.
+</p>
+"""
+        html_content = build_email_html(
+            title="Course réservée — Créez votre compte",
+            body_html=body_html,
+            cta_label="Créer mon compte Econnect VTC",
+            cta_url=register_url,
+        )
+        await send_notification_email(client_email, subject, html_content)
+    else:
+        subject = f"🚗 Nouvelle course créée — {booking.get('pickup_date')} à {booking.get('pickup_time')}"
+        payment_note = (
+            "<p style='margin:0 0 12px 0;color:#D4AF37;'>Le règlement sera demandé ultérieurement par votre conseiller.</p>"
+            if payment_mode == "deferred"
+            else "<p style='margin:0 0 12px 0;'>Votre conseiller vous contactera pour le règlement.</p>"
+        )
+        body_html = f"""
+<p style="margin:0 0 12px 0;">Bonjour <strong>{html_escape(client_name)}</strong>,</p>
+<p style="margin:0 0 12px 0;">Une course a été créée pour vous :</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;margin-bottom:16px;">
+{trip_rows}
+</table>
+{payment_note}
+"""
+        html_content = build_email_html(
+            title="Nouvelle course créée",
+            body_html=body_html,
+            cta_label="Voir mes réservations",
+            cta_url=f"{FRONTEND_URL}/fr/client/bookings",
+        )
+        await send_notification_email(client_email, subject, html_content)
+
+
 @api_router.post("/admin/bookings", response_model=BookingResponse)
 async def create_admin_booking(booking: AdminBookingCreate, request: Request):
     await require_admin(request)
+
+    # Look up client by email to link client_id
+    existing_client = await db.users.find_one({"email": booking.client_email, "role": "client"})
+    client_id = existing_client["id"] if existing_client else None
+    is_guest = client_id is None
 
     vehicle_category_name = None
     if booking.vehicle_category_id:
@@ -2579,9 +2653,11 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         if category:
             vehicle_category_name = category["name"]
 
+    payment_mode = booking.payment_mode or "deferred"
+
     booking_doc = {
         "id": str(uuid.uuid4()),
-        "client_id": None,
+        "client_id": client_id,
         "client_name": booking.client_name,
         "client_email": booking.client_email,
         "client_phone": booking.client_phone,
@@ -2596,13 +2672,14 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "transfer_type": booking.transfer_type,
         "vehicle_category_id": booking.vehicle_category_id,
         "vehicle_category_name": vehicle_category_name,
-        "distance_km": None,
-        "duration_minutes": None,
+        "distance_km": booking.distance_km,
+        "duration_minutes": booking.duration_minutes,
         "estimated_price": booking.estimated_price,
         "notes": booking.notes,
         "disposition_hours": booking.disposition_hours,
         "status": "received",
         "payment_status": "not_required",
+        "payment_mode": payment_mode,
         "payment_completed_at": None,
         "stripe_checkout_session_id": None,
         "stripe_payment_intent_id": None,
@@ -2628,6 +2705,12 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
 
     await db.bookings.insert_one(booking_doc)
     booking_doc.pop("_id", None)
+
+    # Send notification email to client
+    asyncio.create_task(
+        _send_admin_booking_notification(booking_doc, is_guest=is_guest, payment_mode=payment_mode)
+    )
+
     return BookingResponse(**booking_doc)
 
 @api_router.put("/admin/bookings/{booking_id}/assign")
