@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useAuth } from '@/contexts/AuthContext';
 import API_URL from '@/config';
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
+import { getClientFacingDriverName, shouldRenderAssignedDriverForAdmin } from '../utils/driverDisplay';
 import {
   ArrowLeft,
   CalendarCheck,
@@ -128,7 +129,12 @@ const BookingDetail = () => {
 
   const statusStyle = STATUS_STYLES[booking.status] || 'bg-gray-500/20 text-gray-400';
   const statusLabel = STATUS_LABELS[booking.status] || booking.status;
-  const displayedDriverName = booking.driver_display_name || booking.driver_name;
+  const shouldRenderDriverCard = user?.role === 'admin'
+    ? shouldRenderAssignedDriverForAdmin(booking)
+    : true;
+  const displayedDriverName = user?.role === 'admin'
+    ? (booking.driver_display_name || booking.driver_name)
+    : getClientFacingDriverName(booking);
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
@@ -302,7 +308,7 @@ const BookingDetail = () => {
           )}
 
           {/* Driver info */}
-          {displayedDriverName && (
+          {shouldRenderDriverCard && (
             <div className="glass rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4">
                 {user?.role === 'admin' ? 'Chauffeur assigné' : 'Votre chauffeur'}

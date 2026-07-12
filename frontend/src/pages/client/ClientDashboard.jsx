@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { CalendarCheck, Car, CheckCircle, Clock } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import { getClientFacingDriverName } from '../../utils/driverDisplay';
 
 const ClientDashboard = () => {
   const { lang } = useParams();
@@ -112,9 +113,7 @@ const ClientDashboard = () => {
                   </div>
                   {getStatusBadge(booking.status)}
                 </div>
-                {(booking.driver_display_name || booking.driver_name) && (
-                  <p className="text-sm text-[#D4AF37] mt-2">Chauffeur: {booking.driver_display_name || booking.driver_name}</p>
-                )}
+                <p className="text-sm text-[#D4AF37] mt-2">Chauffeur: {getClientFacingDriverName(booking)}</p>
               </Link>
             ))}
           </div>

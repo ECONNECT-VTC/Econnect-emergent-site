@@ -8,6 +8,7 @@ import { CalendarCheck, MapPin, DownloadSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
 import { downloadClientInvoicePdf } from '@/utils/invoiceGenerator';
+import { getClientFacingDriverName } from '../../utils/driverDisplay';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -121,7 +122,6 @@ const ClientBookings = () => {
     return <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[status] || 'bg-zinc-500/20 text-zinc-300'}`}>{labels[status] || status}</span>;
   };
 
-  const getDisplayedDriverName = (booking) => booking.driver_display_name || booking.driver_name;
   const getPaymentBadge = (paymentStatus) => {
     const styles = {
       pending: 'bg-yellow-500/20 text-yellow-300',
@@ -199,11 +199,9 @@ const ClientBookings = () => {
                   </div>
                 </div>
               </div>
-              {getDisplayedDriverName(booking) && (
-                <div className="mt-4 pt-4 border-t border-white/10">
-                  <p className="text-sm"><span className="text-[#A1A1AA]">Chauffeur:</span> <span className="text-[#D4AF37]">{getDisplayedDriverName(booking)}</span></p>
-                </div>
-              )}
+              <div className="mt-4 pt-4 border-t border-white/10">
+                <p className="text-sm"><span className="text-[#A1A1AA]">Chauffeur:</span> <span className="text-[#D4AF37]">{getClientFacingDriverName(booking)}</span></p>
+              </div>
 
               {(booking.status === 'pending' || booking.status === 'assigned') && (
                 <Button
