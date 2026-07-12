@@ -126,7 +126,7 @@ const AdminDocuments = () => {
                     📂 Consulter les documents {openId === row.id ? '▲' : '▾'}
                   </button>
                   {openId === row.id && (
-                    <div className="absolute right-0 top-full mt-1 z-50 w-52 rounded-lg border border-white/10 bg-[#1E1E1E] py-1 shadow-xl">
+                    <div className="absolute right-0 bottom-full mb-1 z-50 w-52 rounded-lg border border-white/10 bg-[#1E1E1E] py-1 shadow-xl">
                       {ADMIN_DOCS.map((doc) => (
                         <button
                           key={doc.type}
