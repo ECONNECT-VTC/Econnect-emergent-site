@@ -226,10 +226,10 @@ const DriverDashboard = () => {
                   </div>
                 </div>
               </div>
-              {booking.distance_km != null && (
+              {booking.distance_km != null && !isNaN(Number(booking.distance_km)) && (
                 <p className="text-xs text-[#A1A1AA] mb-4">
                   📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>
-                  {booking.estimated_price != null && (
+                  {booking.estimated_price != null && !isNaN(Number(booking.estimated_price)) && (
                     <span className="ml-3">💶 Prix estimé : <span className="text-[#D4AF37] font-medium">{Number(booking.estimated_price).toFixed(2)} €</span></span>
                   )}
                 </p>

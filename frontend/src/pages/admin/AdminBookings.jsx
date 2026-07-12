@@ -651,9 +651,9 @@ const AdminBookings = () => {
 
               {(booking.vehicle_category_name || booking.driver_name || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin || booking.distance_km != null) && (
                 <div className="mt-4 pt-4 border-t border-white/10 space-y-1 text-sm">
-                  {booking.distance_km != null && (
+                  {booking.distance_km != null && !isNaN(Number(booking.distance_km)) && (
                     <p className="text-[#A1A1AA]">📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>
-                      {booking.estimated_price != null && (
+                      {booking.estimated_price != null && !isNaN(Number(booking.estimated_price)) && (
                         <span className="ml-3">💶 Prix estimé : <span className="text-[#D4AF37] font-medium">{Number(booking.estimated_price).toFixed(2)} €</span></span>
                       )}
                     </p>

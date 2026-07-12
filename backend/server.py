@@ -2576,27 +2576,27 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
 
 async def _send_admin_booking_notification(booking: dict, is_guest: bool, payment_mode: str) -> None:
     """Send booking notification or guest invitation when admin creates a booking."""
-    client_email = booking.get("client_email")
-    client_name = booking.get("client_name", "Client")
-    if not client_email:
-        return
+    try:
+        client_email = booking.get("client_email")
+        client_name = booking.get("client_name", "Client")
+        if not client_email:
+            return
 
-    booking_id = booking.get("id", "")
-    price_label = f"{float(booking['estimated_price']):.2f} €" if booking.get("estimated_price") is not None else "À définir"
-    distance_label = f"{float(booking['distance_km']):.1f} km" if booking.get("distance_km") is not None else "—"
+        price_label = f"{float(booking['estimated_price']):.2f} €" if booking.get("estimated_price") is not None else "À définir"
+        distance_label = f"{float(booking['distance_km']):.1f} km" if booking.get("distance_km") is not None else "-"
 
-    trip_rows = f"""
-  <tr><td style="padding:6px 0;color:#A1A1AA;">Date</td><td style="padding:6px 0;color:#FAFAFA;">{booking.get('pickup_date')} à {booking.get('pickup_time')}</td></tr>
-  <tr><td style="padding:6px 0;color:#A1A1AA;">Départ</td><td style="padding:6px 0;color:#FAFAFA;">{booking.get('pickup_address')}</td></tr>
-  <tr><td style="padding:6px 0;color:#A1A1AA;">Arrivée</td><td style="padding:6px 0;color:#FAFAFA;">{booking.get('dropoff_address')}</td></tr>
-  <tr><td style="padding:6px 0;color:#A1A1AA;">Distance</td><td style="padding:6px 0;color:#FAFAFA;">{distance_label}</td></tr>
-  <tr><td style="padding:6px 0;color:#A1A1AA;">Prix estimé</td><td style="padding:6px 0;color:#D4AF37;">{price_label}</td></tr>
+        trip_rows = f"""
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Date</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('pickup_date', '')))} à {html_escape(str(booking.get('pickup_time', '')))}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Départ</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('pickup_address', '')))}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Arrivée</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('dropoff_address', '')))}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Distance</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(distance_label)}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Prix estimé</td><td style="padding:6px 0;color:#D4AF37;">{html_escape(price_label)}</td></tr>
 """
 
-    if is_guest:
-        subject = f"🚗 Invitation Econnect VTC — Course réservée en votre nom"
-        register_url = f"{FRONTEND_URL}/fr/register"
-        body_html = f"""
+        if is_guest:
+            subject = "Invitation Econnect VTC - Course réservée en votre nom"
+            register_url = f"{FRONTEND_URL}/fr/register"
+            body_html = f"""
 <p style="margin:0 0 12px 0;">Bonjour <strong>{html_escape(client_name)}</strong>,</p>
 <p style="margin:0 0 12px 0;">Une course a été réservée en votre nom par notre équipe :</p>
 <table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;margin-bottom:16px;">
@@ -2607,21 +2607,23 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
   Après inscription, connectez-vous avec l'adresse email <strong>{html_escape(client_email)}</strong> pour retrouver votre course.
 </p>
 """
-        html_content = build_email_html(
-            title="Course réservée — Créez votre compte",
-            body_html=body_html,
-            cta_label="Créer mon compte Econnect VTC",
-            cta_url=register_url,
-        )
-        await send_notification_email(client_email, subject, html_content)
-    else:
-        subject = f"🚗 Nouvelle course créée — {booking.get('pickup_date')} à {booking.get('pickup_time')}"
-        payment_note = (
-            "<p style='margin:0 0 12px 0;color:#D4AF37;'>Le règlement sera demandé ultérieurement par votre conseiller.</p>"
-            if payment_mode == "deferred"
-            else "<p style='margin:0 0 12px 0;'>Votre conseiller vous contactera pour le règlement.</p>"
-        )
-        body_html = f"""
+            html_content = build_email_html(
+                title="Course réservée - Créez votre compte",
+                body_html=body_html,
+                cta_label="Créer mon compte Econnect VTC",
+                cta_url=register_url,
+            )
+            await send_notification_email(client_email, subject, html_content)
+        else:
+            pickup_date = html_escape(str(booking.get('pickup_date', '')))
+            pickup_time = html_escape(str(booking.get('pickup_time', '')))
+            subject = f"Nouvelle course créée - {pickup_date} à {pickup_time}"
+            payment_note = (
+                "<p style='margin:0 0 12px 0;color:#D4AF37;'>Le règlement sera demandé ultérieurement par votre conseiller.</p>"
+                if payment_mode == "deferred"
+                else "<p style='margin:0 0 12px 0;'>Votre conseiller vous contactera pour le règlement.</p>"
+            )
+            body_html = f"""
 <p style="margin:0 0 12px 0;">Bonjour <strong>{html_escape(client_name)}</strong>,</p>
 <p style="margin:0 0 12px 0;">Une course a été créée pour vous :</p>
 <table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;margin-bottom:16px;">
@@ -2629,13 +2631,15 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
 </table>
 {payment_note}
 """
-        html_content = build_email_html(
-            title="Nouvelle course créée",
-            body_html=body_html,
-            cta_label="Voir mes réservations",
-            cta_url=f"{FRONTEND_URL}/fr/client/bookings",
-        )
-        await send_notification_email(client_email, subject, html_content)
+            html_content = build_email_html(
+                title="Nouvelle course créée",
+                body_html=body_html,
+                cta_label="Voir mes réservations",
+                cta_url=f"{FRONTEND_URL}/fr/client/bookings",
+            )
+            await send_notification_email(client_email, subject, html_content)
+    except Exception as exc:
+        logger.error("_send_admin_booking_notification failed: %s", exc)
 
 
 @api_router.post("/admin/bookings", response_model=BookingResponse)
