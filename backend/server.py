@@ -67,6 +67,40 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ==================== STATUS WORKFLOW ====================
+
+BOOKING_STATUS_FLOW = [
+    "DRAFT",
+    "QUOTE_SENT",
+    "QUOTE_ACCEPTED",
+    "ORDER_ISSUED",
+    "ASSIGNED",
+    "IN_PROGRESS",
+    "COMPLETED",
+    "INVOICED",
+    "PAID",
+]
+
+LEGACY_STATUS_MAP = {
+    "pending": "DRAFT",
+    "received": "QUOTE_ACCEPTED",
+    "assigned": "ASSIGNED",
+    "in_progress": "IN_PROGRESS",
+    "completed": "COMPLETED",
+    "invoiced": "INVOICED",
+    "paid": "PAID",
+    "cancellation_requested": "cancellation_requested",
+    "cancelled": "cancelled",
+}
+
+
+def normalize_booking_status(status: Optional[str]) -> Optional[str]:
+    if status is None:
+        return None
+    if status in BOOKING_STATUS_FLOW:
+        return status
+    return LEGACY_STATUS_MAP.get(str(status).lower(), status)
+
 # ==================== MODELS ====================
 
 class UserBase(BaseModel):
@@ -171,7 +205,7 @@ class BookingResponse(BaseModel):
     estimated_price: Optional[float] = None
     notes: Optional[str] = None
     disposition_hours: Optional[float] = None
-    status: str  # pending, received, assigned, in_progress, completed, cancellation_requested, cancelled
+    status: str  # DRAFT, QUOTE_SENT, QUOTE_ACCEPTED, ORDER_ISSUED, ASSIGNED, IN_PROGRESS, COMPLETED, INVOICED, PAID, cancellation_requested, cancelled
     driver_id: Optional[str] = None
     driver_name: Optional[str] = None
     driver_display_name: Optional[str] = None
@@ -249,6 +283,22 @@ class AdminAssignSelfRequest(BaseModel):
     driver_display_name: Optional[str] = None
 
 class BookingStatusUpdate(BaseModel):
+    status: str
+
+class CourseDocumentResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    course_id: str
+    type: str  # quote | order_form | invoice
+    url: str
+    status: str
+    created_by: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CourseStatusUpdateResponse(BaseModel):
+    message: str
     status: str
 
 class BookingCommissionUpdate(BaseModel):
@@ -414,9 +464,24 @@ def select_disposition_rate(rates: List[dict], requested_hours: float) -> Option
 
 
 def validate_booking_status_transition(current_status: str, new_status: str) -> None:
+    current_status = normalize_booking_status(current_status)
+    new_status = normalize_booking_status(new_status)
+
+    if current_status == new_status:
+        return
+
     allowed_transitions = {
-        "assigned": {"in_progress"},
-        "in_progress": {"completed"},
+        "DRAFT": {"QUOTE_SENT", "cancelled"},
+        "QUOTE_SENT": {"QUOTE_ACCEPTED", "DRAFT", "cancelled"},
+        "QUOTE_ACCEPTED": {"ORDER_ISSUED", "ASSIGNED", "cancelled"},
+        "ORDER_ISSUED": {"ASSIGNED", "cancelled"},
+        "ASSIGNED": {"IN_PROGRESS", "QUOTE_ACCEPTED", "cancellation_requested", "cancelled"},
+        "IN_PROGRESS": {"COMPLETED", "cancellation_requested"},
+        "COMPLETED": {"INVOICED"},
+        "INVOICED": {"PAID"},
+        "PAID": set(),
+        "cancellation_requested": {"cancelled", "ASSIGNED", "QUOTE_ACCEPTED"},
+        "cancelled": set(),
     }
 
     valid_next_statuses = allowed_transitions.get(current_status, set())
@@ -428,6 +493,84 @@ def validate_booking_status_transition(current_status: str, new_status: str) -> 
                 f"Valeurs acceptées: {sorted(valid_next_statuses)}"
             ),
         )
+
+
+def status_at_or_after(status: Optional[str], reference_status: str) -> bool:
+    normalized = normalize_booking_status(status)
+    if normalized not in BOOKING_STATUS_FLOW:
+        return False
+    return BOOKING_STATUS_FLOW.index(normalized) >= BOOKING_STATUS_FLOW.index(reference_status)
+
+
+async def create_course_document(
+    booking: dict,
+    document_type: str,
+    document_status: str,
+    created_by: Optional[str] = None,
+    *,
+    url: Optional[str] = None,
+) -> dict:
+    if document_type not in {"quote", "order_form", "invoice"}:
+        raise HTTPException(status_code=400, detail="Type de document invalide")
+
+    now = datetime.now(timezone.utc)
+    booking_id = booking["id"]
+    document_url = url or f"/api/courses/{booking_id}/documents/{document_type}"
+    existing = await db.course_documents.find_one({"course_id": booking_id, "type": document_type}, {"_id": 0})
+
+    if existing:
+        updated_doc = {
+            **existing,
+            "url": document_url,
+            "status": document_status,
+            "created_by": created_by or existing.get("created_by"),
+            "updated_at": now,
+        }
+        await db.course_documents.update_one(
+            {"id": existing["id"]},
+            {"$set": {
+                "url": updated_doc["url"],
+                "status": updated_doc["status"],
+                "created_by": updated_doc["created_by"],
+                "updated_at": updated_doc["updated_at"],
+            }},
+        )
+        return updated_doc
+
+    document = {
+        "id": str(uuid.uuid4()),
+        "course_id": booking_id,
+        "type": document_type,
+        "url": document_url,
+        "status": document_status,
+        "created_by": created_by,
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.course_documents.insert_one(document)
+    return document
+
+
+async def log_booking_status_transition(
+    booking_id: str,
+    previous_status: Optional[str],
+    new_status: Optional[str],
+    actor_id: Optional[str],
+) -> None:
+    prev = normalize_booking_status(previous_status)
+    nxt = normalize_booking_status(new_status)
+    if prev == nxt:
+        return
+    await db.booking_status_history.insert_one(
+        {
+            "id": str(uuid.uuid4()),
+            "course_id": booking_id,
+            "from_status": prev,
+            "to_status": nxt,
+            "changed_by": actor_id,
+            "changed_at": datetime.now(timezone.utc),
+        }
+    )
 
 class CommissionSettings(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -2012,7 +2155,7 @@ def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_catego
         "estimated_price": booking.estimated_price,
         "notes": booking.notes,
         "disposition_hours": booking.disposition_hours,
-        "status": "pending",
+        "status": "DRAFT",
         "payment_status": "pending",
         "payment_completed_at": None,
         "stripe_checkout_session_id": None,
@@ -2191,7 +2334,7 @@ async def _mark_booking_paid(session: dict) -> Tuple[Optional[dict], bool]:
         {"id": booking_id, "payment_status": {"$ne": "paid"}},
         {"$set": {
             "payment_status": "paid",
-            "status": "received",
+            "status": "QUOTE_ACCEPTED",
             "payment_completed_at": datetime.now(timezone.utc),
             "stripe_checkout_session_id": _stripe_value(session, "id"),
             "stripe_payment_intent_id": _stripe_value(session, "payment_intent"),
@@ -2283,7 +2426,7 @@ async def request_booking_cancellation(booking_id: str, payload: BookingCancelRe
     if booking.get("client_id") != user["id"]:
         raise HTTPException(status_code=403, detail="Accès refusé à cette réservation")
 
-    if booking.get("status") not in ["pending", "assigned"]:
+    if normalize_booking_status(booking.get("status")) not in ["DRAFT", "ASSIGNED"]:
         raise HTTPException(status_code=400, detail="Cette réservation ne peut pas être annulée")
 
     await db.bookings.update_one(
@@ -2304,12 +2447,142 @@ async def update_booking(booking_id: str, payload: dict, request: Request):
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
     if booking.get("client_id") != user["id"]:
         raise HTTPException(status_code=403, detail="Accès refusé")
-    if booking.get("status") not in ("pending", "received"):
+    if normalize_booking_status(booking.get("status")) not in ("DRAFT", "QUOTE_SENT", "QUOTE_ACCEPTED"):
         raise HTTPException(status_code=400, detail="Impossible de modifier cette réservation")
     allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", "transfer_type"]
     update_data = {k: v for k, v in payload.items() if k in allowed_fields}
     await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
     return await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+
+
+async def _get_course_for_user(course_id: str, request: Request) -> Tuple[dict, dict]:
+    user = await get_current_user(request)
+    booking = await db.bookings.find_one({"id": course_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Course non trouvée")
+
+    role = user.get("role")
+    if role == "admin":
+        return user, booking
+    if role == "driver" and booking.get("driver_id") == user.get("id"):
+        return user, booking
+    if role == "client" and booking.get("client_id") == user.get("id"):
+        return user, booking
+
+    raise HTTPException(status_code=403, detail="Accès refusé à cette course")
+
+
+@api_router.patch("/courses/{course_id}/status", response_model=CourseStatusUpdateResponse)
+async def update_course_status(course_id: str, payload: BookingStatusUpdate, request: Request):
+    user, booking = await _get_course_for_user(course_id, request)
+    previous_status = normalize_booking_status(booking.get("status"))
+    next_status = normalize_booking_status(payload.status)
+
+    role = user.get("role")
+    if role != "admin":
+        can_client_accept_quote = (
+            role == "client"
+            and next_status == "QUOTE_ACCEPTED"
+            and previous_status == "QUOTE_SENT"
+            and booking.get("client_id") == user.get("id")
+        )
+        if not can_client_accept_quote:
+            raise HTTPException(status_code=403, detail="Seul l'administrateur peut effectuer cette transition")
+
+    validate_booking_status_transition(previous_status, next_status)
+    await db.bookings.update_one({"id": course_id}, {"$set": {"status": next_status}})
+    await log_booking_status_transition(course_id, previous_status, next_status, user.get("id"))
+
+    if next_status == "COMPLETED" and previous_status != "COMPLETED":
+        updated_booking = await db.bookings.find_one({"id": course_id}, {"_id": 0})
+        if updated_booking:
+            await send_invoice_to_client(updated_booking)
+
+    return CourseStatusUpdateResponse(message="Statut mis à jour", status=next_status)
+
+
+@api_router.post("/courses/{course_id}/quote", response_model=CourseDocumentResponse)
+async def create_course_quote(course_id: str, request: Request):
+    admin = await require_admin(request)
+    booking = await db.bookings.find_one({"id": course_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Course non trouvée")
+
+    current_status = normalize_booking_status(booking.get("status"))
+    if current_status not in {"DRAFT", "QUOTE_SENT"}:
+        raise HTTPException(status_code=400, detail="Le devis ne peut être généré que tant qu'il n'est pas accepté")
+
+    document = await create_course_document(
+        booking,
+        "quote",
+        "sent",
+        created_by=admin.get("id"),
+        url=f"/api/courses/{course_id}/quote",
+    )
+    await db.bookings.update_one({"id": course_id}, {"$set": {"status": "QUOTE_SENT"}})
+    await log_booking_status_transition(course_id, current_status, "QUOTE_SENT", admin.get("id"))
+    return CourseDocumentResponse(**document)
+
+
+@api_router.post("/courses/{course_id}/order-form", response_model=CourseDocumentResponse)
+async def create_course_order_form(course_id: str, request: Request):
+    admin = await require_admin(request)
+    booking = await db.bookings.find_one({"id": course_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Course non trouvée")
+
+    current_status = normalize_booking_status(booking.get("status"))
+    if not status_at_or_after(current_status, "QUOTE_ACCEPTED"):
+        raise HTTPException(status_code=400, detail="Le bon de commande nécessite un devis accepté")
+
+    settings = await get_commission_settings()
+    await generate_and_store_document(booking, settings, "order")
+    document = await create_course_document(
+        booking,
+        "order_form",
+        "issued",
+        created_by=admin.get("id"),
+        url=f"/api/driver/bookings/{course_id}/order-pdf",
+    )
+
+    if current_status == "QUOTE_ACCEPTED":
+        await db.bookings.update_one({"id": course_id}, {"$set": {"status": "ORDER_ISSUED"}})
+        await log_booking_status_transition(course_id, current_status, "ORDER_ISSUED", admin.get("id"))
+    return CourseDocumentResponse(**document)
+
+
+@api_router.post("/courses/{course_id}/invoice", response_model=CourseDocumentResponse)
+async def create_course_invoice(course_id: str, request: Request):
+    admin = await require_admin(request)
+    booking = await db.bookings.find_one({"id": course_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Course non trouvée")
+
+    current_status = normalize_booking_status(booking.get("status"))
+    if not status_at_or_after(current_status, "COMPLETED"):
+        raise HTTPException(status_code=400, detail="La facture ne peut être générée qu'après une course terminée")
+
+    settings = await get_commission_settings()
+    await generate_and_store_document(booking, settings, "invoice")
+    document = await create_course_document(
+        booking,
+        "invoice",
+        "issued",
+        created_by=admin.get("id"),
+        url=f"/api/client/invoices/{course_id}/pdf",
+    )
+
+    if current_status == "COMPLETED":
+        await db.bookings.update_one({"id": course_id}, {"$set": {"status": "INVOICED"}})
+        await log_booking_status_transition(course_id, current_status, "INVOICED", admin.get("id"))
+    return CourseDocumentResponse(**document)
+
+
+@api_router.get("/courses/{course_id}/documents", response_model=List[CourseDocumentResponse])
+async def get_course_documents(course_id: str, request: Request):
+    await _get_course_for_user(course_id, request)
+    documents = await db.course_documents.find({"course_id": course_id}, {"_id": 0}).sort("updated_at", -1).to_list(100)
+    return [CourseDocumentResponse(**doc) for doc in documents]
 
 @api_router.get("/bookings/{booking_id}/comments")
 async def get_booking_comments(booking_id: str, request: Request):
@@ -2358,7 +2631,7 @@ async def add_booking_comment(booking_id: str, payload: dict, request: Request):
 async def get_driver_bookings(request: Request):
     user = await require_driver(request)
     bookings = await db.bookings.find(
-        {"driver_id": user["id"], "status": {"$in": ["assigned", "in_progress", "completed"]}},
+        {"driver_id": user["id"], "status": {"$in": ["ASSIGNED", "IN_PROGRESS", "COMPLETED", "INVOICED", "PAID"]}},
         {"_id": 0}
     ).sort("created_at", -1).to_list(100)
     return [BookingResponse(**b) for b in bookings]
@@ -2400,19 +2673,21 @@ async def update_booking_status_driver(booking_id: str, status_update: BookingSt
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
 
     previous_status = booking.get("status")
-    validate_booking_status_transition(previous_status, status_update.status)
+    next_status = normalize_booking_status(status_update.status)
+    validate_booking_status_transition(previous_status, next_status)
 
     await db.bookings.update_one(
         {"id": booking_id},
-        {"$set": {"status": status_update.status}}
+        {"$set": {"status": next_status}}
     )
+    await log_booking_status_transition(booking_id, previous_status, next_status, user.get("id"))
 
-    if status_update.status == "completed" and previous_status != "completed":
+    if next_status == "COMPLETED" and normalize_booking_status(previous_status) != "COMPLETED":
         updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         if updated_booking:
             await send_invoice_to_client(updated_booking)
 
-    return {"message": "Statut mis à jour", "status": status_update.status}
+    return {"message": "Statut mis à jour", "status": next_status}
 
 @api_router.put("/driver/availability")
 async def update_driver_availability(request: Request, is_available: bool = True):
@@ -2431,14 +2706,15 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
     if booking.get("driver_id") != driver["id"]:
         raise HTTPException(status_code=403, detail="Accès refusé à cette réservation")
 
-    if booking.get("status") != "assigned":
+    if normalize_booking_status(booking.get("status")) != "ASSIGNED":
         raise HTTPException(status_code=400, detail="Vous ne pouvez annuler que les courses assignées non démarrées")
 
     update_data = {
-        "status": "received",
+        "status": booking.get("pre_assignment_status") if booking.get("pre_assignment_status") in {"QUOTE_ACCEPTED", "ORDER_ISSUED"} else "QUOTE_ACCEPTED",
         "driver_id": None,
         "driver_name": None,
         "driver_display_name": None,
+        "pre_assignment_status": None,
         "assigned_at": None,
         "driver_cancellation_reason": payload.cancellation_reason,
         "cancellation_previous_status": booking.get("status")
@@ -2446,7 +2722,7 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
 
     await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
 
-    return {"message": "Vous vous êtes retiré de cette course. Elle sera réassignée.", "status": "received"}
+    return {"message": "Vous vous êtes retiré de cette course. Elle sera réassignée.", "status": "QUOTE_ACCEPTED"}
 
 # ==================== ADMIN ROUTES ====================
 
@@ -2456,14 +2732,14 @@ async def get_admin_stats(request: Request):
 
     total_bookings = await db.bookings.count_documents({})
     pending_bookings = await db.bookings.count_documents({
-        "status": "pending",
+        "status": "DRAFT",
         "$or": [
             {"payment_status": {"$exists": False}},
             {"payment_status": {"$ne": "pending"}},
         ]
     })
-    assigned_bookings = await db.bookings.count_documents({"status": "assigned"})
-    completed_bookings = await db.bookings.count_documents({"status": "completed"})
+    assigned_bookings = await db.bookings.count_documents({"status": "ASSIGNED"})
+    completed_bookings = await db.bookings.count_documents({"status": "COMPLETED"})
     total_clients = await db.users.count_documents({"role": "client"})
     total_drivers = await db.users.count_documents({"role": "driver"})
     available_drivers = await db.users.count_documents({"role": "driver", "is_available": True})
@@ -2483,14 +2759,15 @@ async def get_all_bookings(request: Request, status: Optional[str] = None, inclu
     await require_admin(request)
 
     query = {}
-    if status:
-        query["status"] = status
+    normalized_status = normalize_booking_status(status) if status else None
+    if normalized_status:
+        query["status"] = normalized_status
     if not include_unpaid_pending:
-        query["$or"] = [
-            {"payment_status": {"$exists": False}},
-            {"payment_status": {"$in": ["paid", "not_required", "failed"]}},
-            {"status": {"$ne": "pending"}},
-        ]
+        # Admin operational view: only courses in operational workflow (devis validé et après).
+        if normalized_status in {"DRAFT", "QUOTE_SENT"}:
+            query["status"] = "__none__"
+        elif not normalized_status:
+            query["status"] = {"$nin": ["DRAFT", "QUOTE_SENT"]}
 
     bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return [BookingResponse(**b) for b in bookings]
@@ -2510,8 +2787,8 @@ async def admin_assign_self(booking_id: str, request: Request, body: AdminAssign
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    if booking.get("status") not in ["pending", "received"]:
-        raise HTTPException(status_code=400, detail="L'auto-affectation admin est uniquement possible lorsque la course est en attente ou réceptionnée (non encore assignée à un chauffeur)")
+    if normalize_booking_status(booking.get("status")) not in ["QUOTE_ACCEPTED", "ORDER_ISSUED"]:
+        raise HTTPException(status_code=400, detail="L'auto-affectation admin est possible uniquement après validation du devis")
 
     assigned_at = datetime.now(timezone.utc)
     driver_display_name_input = body.driver_display_name if body else ""
@@ -2524,7 +2801,8 @@ async def admin_assign_self(booking_id: str, request: Request, body: AdminAssign
         "driver_id": admin["id"],
         "driver_name": admin["name"],
         "driver_display_name": driver_display_name,
-        "status": "assigned",
+        "status": "ASSIGNED",
+        "pre_assignment_status": normalize_booking_status(booking.get("status")),
         "assigned_at": assigned_at,
         "fulfilled_by_admin": True,
         "commission_override": 0.0,
@@ -2560,19 +2838,21 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
         )
 
     previous_status = booking.get("status")
-    validate_booking_status_transition(previous_status, status_update.status)
+    next_status = normalize_booking_status(status_update.status)
+    validate_booking_status_transition(previous_status, next_status)
 
     await db.bookings.update_one(
         {"id": booking_id},
-        {"$set": {"status": status_update.status}}
+        {"$set": {"status": next_status}}
     )
+    await log_booking_status_transition(booking_id, previous_status, next_status, admin.get("id"))
 
-    if status_update.status == "completed" and previous_status != "completed":
+    if next_status == "COMPLETED" and normalize_booking_status(previous_status) != "COMPLETED":
         updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         if updated_booking:
             await send_invoice_to_client(updated_booking)
 
-    return {"message": "Statut mis à jour", "status": status_update.status}
+    return {"message": "Statut mis à jour", "status": next_status}
 
 async def _send_admin_booking_notification(booking: dict, is_guest: bool, payment_mode: str) -> None:
     """Send booking notification or guest invitation when admin creates a booking."""
@@ -2681,7 +2961,7 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "estimated_price": booking.estimated_price,
         "notes": booking.notes,
         "disposition_hours": booking.disposition_hours,
-        "status": "received",
+        "status": "QUOTE_ACCEPTED",
         "payment_status": "not_required",
         "payment_mode": payment_mode,
         "payment_completed_at": None,
@@ -2724,8 +3004,8 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    if booking.get("status") != "received":
-        raise HTTPException(status_code=400, detail="La course doit être réceptionnée avant assignation")
+    if normalize_booking_status(booking.get("status")) not in {"QUOTE_ACCEPTED", "ORDER_ISSUED"}:
+        raise HTTPException(status_code=400, detail="La course doit être validée (devis accepté) avant assignation")
 
     driver = await db.users.find_one({"id": assign_data.driver_id, "role": "driver"})
     if not driver:
@@ -2737,7 +3017,8 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
         "driver_id": driver["id"],
         "driver_name": driver["name"],
         "driver_display_name": driver["name"],
-        "status": "assigned",
+        "pre_assignment_status": normalize_booking_status(booking.get("status")),
+        "status": "ASSIGNED",
         "assigned_at": assigned_at
     }
     await db.bookings.update_one(
@@ -2746,7 +3027,8 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
             "driver_id": driver["id"],
             "driver_name": driver["name"],
             "driver_display_name": driver["name"],
-            "status": "assigned",
+            "pre_assignment_status": normalize_booking_status(booking.get("status")),
+            "status": "ASSIGNED",
             "assigned_at": assigned_at
         }}
     )
@@ -2768,11 +3050,11 @@ async def receive_booking(booking_id: str, request: Request):
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    if booking.get("status") != "pending":
-        raise HTTPException(status_code=400, detail="Seules les courses en attente peuvent être réceptionnées")
+    if normalize_booking_status(booking.get("status")) != "DRAFT":
+        raise HTTPException(status_code=400, detail="Seules les courses en brouillon peuvent être réceptionnées")
 
-    await db.bookings.update_one({"id": booking_id}, {"$set": {"status": "received"}})
-    return {"message": "Course réceptionnée", "status": "received"}
+    await db.bookings.update_one({"id": booking_id}, {"$set": {"status": "QUOTE_ACCEPTED"}})
+    return {"message": "Course validée", "status": "QUOTE_ACCEPTED"}
 
 @api_router.put("/admin/bookings/{booking_id}/commission")
 async def update_booking_commission(booking_id: str, payload: BookingCommissionUpdate, request: Request):
@@ -2793,7 +3075,7 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    if booking.get("status") != "cancellation_requested":
+    if normalize_booking_status(booking.get("status")) != "cancellation_requested":
         raise HTTPException(status_code=400, detail="Cette réservation n'a pas de demande d'annulation en attente")
 
     if payload.approved:
@@ -2825,9 +3107,9 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
                 logger.error(f"Failed to send refund email for booking {booking_id}: {exc}")
         return {"message": "Annulation approuvée", "status": "cancelled", "refund": refund_trace, "processed_by": admin.get("id")}
 
-    fallback_status = booking.get("cancellation_previous_status")
-    if fallback_status not in ["pending", "assigned"]:
-        fallback_status = "assigned" if booking.get("driver_id") else "pending"
+    fallback_status = normalize_booking_status(booking.get("cancellation_previous_status"))
+    if fallback_status not in ["DRAFT", "QUOTE_ACCEPTED", "ORDER_ISSUED", "ASSIGNED"]:
+        fallback_status = "ASSIGNED" if booking.get("driver_id") else "QUOTE_ACCEPTED"
 
     await db.bookings.update_one(
         {"id": booking_id},
@@ -2851,7 +3133,7 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
 
-    if booking.get("status") not in ["pending", "received", "assigned"]:
+    if normalize_booking_status(booking.get("status")) not in ["DRAFT", "QUOTE_SENT", "QUOTE_ACCEPTED", "ORDER_ISSUED", "ASSIGNED"]:
         raise HTTPException(status_code=400, detail="Cette réservation ne peut pas être annulée")
 
     refund_trace = await _refund_booking_payment(
@@ -2892,26 +3174,28 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
 
 @api_router.put("/admin/bookings/{booking_id}/status")
 async def update_booking_status_admin(booking_id: str, status_update: BookingStatusUpdate, request: Request):
-    await require_admin(request)
+    admin = await require_admin(request)
 
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
 
     previous_status = booking.get("status")
-    validate_booking_status_transition(previous_status, status_update.status)
+    next_status = normalize_booking_status(status_update.status)
+    validate_booking_status_transition(previous_status, next_status)
 
     await db.bookings.update_one(
         {"id": booking_id},
-        {"$set": {"status": status_update.status}}
+        {"$set": {"status": next_status}}
     )
+    await log_booking_status_transition(booking_id, previous_status, next_status, admin.get("id"))
 
-    if status_update.status == "completed" and previous_status != "completed":
+    if next_status == "COMPLETED" and normalize_booking_status(previous_status) != "COMPLETED":
         updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         if updated_booking:
             await send_invoice_to_client(updated_booking)
 
-    return {"message": "Statut mis à jour", "status": status_update.status}
+    return {"message": "Statut mis à jour", "status": next_status}
 
 @api_router.put("/admin/bookings/{booking_id}")
 async def admin_update_booking(booking_id: str, payload: dict, request: Request):
@@ -3227,7 +3511,7 @@ async def get_financial_stats(request: Request, driver_id: Optional[str] = None)
     await require_admin(request)
     settings = await get_commission_settings()
 
-    query = {"status": "completed", "estimated_price": {"$ne": None}}
+    query = {"status": "COMPLETED", "estimated_price": {"$ne": None}}
     if driver_id:
         query["driver_id"] = driver_id
 
@@ -3312,7 +3596,7 @@ async def get_completed_bookings_financial(request: Request):
     settings = await get_commission_settings()
 
     bookings = await db.bookings.find(
-        {"status": "completed", "estimated_price": {"$ne": None}},
+        {"status": "COMPLETED", "estimated_price": {"$ne": None}},
         {"_id": 0}
     ).sort("created_at", -1).to_list(1000)
 
@@ -3370,7 +3654,7 @@ async def get_driver_earnings(request: Request):
     settings = await get_commission_settings()
 
     bookings = await db.bookings.find(
-        {"driver_id": driver["id"], "status": "completed", "estimated_price": {"$ne": None}},
+        {"driver_id": driver["id"], "status": "COMPLETED", "estimated_price": {"$ne": None}},
         {"_id": 0}
     ).sort("created_at", -1).to_list(1000)
 
@@ -3487,7 +3771,7 @@ async def get_driver_invoices(request: Request):
     settings = await get_commission_settings()
 
     bookings = await db.bookings.find(
-        {"driver_id": driver["id"], "status": "completed", "estimated_price": {"$ne": None}},
+        {"driver_id": driver["id"], "status": "COMPLETED", "estimated_price": {"$ne": None}},
         {"_id": 0}
     ).sort("created_at", -1).to_list(1000)
 
@@ -3648,6 +3932,11 @@ async def startup_event():
     await db.invoices.create_index("id", unique=True)
     await db.invoices.create_index("booking_id")
     await db.invoices.create_index([("booking_id", 1), ("type", 1)], unique=True)
+    await db.course_documents.create_index("id", unique=True)
+    await db.course_documents.create_index("course_id")
+    await db.course_documents.create_index([("course_id", 1), ("type", 1)], unique=True)
+    await db.booking_status_history.create_index("id", unique=True)
+    await db.booking_status_history.create_index("course_id")
 
     # Seed admin user
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@econnect-vtc.com")

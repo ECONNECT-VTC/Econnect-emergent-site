@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import API_URL from '@/config';
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
 import { getClientFacingDriverName, shouldRenderAssignedDriverForAdmin } from '../utils/driverDisplay';
+import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, normalizeCourseStatus, statusEquals } from '../utils/courseWorkflow';
 import {
   ArrowLeft,
   CalendarCheck,
@@ -20,25 +21,6 @@ import {
   Tag,
 } from '@phosphor-icons/react';
 
-const STATUS_STYLES = {
-  pending: 'bg-yellow-500/20 text-yellow-400',
-  received: 'bg-blue-500/20 text-blue-300',
-  assigned: 'bg-cyan-500/20 text-cyan-300',
-  in_progress: 'bg-purple-500/20 text-purple-400',
-  completed: 'bg-green-500/20 text-green-400',
-  cancellation_requested: 'bg-orange-500/20 text-orange-400',
-  cancelled: 'bg-red-500/20 text-red-400',
-};
-const STATUS_LABELS = {
-  pending: 'En attente',
-  received: 'Réceptionnée',
-  assigned: 'Assignée',
-  in_progress: 'En cours',
-  completed: 'Terminée',
-  cancellation_requested: 'Annulation demandée',
-  cancelled: 'Annulée',
-};
-
 const TRANSFER_TYPE_LABELS = {
   simple: 'Sens unique',
   retour: 'Aller-retour',
@@ -52,6 +34,7 @@ const BookingDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [documents, setDocuments] = useState([]);
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -65,6 +48,12 @@ const BookingDetail = () => {
           response = await axios.get(`${API_URL}/api/bookings/${bookingId}`, { withCredentials: true });
         }
         setBooking(response.data);
+        try {
+          const docsResponse = await axios.get(`${API_URL}/api/courses/${bookingId}/documents`, { withCredentials: true });
+          setDocuments(Array.isArray(docsResponse.data) ? docsResponse.data : []);
+        } catch {
+          setDocuments([]);
+        }
       } catch (err) {
         setError('Course introuvable ou accès non autorisé.');
       } finally {
@@ -72,7 +61,7 @@ const BookingDetail = () => {
       }
     };
     if (user) fetchBooking();
-  }, [bookingId, user]);
+  }, [bookingId, user?.role]);
 
   const refreshBooking = async () => {
     let response;
@@ -84,6 +73,12 @@ const BookingDetail = () => {
       response = await axios.get(`${API_URL}/api/bookings/${bookingId}`, { withCredentials: true });
     }
     setBooking(response.data);
+    try {
+      const docsResponse = await axios.get(`${API_URL}/api/courses/${bookingId}/documents`, { withCredentials: true });
+      setDocuments(Array.isArray(docsResponse.data) ? docsResponse.data : []);
+    } catch {
+      setDocuments([]);
+    }
   };
 
   const updateAdminTripStatus = async (status) => {
@@ -127,8 +122,14 @@ const BookingDetail = () => {
     );
   }
 
-  const statusStyle = STATUS_STYLES[booking.status] || 'bg-gray-500/20 text-gray-400';
-  const statusLabel = STATUS_LABELS[booking.status] || booking.status;
+  const normalizedStatus = normalizeCourseStatus(booking.status);
+  const statusStyle = COURSE_STATUS_STYLES[normalizedStatus] || 'bg-gray-500/20 text-gray-400';
+  const statusLabel = COURSE_STATUS_LABELS[normalizedStatus] || normalizedStatus;
+  const documentTypeLabels = {
+    quote: 'Devis',
+    order_form: 'Bon de commande',
+    invoice: 'Facture',
+  };
   const shouldRenderDriverCard = user?.role === 'admin'
     ? shouldRenderAssignedDriverForAdmin(booking)
     : true;
@@ -162,22 +163,22 @@ const BookingDetail = () => {
               </div>
             )}
 
-            {user?.role === 'admin' && booking.fulfilled_by_admin && booking.status === 'assigned' && (
+            {user?.role === 'admin' && booking.fulfilled_by_admin && statusEquals(booking.status, 'ASSIGNED') && (
               <button
                 type="button"
                 className="mb-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                onClick={() => updateAdminTripStatus('in_progress')}
+                onClick={() => updateAdminTripStatus('IN_PROGRESS')}
                 disabled={statusUpdating}
               >
                 Démarrer la course
               </button>
             )}
 
-            {user?.role === 'admin' && booking.fulfilled_by_admin && booking.status === 'in_progress' && (
+            {user?.role === 'admin' && booking.fulfilled_by_admin && statusEquals(booking.status, 'IN_PROGRESS') && (
               <button
                 type="button"
                 className="mb-4 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-medium text-[#0A0A0A] hover:bg-[#F0C74A] disabled:opacity-60"
-                onClick={() => updateAdminTripStatus('completed')}
+                onClick={() => updateAdminTripStatus('COMPLETED')}
                 disabled={statusUpdating}
               >
                 Clôturer la course
@@ -386,6 +387,31 @@ const BookingDetail = () => {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="glass rounded-xl p-6">
+            <h3 className="text-sm font-semibold text-[#A1A1AA] mb-3">Documents</h3>
+            {documents.length === 0 ? (
+              <p className="text-sm text-[#A1A1AA]">Aucun document disponible.</p>
+            ) : (
+              <div className="space-y-2 text-sm">
+                {documents.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between rounded-md border border-white/10 px-3 py-2">
+                    <div>
+                      <p className="font-medium">{documentTypeLabels[doc.type] || doc.type}</p>
+                      <p className="text-xs text-[#A1A1AA]">Statut: {doc.status}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-[#D4AF37] hover:underline text-xs"
+                      onClick={() => window.open(`${API_URL}${doc.url}`, '_blank')}
+                    >
+                      Télécharger
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
