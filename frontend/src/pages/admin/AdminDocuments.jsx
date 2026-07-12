@@ -118,7 +118,7 @@ const AdminDocuments = () => {
                 </td>
                 <td className="text-[#A1A1AA]">{new Date(row.created_at).toLocaleDateString('fr-FR')}</td>
                 <td className="font-mono font-semibold">{formatCurrency(row.price_ttc)}</td>
-                <td className="relative">
+                <td className="relative overflow-visible">
                   <button
                     onClick={() => setOpenId(openId === row.id ? null : row.id)}
                     className="px-3 py-1.5 rounded bg-[#D4AF37] text-[#0A0A0A] text-xs font-semibold hover:bg-[#F0C74A] flex items-center gap-1 whitespace-nowrap"
@@ -126,7 +126,7 @@ const AdminDocuments = () => {
                     📂 Consulter les documents {openId === row.id ? '▲' : '▾'}
                   </button>
                   {openId === row.id && (
-                    <div className="absolute right-0 bottom-full mb-1 z-50 w-52 rounded-lg border border-white/10 bg-[#1E1E1E] py-1 shadow-xl">
+                    <div className="absolute left-0 sm:left-auto sm:right-0 bottom-full mb-1 z-50 w-52 max-w-[calc(100vw-2rem)] rounded-lg border border-white/10 bg-[#1E1E1E] py-1 shadow-xl">
                       {ADMIN_DOCS.map((doc) => (
                         <button
                           key={doc.type}
