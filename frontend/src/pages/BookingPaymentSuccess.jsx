@@ -92,11 +92,12 @@ const BookingPaymentSuccess = () => {
             Voir mes réservations
           </Link>
           <Link
-            to={`/${lang}`}
+            to={{ pathname: `/${lang}`, hash: '#reserver' }}
+            state={{ fromBookingSuccess: true }}
             className="rounded-lg border border-[#D4AF37]/50 px-4 py-2 text-[#D4AF37]"
             data-testid="booking-success-home"
           >
-            Retour à l'accueil
+            Nouvelle réservation
           </Link>
         </div>
       </div>

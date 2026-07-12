@@ -6,11 +6,15 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mockClearBookingCheckoutDraft = jest.fn();
 const mockConfirmBookingPayment = jest.fn();
+const mockLink = jest.fn();
 
 jest.mock('react-router-dom', () => {
   const React = require('react');
   return {
-    Link: ({ children, ...props }) => React.createElement('a', props, children),
+    Link: (props) => {
+      mockLink(props);
+      return React.createElement('a', props, props.children);
+    },
     useParams: () => ({ lang: 'fr' }),
     useSearchParams: () => [new URLSearchParams('booking_id=booking_1&session_id=cs_test_1')],
   };
@@ -32,6 +36,7 @@ describe('BookingPaymentSuccess', () => {
     root = createRoot(container);
     mockClearBookingCheckoutDraft.mockReset();
     mockConfirmBookingPayment.mockReset();
+    mockLink.mockReset();
     mockConfirmBookingPayment.mockResolvedValue({
       verified: true,
       booking: {
@@ -73,5 +78,10 @@ describe('BookingPaymentSuccess', () => {
     expect(mockConfirmBookingPayment).toHaveBeenCalledWith('booking_1', 'cs_test_1');
     expect(container.textContent).toContain('Paiement confirmé');
     expect(container.textContent).toContain('#booking_1');
+    expect(mockLink).toHaveBeenCalledWith(expect.objectContaining({
+      'data-testid': 'booking-success-home',
+      to: { pathname: '/fr', hash: '#reserver' },
+      state: { fromBookingSuccess: true },
+    }));
   });
 });
