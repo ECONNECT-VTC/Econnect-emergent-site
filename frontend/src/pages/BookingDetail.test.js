@@ -69,4 +69,32 @@ describe('BookingDetail vehicle category display', () => {
 
     expect(container.textContent).toContain('Confort Classique');
   });
+
+  it('shows explicit fallback when driver is admin-like label', async () => {
+    axios.get.mockResolvedValueOnce({
+      data: {
+        id: 'booking_1',
+        client_name: 'Client Test',
+        client_email: 'client@test.com',
+        pickup_address: 'Paris',
+        dropoff_address: 'CDG',
+        pickup_date: '20/06/2026',
+        pickup_time: '10:30',
+        transfer_type: 'simple',
+        status: 'pending',
+        created_at: '2026-06-08T12:00:00Z',
+        driver_name: 'Administrateur',
+      },
+    });
+
+    await act(async () => {
+      root.render(<BookingDetail />);
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('Chauffeur non assigné');
+    expect(container.textContent).not.toContain('Administrateur');
+  });
 });

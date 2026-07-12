@@ -11,6 +11,7 @@ import BookingComments from '@/components/BookingComments';
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
+import { buildAdminEstimatePriceQuery, toOptionalNumber } from './adminBookingUtils';
 
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
@@ -32,7 +33,7 @@ const getInitialCreateForm = () => ({
   dropoff_address: '',
   pickup_date: '',
   pickup_time: '',
-  transfer_type: 'standard',
+  transfer_type: 'simple',
   vehicle_category_id: '',
   notes: '',
   estimated_price: '',
@@ -189,6 +190,48 @@ const AdminBookings = () => {
 
   useEffect(() => { fetchData(filter === 'awaiting_payment'); }, [fetchData, filter]);
 
+  useEffect(() => {
+    if (!createDialogOpen) return;
+    const queryString = buildAdminEstimatePriceQuery({
+      transferType: createForm.transfer_type,
+      distanceKm: createForm.distance_km,
+      durationMinutes: createForm.duration_minutes,
+      dispositionHours: createForm.disposition_hours,
+    });
+    if (!queryString) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const response = await axios.post(
+          `${API_URL}/api/estimate-price?${queryString}`,
+          {},
+          { withCredentials: true },
+        );
+        const estimates = Array.isArray(response.data) ? response.data : [];
+        if (estimates.length === 0) return;
+
+        const selectedEstimate = createForm.vehicle_category_id
+          ? estimates.find((estimate) => estimate.category_id === createForm.vehicle_category_id)
+          : estimates[0];
+        const nextPrice = toOptionalNumber(selectedEstimate?.final_price);
+        if (nextPrice === null) return;
+
+        setCreateForm((prev) => ({ ...prev, estimated_price: String(nextPrice) }));
+      } catch {
+        // keep manual value if estimate endpoint is unavailable
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [
+    createDialogOpen,
+    createForm.transfer_type,
+    createForm.distance_km,
+    createForm.duration_minutes,
+    createForm.disposition_hours,
+    createForm.vehicle_category_id,
+  ]);
+
   const updateCreateField = (field, value) => {
     setCreateForm((prev) => ({ ...prev, [field]: value }));
   };
@@ -234,9 +277,10 @@ const AdminBookings = () => {
         {
           ...createForm,
           vehicle_category_id: createForm.vehicle_category_id || null,
-          estimated_price: createForm.estimated_price === '' ? null : Number(createForm.estimated_price),
-          distance_km: createForm.distance_km === '' ? null : Number(createForm.distance_km),
-          disposition_hours: createForm.disposition_hours === '' ? null : Number(createForm.disposition_hours),
+          estimated_price: toOptionalNumber(createForm.estimated_price),
+          distance_km: toOptionalNumber(createForm.distance_km),
+          duration_minutes: toOptionalNumber(createForm.duration_minutes),
+          disposition_hours: toOptionalNumber(createForm.disposition_hours),
           payment_mode: createForm.payment_mode || 'deferred'
         },
         { withCredentials: true }
@@ -543,6 +587,7 @@ const AdminBookings = () => {
             const paymentPending = booking.payment_status === 'pending';
             const canReceive = booking.status === 'pending' && !paymentPending;
             const canSelfAssign = booking.status === 'received' && !paymentPending;
+            const bookingDriverName = booking.driver_display_name || booking.driver_name;
 
             return (
             <div key={booking.id} className="glass rounded-xl p-6">
@@ -649,7 +694,7 @@ const AdminBookings = () => {
                 </div>
               </div>
 
-              {(booking.vehicle_category_name || booking.driver_name || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin || booking.distance_km != null) && (
+              {(booking.vehicle_category_name || bookingDriverName || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin || booking.distance_km != null) && (
                 <div className="mt-4 pt-4 border-t border-white/10 space-y-1 text-sm">
                   {booking.distance_km != null && !isNaN(Number(booking.distance_km)) && (
                     <p className="text-[#A1A1AA]">📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>
@@ -670,10 +715,10 @@ const AdminBookings = () => {
                   {booking.fulfilled_by_admin && (
                     <p className="text-purple-300">✓ Réalisée par admin — sans commission</p>
                   )}
-                  {booking.driver_name && (
+                  {bookingDriverName && (
                     <p>
                       <CarSimple size={16} className="inline mr-2 text-[#D4AF37]" />
-                      Chauffeur: <span className="text-[#D4AF37]">{booking.driver_name}</span>
+                      Chauffeur: <span className="text-[#D4AF37]">{bookingDriverName}</span>
                     </p>
                   )}
                   {booking.cancellation_reason && (
@@ -913,6 +958,11 @@ const AdminBookings = () => {
                 ))}
               </SelectContent>
             </Select>
+            {selectedDriver && (
+              <p className="text-sm text-[#A1A1AA]">
+                Chauffeur sélectionné : <span className="text-[#D4AF37]">{drivers.find((d) => d.id === selectedDriver)?.name || '—'}</span>
+              </p>
+            )}
             <Button onClick={assignDriver} disabled={!selectedDriver || assigning} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
               {assigning ? 'Assignation...' : 'Confirmer'}
             </Button>

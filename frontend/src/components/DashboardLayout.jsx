@@ -58,7 +58,7 @@ const DashboardLayout = ({ children, title }) => {
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex" data-testid="dashboard-layout">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#141414] border-r border-white/10 transform transition-transform duration-300 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#141414] border-r border-white/10 transform transition-transform duration-300 overflow-y-auto lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="p-6 border-b border-white/10">
@@ -138,6 +138,14 @@ const DashboardLayout = ({ children, title }) => {
               <h1 className="text-xl md:text-2xl font-bold font-['Cormorant_Garamond']">{title}</h1>
             </div>
             <div className="flex items-center gap-3">
+              <Button
+                onClick={handleLogout}
+                variant="outline"
+                className="lg:hidden border-white/10 text-[#A1A1AA] hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/50"
+                data-testid="mobile-logout-btn"
+              >
+                <SignOut size={16} />
+              </Button>
               <LanguageDropdown />
             </div>
           </div>
