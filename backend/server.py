@@ -2710,10 +2710,11 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
         raise HTTPException(status_code=400, detail="Vous ne pouvez annuler que les courses assignées non démarrées")
 
     update_data = {
-        "status": "QUOTE_ACCEPTED",
+        "status": booking.get("pre_assignment_status") if booking.get("pre_assignment_status") in {"QUOTE_ACCEPTED", "ORDER_ISSUED"} else "QUOTE_ACCEPTED",
         "driver_id": None,
         "driver_name": None,
         "driver_display_name": None,
+        "pre_assignment_status": None,
         "assigned_at": None,
         "driver_cancellation_reason": payload.cancellation_reason,
         "cancellation_previous_status": booking.get("status")
@@ -2758,14 +2759,15 @@ async def get_all_bookings(request: Request, status: Optional[str] = None, inclu
     await require_admin(request)
 
     query = {}
-    if status:
-        query["status"] = normalize_booking_status(status)
+    normalized_status = normalize_booking_status(status) if status else None
+    if normalized_status:
+        query["status"] = normalized_status
     if not include_unpaid_pending:
-        query["$or"] = [
-            {"status": {"$nin": ["DRAFT", "QUOTE_SENT"]}},
-            {"payment_status": {"$exists": False}},
-            {"payment_status": {"$in": ["paid", "not_required", "failed"]}},
-        ]
+        # Admin operational view: only courses in operational workflow (devis validé et après).
+        if normalized_status in {"DRAFT", "QUOTE_SENT"}:
+            query["status"] = "__none__"
+        elif not normalized_status:
+            query["status"] = {"$nin": ["DRAFT", "QUOTE_SENT"]}
 
     bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     return [BookingResponse(**b) for b in bookings]
@@ -2800,6 +2802,7 @@ async def admin_assign_self(booking_id: str, request: Request, body: AdminAssign
         "driver_name": admin["name"],
         "driver_display_name": driver_display_name,
         "status": "ASSIGNED",
+        "pre_assignment_status": normalize_booking_status(booking.get("status")),
         "assigned_at": assigned_at,
         "fulfilled_by_admin": True,
         "commission_override": 0.0,
@@ -2958,7 +2961,7 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "estimated_price": booking.estimated_price,
         "notes": booking.notes,
         "disposition_hours": booking.disposition_hours,
-        "status": "DRAFT",
+        "status": "QUOTE_ACCEPTED",
         "payment_status": "not_required",
         "payment_mode": payment_mode,
         "payment_completed_at": None,
@@ -3014,6 +3017,7 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
         "driver_id": driver["id"],
         "driver_name": driver["name"],
         "driver_display_name": driver["name"],
+        "pre_assignment_status": normalize_booking_status(booking.get("status")),
         "status": "ASSIGNED",
         "assigned_at": assigned_at
     }
@@ -3023,6 +3027,7 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
             "driver_id": driver["id"],
             "driver_name": driver["name"],
             "driver_display_name": driver["name"],
+            "pre_assignment_status": normalize_booking_status(booking.get("status")),
             "status": "ASSIGNED",
             "assigned_at": assigned_at
         }}

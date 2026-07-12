@@ -48,8 +48,12 @@ const BookingDetail = () => {
           response = await axios.get(`${API_URL}/api/bookings/${bookingId}`, { withCredentials: true });
         }
         setBooking(response.data);
-        const docsResponse = await axios.get(`${API_URL}/api/courses/${bookingId}/documents`, { withCredentials: true });
-        setDocuments(Array.isArray(docsResponse.data) ? docsResponse.data : []);
+        try {
+          const docsResponse = await axios.get(`${API_URL}/api/courses/${bookingId}/documents`, { withCredentials: true });
+          setDocuments(Array.isArray(docsResponse.data) ? docsResponse.data : []);
+        } catch {
+          setDocuments([]);
+        }
       } catch (err) {
         setError('Course introuvable ou accès non autorisé.');
       } finally {
@@ -121,6 +125,11 @@ const BookingDetail = () => {
   const normalizedStatus = normalizeCourseStatus(booking.status);
   const statusStyle = COURSE_STATUS_STYLES[normalizedStatus] || 'bg-gray-500/20 text-gray-400';
   const statusLabel = COURSE_STATUS_LABELS[normalizedStatus] || normalizedStatus;
+  const documentTypeLabels = {
+    quote: 'Devis',
+    order_form: 'Bon de commande',
+    invoice: 'Facture',
+  };
   const shouldRenderDriverCard = user?.role === 'admin'
     ? shouldRenderAssignedDriverForAdmin(booking)
     : true;
@@ -389,7 +398,7 @@ const BookingDetail = () => {
                 {documents.map((doc) => (
                   <div key={doc.id} className="flex items-center justify-between rounded-md border border-white/10 px-3 py-2">
                     <div>
-                      <p className="font-medium">{doc.type}</p>
+                      <p className="font-medium">{documentTypeLabels[doc.type] || doc.type}</p>
                       <p className="text-xs text-[#A1A1AA]">Statut: {doc.status}</p>
                     </div>
                     <button
