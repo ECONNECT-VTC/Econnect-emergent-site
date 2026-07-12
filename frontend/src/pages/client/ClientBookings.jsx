@@ -129,19 +129,15 @@ const ClientBookings = () => {
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {['all', 'awaiting_payment', 'DRAFT', 'QUOTE_SENT', 'QUOTE_ACCEPTED', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID', 'cancellation_requested', 'cancelled'].map((s) => (
+        {['all', 'awaiting_payment', 'QUOTE_ACCEPTED', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'cancellation_requested', 'cancelled'].map((s) => (
           <button key={s} onClick={() => setFilter(s)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === s ? 'bg-[#D4AF37] text-[#0A0A0A]' : 'bg-[#1E1E1E] text-[#A1A1AA] hover:bg-white/10'}`}>
             {s === 'all' ? 'Toutes' :
               s === 'awaiting_payment' ? 'En attente paiement' :
-              s === 'DRAFT' ? 'Brouillon' :
-              s === 'QUOTE_SENT' ? 'Devis envoyés' :
               s === 'QUOTE_ACCEPTED' ? 'Confirmées' :
               s === 'ASSIGNED' ? 'Assignées' :
               s === 'IN_PROGRESS' ? 'En cours' :
               s === 'COMPLETED' ? 'Terminées' :
-              s === 'INVOICED' ? 'Facturées' :
-              s === 'PAID' ? 'Payées' :
               s === 'cancellation_requested' ? 'Annulation demandée' : 'Annulées'}
           </button>
         ))}
@@ -208,10 +204,6 @@ const ClientBookings = () => {
                 >
                   ✏️ Modifier
                 </Button>
-              )}
-
-              {booking.refund_amount != null && (
-                <p className="mt-3 text-sm text-green-400">Remboursement: {Number(booking.refund_amount).toFixed(2)}€</p>
               )}
 
               {(statusEquals(booking.status, 'COMPLETED') || statusEquals(booking.status, 'INVOICED') || statusEquals(booking.status, 'PAID')) && (
