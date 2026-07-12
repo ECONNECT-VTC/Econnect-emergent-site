@@ -9,6 +9,7 @@ import { CarSimple, CheckCircle, Clock, MapPin, Phone, Play, User, DownloadSimpl
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
 import { downloadDriverDocPdf } from '@/utils/invoiceGenerator';
+import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -25,7 +26,7 @@ const DriverDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAvailable, setIsAvailable] = useState(true);
-  const [filter, setFilter] = useState('assigned');
+  const [filter, setFilter] = useState('ASSIGNED');
   const [error, setError] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
@@ -94,22 +95,13 @@ const DriverDashboard = () => {
     }
   };
 
-  const filteredBookings = filter === 'all' ? bookings : bookings.filter((b) => b.status === filter);
+  const filteredBookings = filter === 'all' ? bookings : bookings.filter((b) => normalizeCourseStatus(b.status) === filter);
 
   const getStatusBadge = (status) => {
-    const styles = {
-      assigned: 'bg-blue-500/20 text-blue-400',
-      in_progress: 'bg-purple-500/20 text-purple-400',
-      completed: 'bg-green-500/20 text-green-400'
-    };
-    const labels = {
-      assigned: 'Assignée',
-      in_progress: 'En cours',
-      completed: 'Terminée'
-    };
+    const normalized = normalizeCourseStatus(status);
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[status] || 'bg-gray-500/20'}`}>
-        {labels[status] || status}
+      <span className={`px-3 py-1 rounded-full text-xs font-medium ${COURSE_STATUS_STYLES[normalized] || 'bg-gray-500/20'}`}>
+        {COURSE_STATUS_LABELS[normalized] || normalized}
       </span>
     );
   };
@@ -141,28 +133,28 @@ const DriverDashboard = () => {
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('assigned')}>
+        <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('ASSIGNED')}>
           <p className="text-2xl font-bold text-blue-400">
-            {bookings.filter((b) => b.status === 'assigned').length}
+            {bookings.filter((b) => statusEquals(b.status, 'ASSIGNED')).length}
           </p>
           <p className="text-sm text-[#A1A1AA]">Assignées</p>
         </div>
-        <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('in_progress')}>
+        <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('IN_PROGRESS')}>
           <p className="text-2xl font-bold text-purple-400">
-            {bookings.filter((b) => b.status === 'in_progress').length}
+            {bookings.filter((b) => statusEquals(b.status, 'IN_PROGRESS')).length}
           </p>
           <p className="text-sm text-[#A1A1AA]">En cours</p>
         </div>
-        <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('completed')}>
+        <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('COMPLETED')}>
           <p className="text-2xl font-bold text-green-400">
-            {bookings.filter((b) => b.status === 'completed').length}
+            {bookings.filter((b) => statusEquals(b.status, 'COMPLETED')).length}
           </p>
           <p className="text-sm text-[#A1A1AA]">Terminées</p>
         </div>
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {['assigned', 'in_progress', 'completed', 'all'].map((s) => (
+        {['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'all'].map((s) => (
           <button
             key={s}
             onClick={() => setFilter(s)}
@@ -171,8 +163,8 @@ const DriverDashboard = () => {
             }`}
           >
             {s === 'all' ? 'Toutes' :
-              s === 'assigned' ? 'Assignées' :
-              s === 'in_progress' ? 'En cours' : 'Terminées'}
+              s === 'ASSIGNED' ? 'Assignées' :
+              s === 'IN_PROGRESS' ? 'En cours' : 'Terminées'}
           </button>
         ))}
       </div>
@@ -234,9 +226,9 @@ const DriverDashboard = () => {
                   )}
                 </p>
               )}
-              {booking.status === 'assigned' && (
+              {statusEquals(booking.status, 'ASSIGNED') && (
                 <Button
-                  onClick={() => updateBookingStatus(booking.id, 'in_progress')}
+                  onClick={() => updateBookingStatus(booking.id, 'IN_PROGRESS')}
                   disabled={actionLoadingId === booking.id}
                   className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-60"
                 >
@@ -244,7 +236,7 @@ const DriverDashboard = () => {
                   {actionLoadingId === booking.id ? 'Démarrage en cours...' : 'Démarrer la course'}
                 </Button>
               )}
-              {booking.status === 'assigned' && (
+              {statusEquals(booking.status, 'ASSIGNED') && (
                 <Button
                   onClick={() => openWithdrawDialog(booking)}
                   variant="outline"
@@ -253,9 +245,9 @@ const DriverDashboard = () => {
                   Je ne peux plus assurer cette course
                 </Button>
               )}
-              {booking.status === 'in_progress' && (
+              {statusEquals(booking.status, 'IN_PROGRESS') && (
                 <Button
-                  onClick={() => updateBookingStatus(booking.id, 'completed')}
+                  onClick={() => updateBookingStatus(booking.id, 'COMPLETED')}
                   disabled={actionLoadingId === booking.id}
                   className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-60"
                 >
@@ -263,7 +255,7 @@ const DriverDashboard = () => {
                   {actionLoadingId === booking.id ? 'Finalisation en cours...' : 'Terminer la course'}
                 </Button>
               )}
-              {booking.status === 'completed' && (
+              {statusEquals(booking.status, 'COMPLETED') && (
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <Button
                     onClick={() => downloadDriverDocPdf(API_URL, booking.id, 'driver')}

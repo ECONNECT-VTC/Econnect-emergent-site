@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CalendarCheck, CarSimple, CheckCircle, MapPin, User, DownloadSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
+import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
@@ -368,7 +369,7 @@ const AdminBookings = () => {
         setError('Course introuvable. La liste a été actualisée.');
         return;
       }
-      if (freshBooking.status !== 'received') {
+      if (!statusEquals(freshBooking.status, 'QUOTE_ACCEPTED') && !statusEquals(freshBooking.status, 'ORDER_ISSUED')) {
         setError(`Impossible d'assigner : la course est en statut "${freshBooking.status}". Elle doit être réceptionnée avant d'être assignée. La liste a été actualisée.`);
         return;
       }
@@ -496,7 +497,7 @@ const AdminBookings = () => {
     ? bookings
     : filter === 'awaiting_payment'
       ? bookings.filter((b) => b.payment_status === 'pending')
-      : bookings.filter((b) => b.status === filter);
+      : bookings.filter((b) => normalizeCourseStatus(b.status) === filter);
   const canCreateBooking =
     createForm.client_name.trim() &&
     createForm.client_email.trim() &&
@@ -507,25 +508,8 @@ const AdminBookings = () => {
     createForm.transfer_type;
 
   const getStatusBadge = (status) => {
-    const styles = {
-      pending: 'bg-yellow-500/20 text-yellow-400',
-      received: 'bg-blue-500/20 text-blue-300',
-      assigned: 'bg-cyan-500/20 text-cyan-300',
-      in_progress: 'bg-purple-500/20 text-purple-400',
-      completed: 'bg-green-500/20 text-green-400',
-      cancellation_requested: 'bg-orange-500/20 text-orange-400',
-      cancelled: 'bg-red-500/20 text-red-400'
-    };
-    const labels = {
-      pending: 'En attente',
-      received: 'Réceptionnée',
-      assigned: 'Assignée',
-      in_progress: 'En cours',
-      completed: 'Terminée',
-      cancellation_requested: 'Annulation demandée',
-      cancelled: 'Annulée'
-    };
-    return <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[status]}`}>{labels[status] || status}</span>;
+    const normalized = normalizeCourseStatus(status);
+    return <span className={`px-3 py-1 rounded-full text-xs font-medium ${COURSE_STATUS_STYLES[normalized] || 'bg-zinc-500/20 text-zinc-300'}`}>{COURSE_STATUS_LABELS[normalized] || normalized}</span>;
   };
 
   const getPaymentBadge = (paymentStatus) => {
@@ -560,15 +544,19 @@ const AdminBookings = () => {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {['all', 'awaiting_payment', 'pending', 'received', 'assigned', 'in_progress', 'completed', 'cancellation_requested', 'cancelled'].map((s) => (
+        {['all', 'awaiting_payment', 'DRAFT', 'QUOTE_SENT', 'QUOTE_ACCEPTED', 'ORDER_ISSUED', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED', 'PAID', 'cancellation_requested', 'cancelled'].map((s) => (
           <button key={s} onClick={() => setFilter(s)} className={`px-4 py-2 rounded-lg text-sm font-medium ${filter === s ? 'bg-[#D4AF37] text-[#0A0A0A]' : 'bg-[#1E1E1E] text-[#A1A1AA]'}`}>
             {s === 'all' ? 'Toutes' :
               s === 'awaiting_payment' ? 'En attente de paiement' :
-              s === 'pending' ? 'En attente' :
-              s === 'received' ? 'Réceptionnées' :
-              s === 'assigned' ? 'Assignées' :
-              s === 'in_progress' ? 'En cours' :
-              s === 'completed' ? 'Terminées' :
+              s === 'DRAFT' ? 'Brouillons' :
+              s === 'QUOTE_SENT' ? 'Devis envoyés' :
+              s === 'QUOTE_ACCEPTED' ? 'Confirmées' :
+              s === 'ORDER_ISSUED' ? 'Bon émis' :
+              s === 'ASSIGNED' ? 'Assignées' :
+              s === 'IN_PROGRESS' ? 'En cours' :
+              s === 'COMPLETED' ? 'Terminées' :
+              s === 'INVOICED' ? 'Facturées' :
+              s === 'PAID' ? 'Payées' :
               s === 'cancellation_requested' ? 'Annulation demandée' : 'Annulées'}
           </button>
         ))}
@@ -585,8 +573,8 @@ const AdminBookings = () => {
         <div className="space-y-4" data-testid="admin-bookings">
           {filteredBookings.map((booking) => {
             const paymentPending = booking.payment_status === 'pending';
-            const canReceive = booking.status === 'pending' && !paymentPending;
-            const canSelfAssign = booking.status === 'received' && !paymentPending;
+            const canReceive = statusEquals(booking.status, 'DRAFT') && !paymentPending;
+            const canSelfAssign = (statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED')) && !paymentPending;
             const bookingDriverName = booking.driver_display_name || booking.driver_name;
 
             return (
@@ -619,29 +607,29 @@ const AdminBookings = () => {
                     </Button>
                   )}
 
-                  {booking.fulfilled_by_admin && booking.status === 'assigned' && (
+                  {booking.fulfilled_by_admin && statusEquals(booking.status, 'ASSIGNED') && (
                     <Button
                       size="sm"
                       className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                      onClick={() => updateAdminTripStatus(booking.id, 'in_progress')}
+                      onClick={() => updateAdminTripStatus(booking.id, 'IN_PROGRESS')}
                       disabled={statusUpdatingId === booking.id}
                     >
                       Démarrer la course
                     </Button>
                   )}
 
-                  {booking.fulfilled_by_admin && booking.status === 'in_progress' && (
+                  {booking.fulfilled_by_admin && statusEquals(booking.status, 'IN_PROGRESS') && (
                     <Button
                       size="sm"
                       className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]"
-                      onClick={() => updateAdminTripStatus(booking.id, 'completed')}
+                      onClick={() => updateAdminTripStatus(booking.id, 'COMPLETED')}
                       disabled={statusUpdatingId === booking.id}
                     >
                       Clôturer la course
                     </Button>
                   )}
 
-                  {booking.status === 'received' && !paymentPending && (
+                  {(statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED')) && !paymentPending && (
                     <Button size="sm" className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => openAssignDialog(booking)} data-testid={`assign-btn-${booking.id}`}>
                       <CarSimple size={16} className="mr-1" />Assigner à un chauffeur
                     </Button>
@@ -658,7 +646,7 @@ const AdminBookings = () => {
                     </>
                   )}
 
-                  {(booking.status === 'pending' || booking.status === 'received' || booking.status === 'assigned') && (
+                  {(statusEquals(booking.status, 'DRAFT') || statusEquals(booking.status, 'QUOTE_SENT') || statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED') || statusEquals(booking.status, 'ASSIGNED')) && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -671,7 +659,7 @@ const AdminBookings = () => {
                 </div>
               </div>
 
-              {paymentPending && booking.status === 'pending' && (
+              {paymentPending && statusEquals(booking.status, 'DRAFT') && (
                 <p className="mb-4 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
                   Paiement Stripe en attente de confirmation : cette réservation reste visible pour diagnostic mais ne peut pas encore être affectée.
                 </p>
@@ -758,7 +746,7 @@ const AdminBookings = () => {
                 >
                   ✏️ Modifier
                 </Button>
-                {booking.status === 'assigned' && (
+                {(statusEquals(booking.status, 'ASSIGNED') || statusEquals(booking.status, 'ORDER_ISSUED')) && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -768,7 +756,7 @@ const AdminBookings = () => {
                     <DownloadSimple size={14} className="mr-1" />Bon de commande
                   </Button>
                 )}
-                {booking.status === 'completed' && (
+                {(statusEquals(booking.status, 'COMPLETED') || statusEquals(booking.status, 'INVOICED') || statusEquals(booking.status, 'PAID')) && (
                   <Button
                     size="sm"
                     variant="outline"

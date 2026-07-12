@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { CalendarCheck, Car, CheckCircle, Clock } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import { getClientFacingDriverName } from '../../utils/driverDisplay';
+import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, isStatusAtOrAfter, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
 
 const ClientDashboard = () => {
   const { lang } = useParams();
@@ -28,31 +29,18 @@ const ClientDashboard = () => {
 
   const stats = {
     total: bookings.length,
-    pending: bookings.filter((b) => b.status === 'pending').length,
-    assigned: bookings.filter((b) => b.status === 'assigned' || b.status === 'in_progress').length,
-    completed: bookings.filter((b) => b.status === 'completed').length,
+    pending: bookings.filter((b) => statusEquals(b.status, 'DRAFT') || statusEquals(b.status, 'QUOTE_SENT')).length,
+    assigned: bookings.filter((b) => isStatusAtOrAfter(b.status, 'ASSIGNED') && !isStatusAtOrAfter(b.status, 'COMPLETED')).length,
+    completed: bookings.filter((b) => isStatusAtOrAfter(b.status, 'COMPLETED')).length,
   };
 
   const recentBookings = bookings.slice(0, 3);
 
   const getStatusBadge = (status) => {
-    const styles = {
-      pending: 'bg-yellow-500/20 text-yellow-400',
-      assigned: 'bg-blue-500/20 text-blue-400',
-      in_progress: 'bg-purple-500/20 text-purple-400',
-      completed: 'bg-green-500/20 text-green-400',
-      cancelled: 'bg-red-500/20 text-red-400',
-    };
-    const labels = {
-      pending: 'En attente',
-      assigned: 'Assignée',
-      in_progress: 'En cours',
-      completed: 'Terminée',
-      cancelled: 'Annulée',
-    };
+    const normalized = normalizeCourseStatus(status);
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${styles[status] || styles.pending}`}>
-        {labels[status] || status}
+      <span className={`px-3 py-1 rounded-full text-xs font-medium ${COURSE_STATUS_STYLES[normalized] || COURSE_STATUS_STYLES.DRAFT}`}>
+        {COURSE_STATUS_LABELS[normalized] || normalized}
       </span>
     );
   };
@@ -65,17 +53,17 @@ const ClientDashboard = () => {
           <p className="text-3xl font-bold">{stats.total}</p>
           <p className="text-[#A1A1AA] text-sm">Total courses</p>
         </Link>
-        <Link to={`/${lang}/client/bookings?status=pending`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+        <Link to={`/${lang}/client/bookings?status=DRAFT`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
           <Clock size={32} className="text-yellow-400 mb-3" />
           <p className="text-3xl font-bold">{stats.pending}</p>
           <p className="text-[#A1A1AA] text-sm">En attente</p>
         </Link>
-        <Link to={`/${lang}/client/bookings?status=in_progress`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+        <Link to={`/${lang}/client/bookings?status=IN_PROGRESS`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
           <Car size={32} className="text-blue-400 mb-3" />
           <p className="text-3xl font-bold">{stats.assigned}</p>
           <p className="text-[#A1A1AA] text-sm">En cours</p>
         </Link>
-        <Link to={`/${lang}/client/bookings?status=completed`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+        <Link to={`/${lang}/client/bookings?status=COMPLETED`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
           <CheckCircle size={32} className="text-green-400 mb-3" />
           <p className="text-3xl font-bold">{stats.completed}</p>
           <p className="text-[#A1A1AA] text-sm">Terminées</p>
