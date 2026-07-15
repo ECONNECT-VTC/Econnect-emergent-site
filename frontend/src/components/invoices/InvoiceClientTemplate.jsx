@@ -38,6 +38,8 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const companyEmail = settings?.company_email || 'contact@econnect-vtc.fr';
   const companyPhone = settings?.company_phone || 'À compléter';
   const companyIban = settings?.company_iban || 'À compléter';
+  // Keep support for legacy `company_tva_number` while `company_vat_number` is now preferred.
+  const companyVatNumber = settings?.company_vat_number || settings?.company_tva_number || 'À compléter';
   const resolvedTvaRate = getClientVatRate(booking.transfer_type);
   const tvaRate = Math.round(resolvedTvaRate * 100);
   const resolvedPriceTtc = Number(booking.price_ttc || 0);
@@ -69,14 +71,11 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
     <div className="bg-white border border-[#D0D0D0] shadow-lg max-w-3xl mx-auto text-[#111111] print:shadow-none print:border-0">
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="px-8 py-5 flex justify-between items-start gap-6 border-b border-[#D0D0D0]">
-        {/* Left: logo + company */}
+        {/* Left: logo only branding */}
         <div className="flex-1 min-w-0">
-          <LogoDisplay className="h-[72px]" priority />
-          <p className="text-[#555555] text-xs uppercase tracking-widest mt-2">
-            Service de Transport Privé Premium
-          </p>
-          <p className="text-[#555555] text-xs mt-1">SIRET : <span className="font-mono text-[#111111]">{companySiret}</span></p>
-          <p className="text-[#555555] text-xs">N° VTC : <span className="font-mono text-[#111111]">{companyVtc}</span></p>
+          <div className="inline-flex bg-[#F3F3F3] rounded-md px-4 py-2">
+            <LogoDisplay className="h-[64px] w-[220px]" priority />
+          </div>
         </div>
 
         {/* Right: invoice number + date box */}
@@ -100,7 +99,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
       <div className="grid grid-cols-2 border-b border-[#D0D0D0]">
         {/* Émetteur */}
         <div className="border-r border-[#D0D0D0]">
-          <div className="bg-[#2A2A2A] px-6 py-2">
+          <div className="bg-black/80 px-6 py-2">
             <p className="text-white text-xs uppercase tracking-widest font-semibold">Émetteur</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
@@ -115,7 +114,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
 
         {/* Client */}
         <div>
-          <div className="bg-[#2A2A2A] px-6 py-2">
+          <div className="bg-black/80 px-6 py-2">
             <p className="text-white text-xs uppercase tracking-widest font-semibold">Client</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
@@ -132,7 +131,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
       <div className="px-8 py-6 border-b border-[#D0D0D0]">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-[#2A2A2A] text-white">
+            <tr className="bg-black/80 text-white">
               <th className="text-left px-3 py-2 text-xs uppercase tracking-widest font-semibold rounded-tl">Description</th>
               <th className="text-center px-3 py-2 text-xs uppercase tracking-widest font-semibold">Qté</th>
               <th className="text-right px-3 py-2 text-xs uppercase tracking-widest font-semibold">Prix HT</th>
@@ -174,10 +173,10 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         </table>
       </div>
 
-      {/* ── Penalties notice ───────────────────────────────────── */}
+      {/* ── Penalties article ──────────────────────────────────── */}
       <div className="px-8 py-3 border-b border-[#D0D0D0]">
         <p className="text-xs text-[#777777]">
-          Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal.
+          Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif.
         </p>
       </div>
 
@@ -209,13 +208,16 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-[#555555]">Statut :</span>
-          <span className="font-bold text-[#D4AF37]">{formatPaymentStatusLabel(booking.payment_status)}</span>
+          <span className="font-bold text-[#111111] bg-[#D4AF37] px-2 py-0.5 rounded-sm">{formatPaymentStatusLabel(booking.payment_status)}</span>
         </div>
         {(String(booking.payment_method || booking.notes || '').toLowerCase().includes('virement') || companyIban !== 'À compléter') && (
           <div className="flex items-center gap-3">
             <span className="font-bold font-mono">IBAN : {companyIban}</span>
           </div>
         )}
+        <p className="text-xs text-[#777777] pt-1">
+          Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal
+        </p>
       </div>
 
       {/* ── Footer ─────────────────────────────────────────────── */}
@@ -227,11 +229,10 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         )}
         <p className="mt-1">
           <span className="font-bold text-[#333333]">{companyName}</span>
-          {' '}— SIRET : {companySiret} — N° VTC : {companyVtc}
+          {' '}— SIRET : {companySiret} — N° TVA : {companyVatNumber}
         </p>
         <p className="mt-1">
-          <span className="font-bold text-[#333333]">{companyName}</span>
-          {' '}© {new Date().getFullYear()} — Merci de votre confiance.
+          {companyAddress} — Tél : {companyPhone} — {companyEmail} — N° VTC : {companyVtc}
         </p>
       </div>
     </div>

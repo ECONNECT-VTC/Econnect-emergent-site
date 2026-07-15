@@ -11,7 +11,8 @@ const defaultForm = {
   company_phone: 'À compléter',
   company_email: 'À compléter',
   company_siret: 'À compléter',
-  company_vtc_number: 'À compléter'
+  company_vtc_number: 'À compléter',
+  company_vat_number: 'À compléter',
 };
 
 const toPercentValue = (value) => Number(value || 0) * 100;
@@ -123,7 +124,8 @@ const AdminCommissions = () => {
           ['company_phone', 'Téléphone'],
           ['company_email', 'Email'],
           ['company_siret', 'SIRET'],
-          ['company_vtc_number', 'Numéro VTC']
+          ['company_vtc_number', 'Numéro VTC'],
+          ['company_vat_number', 'Numéro TVA']
         ].map(([key, label]) => (
           <div key={key}>
             <label className="block text-sm text-[#A1A1AA]">{label}</label>

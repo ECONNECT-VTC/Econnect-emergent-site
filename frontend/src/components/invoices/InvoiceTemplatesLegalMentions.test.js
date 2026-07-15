@@ -38,7 +38,7 @@ describe('Invoice templates legal TVA mentions', () => {
     const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
 
     // Payment status must use bold yellow classes (consistent with TOTAL TTC)
-    expect(clientTemplate).toContain('font-bold text-[#D4AF37]');
+    expect(clientTemplate).toContain('font-bold text-[#111111] bg-[#D4AF37]');
     // IBAN must be fully bold (label + value together)
     expect(clientTemplate).toContain('font-bold font-mono');
     // IBAN label and value must be in the same element (no separate label span)
@@ -71,7 +71,7 @@ describe('Invoice templates legal TVA mentions', () => {
 
     // Section headers (Émetteur, Client, table header) should use lighter shade
     expect(clientTemplate).not.toContain('bg-[#1A1A1A]');
-    expect(clientTemplate).toContain('bg-[#2A2A2A]');
+    expect(clientTemplate).toContain('bg-black/80');
   });
 
   it('client template footer has ECONNECT VTC company name in bold', () => {
@@ -80,5 +80,20 @@ describe('Invoice templates legal TVA mentions', () => {
 
     // Footer must contain company name wrapped in bold span
     expect(clientTemplate).toContain('font-bold text-[#333333]');
+  });
+
+  it('client template footer includes VAT number and removes trust sentence', () => {
+    const clientTemplatePath = path.join(__dirname, 'InvoiceClientTemplate.jsx');
+    const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
+
+    expect(clientTemplate).toContain('N° TVA');
+    expect(clientTemplate).not.toContain('Merci de votre confiance');
+  });
+
+  it('client template header branding keeps only the logo zone', () => {
+    const clientTemplatePath = path.join(__dirname, 'InvoiceClientTemplate.jsx');
+    const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
+
+    expect(clientTemplate).not.toContain('Service de Transport Privé Premium');
   });
 });
