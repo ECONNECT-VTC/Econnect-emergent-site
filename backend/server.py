@@ -1146,6 +1146,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
         due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%d/%m/%Y")
         company_iban = clean_pdf_value(settings.get("company_iban"))
+        # Support legacy `company_tva_number` while `company_vat_number` is the canonical VAT key.
         company_vat_number = clean_pdf_value(settings.get("company_vat_number") or settings.get("company_tva_number"))
         service_description = "Mise à disposition VTC" if is_disposition_transfer(booking.get("transfer_type")) else "Course VTC"
         invoice_qty = "1"
@@ -1311,8 +1312,12 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         status_line = f"Statut : {payment_status_label}"
         status_y = payment_top - 52
         status_w = c.stringWidth(status_line, "Helvetica-Bold", 9)
+        status_pad_x = 6
+        status_box_h = 12
+        status_box_x = table_x + 10
+        status_box_y = status_y - 3
         set_fill(INVOICE_GOLD)
-        c.rect(table_x + 10, status_y - 3, status_w + 6, 12, fill=1, stroke=0)
+        c.rect(status_box_x, status_box_y, status_w + status_pad_x, status_box_h, fill=1, stroke=0)
         set_fill(DARK)
         c.setFont("Helvetica-Bold", 9)
         c.drawString(table_x + 13, status_y, status_line)
@@ -1325,7 +1330,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(
             table_x + 12,
             payment_top - 80,
-            "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal",
+            "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal.",
         )
 
         totals_w = 214

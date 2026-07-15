@@ -38,6 +38,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const companyEmail = settings?.company_email || 'contact@econnect-vtc.fr';
   const companyPhone = settings?.company_phone || 'À compléter';
   const companyIban = settings?.company_iban || 'À compléter';
+  // Keep support for legacy `company_tva_number` while `company_vat_number` is now preferred.
   const companyVatNumber = settings?.company_vat_number || settings?.company_tva_number || 'À compléter';
   const resolvedTvaRate = getClientVatRate(booking.transfer_type);
   const tvaRate = Math.round(resolvedTvaRate * 100);
