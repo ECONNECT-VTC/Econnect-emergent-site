@@ -970,6 +970,15 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     )
 
     def clean_pdf_value(value, *, allow_zero: bool = False) -> str:
+        """Normalize a PDF field value into printable text.
+
+        Args:
+            value: Raw value coming from the booking, driver profile, or settings.
+            allow_zero: When True, a numeric zero is preserved instead of treated as missing.
+        Returns:
+            A printable string, using "N/A" for missing or placeholder values and
+            formatting datetimes as "dd/mm/YYYY à HH:MM".
+        """
         if value is None:
             return "N/A"
         if isinstance(value, datetime):
@@ -989,6 +998,15 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         return text
 
     def format_schedule(date_value, time_value) -> str:
+        """Combine separate date/time inputs into a single printable reservation slot.
+
+        Args:
+            date_value: Date-like value already stored on the booking.
+            time_value: Time-like value already stored on the booking.
+        Returns:
+            A single string in the form "<date> à <time>", or the non-missing part
+            when only one component is available.
+        """
         date_text = clean_pdf_value(date_value)
         time_text = clean_pdf_value(time_value)
         if date_text == "N/A":
@@ -998,6 +1016,14 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         return f"{date_text} à {time_text}"
 
     def format_booking_creation(value) -> str:
+        """Format the booking creation timestamp for the order form header.
+
+        Args:
+            value: A datetime instance, an ISO-8601 string, or any other raw value.
+        Returns:
+            A normalized printable timestamp when parsing succeeds, otherwise the
+            best-effort cleaned string or "N/A".
+        """
         if isinstance(value, datetime):
             return clean_pdf_value(value)
         if value is None:
@@ -1072,6 +1098,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             label_width: float = 118,
             min_height: float = 120
         ) -> float:
+            """Return the required card height after accounting for wrapped row values."""
             value_width = width_value - 28 - label_width
             total_height = 34
             for _, value in rows:
@@ -1087,6 +1114,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             rows: list[tuple[str, Any]],
             card_height: Optional[float] = None
         ) -> float:
+            """Render a rounded information card and return its bottom Y coordinate."""
             label_width = 118
             value_x = x + 18 + label_width
             value_width = width_value - 28 - label_width
