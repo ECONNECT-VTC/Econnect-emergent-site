@@ -30,6 +30,8 @@ export const normalizeEditablePaymentStatus = (value) => {
     .trim();
 
   if (raw === 'paid' || raw === 'payee' || raw === 'paye') return 'paid';
+  // Legacy admin bookings were stored with "not_required"; expose them as unpaid in the
+  // edit form so operators can explicitly re-save the new supported statuses.
   if (['pending', 'due', 'a payer', 'a_payer', 'not_required', ''].includes(raw)) return 'pending';
   return 'pending';
 };

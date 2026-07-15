@@ -908,7 +908,7 @@ const AdminBookings = () => {
               />
             </div>
             <div className="md:col-span-2">
-              <p className="text-sm text-[#A1A1AA] mb-2">Flux de paiement</p>
+              <p className="text-sm text-[#A1A1AA] mb-2">Déclenchement du paiement</p>
               <Select value={createForm.payment_mode} onValueChange={(v) => updateCreateField('payment_mode', v)}>
                 <SelectTrigger className="bg-[#1E1E1E] border-white/10">
                   <SelectValue />
