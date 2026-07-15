@@ -25,11 +25,11 @@ describe('Invoice templates legal TVA mentions', () => {
 
     // Penalties section must exist in the template body
     expect(clientTemplate).toContain('Tout retard entraîne des pénalités');
-    // Penalties must NOT appear inside the footer div (last section of the template)
-    // The footer section starts after the Payment info section
-    const footerStart = clientTemplate.lastIndexOf('Footer');
+    // Penalties must appear BEFORE the footer section marker
+    const footerStart = clientTemplate.lastIndexOf('── Footer ─');
     const penaltiesIndex = clientTemplate.lastIndexOf('Tout retard entraîne des pénalités');
     expect(penaltiesIndex).toBeGreaterThan(0);
+    expect(footerStart).toBeGreaterThan(0);
     expect(penaltiesIndex).toBeLessThan(footerStart);
   });
 
@@ -49,8 +49,8 @@ describe('Invoice templates legal TVA mentions', () => {
     const clientTemplatePath = path.join(__dirname, 'InvoiceClientTemplate.jsx');
     const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
 
-    // Template must contain disposition detection logic
-    expect(clientTemplate).toContain('isDispositionOrder');
+    // Template must use the shared isDispositionTransfer utility
+    expect(clientTemplate).toContain('isDispositionTransfer');
     expect(clientTemplate).toContain('dispositionHours');
     // Template must render hours when available
     expect(clientTemplate).toContain('Durée : {dispositionHours}h');

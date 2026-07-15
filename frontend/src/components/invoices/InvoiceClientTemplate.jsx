@@ -6,6 +6,7 @@ import {
   formatInvoiceNumber,
   getClientVatRate,
   computeHtFromTtc,
+  isDispositionTransfer,
 } from '@/utils/invoiceUtils';
 import LogoDisplay from '@/components/LogoDisplay';
 import { formatPaymentMethodLabel, formatPaymentStatusLabel } from '@/utils/paymentUtils';
@@ -55,13 +56,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
     : Number(booking.price_ht || 0);
 
   // Detect mise à disposition and expose duration in hours
-  const isDispositionOrder = Boolean(
-    String(booking.transfer_type || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .includes('disposition')
-  );
+  const isDispositionOrder = isDispositionTransfer(booking.transfer_type);
   const dispositionHours = isDispositionOrder && Number(booking.disposition_hours) > 0
     ? Number(booking.disposition_hours)
     : null;
