@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from html import escape as html_escape
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from urllib.parse import urlencode
 
 # Third-party
@@ -24,7 +24,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, EmailStr
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.utils import ImageReader
+from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfgen import canvas
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Attachment, Disposition, FileContent, FileName, FileType, Mail
@@ -875,7 +875,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
     title_map = {
         "invoice": "FACTURE CLIENT",
-        "order": "BON DE RÉSERVATION",
+        "order": "BON DE COMMANDE",
         "driver": "FACTURE CHAUFFEUR",
         "commission": "FACTURE COMMISSION",
         "activity": "RELEVÉ D'ACTIVITÉ",
@@ -968,6 +968,323 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         or booking.get("admin_vehicle_plate")
         or "À compléter"
     )
+
+    def clean_pdf_value(value, *, allow_zero: bool = False) -> str:
+        """Normalize a PDF field value into printable text.
+
+        Args:
+            value: Raw value coming from the booking, driver profile, or settings.
+            allow_zero: When True, a numeric zero is preserved instead of treated as missing.
+        Returns:
+            A printable string, using "N/A" for missing or placeholder values and
+            formatting datetimes as "dd/mm/YYYY à HH:MM".
+        """
+        if value is None:
+            return "N/A"
+        if isinstance(value, datetime):
+            dt_value = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+            return dt_value.astimezone(timezone.utc).strftime("%d/%m/%Y à %H:%M")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            if value == 0 and not allow_zero:
+                return "N/A"
+            return str(int(value)) if float(value).is_integer() else f"{value}"
+
+        text = str(value).strip()
+        normalized = ''.join(
+            char for char in unicodedata.normalize("NFD", text.lower()) if unicodedata.category(char) != "Mn"
+        )
+        if not text or normalized in {"a completer", "n/a", "na", "none", "null"}:
+            return "N/A"
+        return text
+
+    def format_schedule(date_value: Any, time_value: Any) -> str:
+        """Combine separate date/time inputs into a single printable reservation slot.
+
+        Args:
+            date_value: Date-like value already stored on the booking.
+            time_value: Time-like value already stored on the booking.
+        Returns:
+            A single string in the form "<date> à <time>", or the non-missing part
+            when only one component is available.
+        """
+        date_text = clean_pdf_value(date_value)
+        time_text = clean_pdf_value(time_value)
+        if date_text == "N/A":
+            return time_text
+        if time_text == "N/A":
+            return date_text
+        return f"{date_text} à {time_text}"
+
+    def format_booking_creation(value: Any) -> str:
+        """Format the booking creation timestamp for the order form header.
+
+        Args:
+            value: A datetime instance, an ISO-8601 string, or any other raw value.
+        Returns:
+            A normalized printable timestamp when parsing succeeds, otherwise the
+            best-effort cleaned string or "N/A".
+        """
+        if isinstance(value, datetime):
+            return clean_pdf_value(value)
+        if value is None:
+            return "N/A"
+
+        raw_text = str(value).strip()
+        if not raw_text:
+            return "N/A"
+
+        try:
+            parsed_value = datetime.fromisoformat(raw_text.replace("Z", "+00:00"))
+            return clean_pdf_value(parsed_value)
+        except ValueError:
+            return clean_pdf_value(raw_text)
+
+    normalized_category_name = normalize_category_name(booking.get("vehicle_category_name"))
+    category_metadata = (
+        DEFAULT_CATEGORY_METADATA.get(normalized_category_name or "")
+        or LEGACY_CATEGORY_METADATA.get(normalized_category_name or "")
+        or {}
+    )
+    passenger_count = (
+        booking.get("passenger_count")
+        or booking.get("number_of_passengers")
+        or booking.get("passengers")
+        or category_metadata.get("max_passengers")
+    )
+    luggage_count = (
+        booking.get("luggage_count")
+        or booking.get("number_of_luggage")
+        or booking.get("bag_count")
+        or category_metadata.get("max_luggage")
+    )
+    reservation_datetime = format_booking_creation(booking.get("created_at"))
+    pickup_datetime = format_schedule(booking.get("pickup_date"), booking.get("pickup_time"))
+    payment_method_label = {
+        "cb": "Carte bancaire",
+        "cash": "Espèces",
+        "virement": "Virement bancaire",
+    }.get(payment_method, "N/A")
+    options_parts = []
+    if clean_pdf_value(luggage_count, allow_zero=True) != "N/A":
+        options_parts.append(f"{clean_pdf_value(luggage_count, allow_zero=True)} bagage(s) max")
+    notes_value = clean_pdf_value(booking.get("notes"))
+    if notes_value != "N/A":
+        options_parts.append(notes_value)
+    bagages_options = " • ".join(options_parts) if options_parts else "N/A"
+
+    if is_order_document:
+        ORDER_GOLD = (0.83, 0.69, 0.22)
+        ORDER_DARK = (0.08, 0.08, 0.08)
+        ORDER_TEXT = (0.15, 0.15, 0.15)
+        ORDER_MUTED = (0.38, 0.38, 0.38)
+        ORDER_CARD = (0.98, 0.97, 0.95)
+        ORDER_BORDER = (0.86, 0.82, 0.72)
+
+        def set_order_fill(rgb):
+            c.setFillColorRGB(*rgb)
+
+        def set_order_stroke(rgb):
+            c.setStrokeColorRGB(*rgb)
+
+        def draw_wrapped_value(x: float, y_pos: float, text: str, max_width: float, line_height: float = 11.5) -> float:
+            safe_text = text or "N/A"
+            wrapped_lines = simpleSplit(safe_text, "Helvetica", 9, max_width) or [safe_text]
+            for idx, line in enumerate(wrapped_lines):
+                c.drawString(x, y_pos - (idx * line_height), line)
+            return len(wrapped_lines) * line_height
+
+        def measure_card_height(
+            rows: list[tuple[str, Any]],
+            width: float,
+            label_width: float = 118,
+            min_height: float = 120
+        ) -> float:
+            """Return the required card height after accounting for wrapped row values.
+
+            Args:
+                rows: Ordered list of ``(label, value)`` tuples rendered inside the card.
+                width: Outer card width in PDF points.
+                label_width: Reserved width for the left-hand label column.
+                min_height: Minimum card height to preserve visual balance.
+            Returns:
+                The card height in PDF points.
+            """
+            value_width = width - 28 - label_width
+            total_height = 34
+            for _, value in rows:
+                wrapped_lines = simpleSplit(clean_pdf_value(value), "Helvetica", 9, value_width) or ["N/A"]
+                total_height += (len(wrapped_lines) * 11.5) + 7
+            return max(total_height, min_height)
+
+        def draw_info_card(
+            x: float,
+            top_y: float,
+            width: float,
+            title: str,
+            rows: list[tuple[str, Any]],
+            card_height: Optional[float] = None
+        ) -> float:
+            """Render a rounded information card and return its bottom Y coordinate.
+
+            Args:
+                x: Left coordinate of the card.
+                top_y: Top coordinate of the card in PDF points.
+                width: Outer card width in PDF points.
+                title: Section title displayed in the card header.
+                rows: Ordered list of ``(label, value)`` tuples rendered inside the card.
+                card_height: Optional fixed card height. When omitted, height is computed.
+            Returns:
+                The bottom Y coordinate of the rendered card.
+            """
+            label_width = 118
+            value_x = x + 18 + label_width
+            value_width = width - 28 - label_width
+            resolved_height = card_height or measure_card_height(rows, width, label_width=label_width)
+            bottom_y = top_y - resolved_height
+
+            set_order_fill(ORDER_CARD)
+            set_order_stroke(ORDER_BORDER)
+            c.setLineWidth(1)
+            c.roundRect(x, bottom_y, width, resolved_height, 14, fill=1, stroke=1)
+
+            set_order_fill(ORDER_GOLD)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(x + 18, top_y - 18, title)
+
+            cursor_y = top_y - 36
+            for label, value in rows:
+                set_order_fill(ORDER_MUTED)
+                c.setFont("Helvetica-Bold", 8.4)
+                c.drawString(x + 18, cursor_y, f"{label} :")
+                set_order_fill(ORDER_TEXT)
+                c.setFont("Helvetica", 9)
+                display_value = clean_pdf_value(value)
+                consumed_height = draw_wrapped_value(value_x, cursor_y, display_value, value_width)
+                cursor_y -= consumed_height + 7
+
+            return bottom_y
+
+        c.setFillColorRGB(1, 1, 1)
+        c.rect(0, 0, width, height, fill=1, stroke=0)
+
+        header_height = 104
+        header_y = height - 36 - header_height
+        set_order_fill(ORDER_DARK)
+        c.roundRect(28, header_y, width - 56, header_height, 18, fill=1, stroke=0)
+
+        logo_drawn = False
+        logo_h = 50
+        logo_x = 44
+        logo_y = header_y + (header_height - logo_h) / 2
+        try:
+            img = ImageReader(str(LOGO_PATH))
+            img_w, img_h = img.getSize()
+            logo_w = logo_h * img_w / img_h
+            c.drawImage(
+                img,
+                logo_x,
+                logo_y,
+                width=logo_w,
+                height=logo_h,
+                mask='auto',
+                preserveAspectRatio=True
+            )
+            logo_drawn = True
+        except Exception as exc:
+            logger.warning("PDF logo could not be drawn (%s); using text fallback.", exc)
+
+        if not logo_drawn:
+            set_order_fill(ORDER_GOLD)
+            c.setFont("Helvetica-Bold", 20)
+            c.drawString(logo_x, header_y + 62, "ECONNECT VTC")
+            c.setFont("Helvetica", 8.5)
+            c.drawString(logo_x, header_y + 48, "Service de transport privé premium")
+
+        set_order_fill(ORDER_GOLD)
+        c.setFont("Helvetica-Bold", 18)
+        c.drawString(320, header_y + 65, title)
+        c.setFont("Helvetica", 9.5)
+        c.drawString(320, header_y + 47, f"Référence : {document_number}")
+        c.drawString(320, header_y + 31, f"Réservation créée : {reservation_datetime}")
+
+        current_y = header_y - 18
+        left_x = 36
+        gap_x = 16
+        card_width = (width - 72 - gap_x) / 2
+
+        driver_rows = [
+            ("Nom du chauffeur", driver_display_name),
+            ("Dénomination sociale", driver_company_name),
+            ("Adresse complète", booking.get("document_driver_address") or issuer.get("address")),
+            ("Téléphone professionnel", driver_phone),
+            ("SIREN / SIRET", booking.get("document_driver_siret") or issuer.get("siret")),
+            ("REVTC", driver_vtc_number),
+        ]
+        client_rows = [
+            ("Nom du client", booking.get("client_name")),
+            ("Téléphone", booking.get("client_phone")),
+        ]
+        top_cards_height = max(
+            measure_card_height(driver_rows, card_width, min_height=166),
+            measure_card_height(client_rows, card_width, min_height=166),
+        )
+        left_bottom = draw_info_card(left_x, current_y, card_width, "IDENTITÉ CHAUFFEUR / SOCIÉTÉ", driver_rows, card_height=top_cards_height)
+        right_bottom = draw_info_card(left_x + card_width + gap_x, current_y, card_width, "INFORMATIONS CLIENT", client_rows, card_height=top_cards_height)
+
+        current_y = min(left_bottom, right_bottom) - 16
+        trip_rows = [
+            ("Date et heure de réservation", reservation_datetime),
+            ("Date et heure de prise en charge", pickup_datetime),
+            ("Lieu de prise en charge", booking.get("pickup_address")),
+            ("Destination", booking.get("dropoff_address")),
+        ]
+        trip_bottom = draw_info_card(36, current_y, width - 72, "DÉTAILS DE LA COURSE", trip_rows, card_height=measure_card_height(trip_rows, width - 72, min_height=138))
+
+        current_y = trip_bottom - 16
+        complementary_rows = [
+            ("Nombre de passagers", passenger_count),
+            ("Prix total TTC", f"{breakdown['price_ttc']:.2f} EUR"),
+            ("Mode de paiement", payment_method_label),
+            ("Bagages / options", bagages_options),
+        ]
+        complementary_bottom = draw_info_card(
+            36,
+            current_y,
+            width - 72,
+            "MENTIONS COMPLÉMENTAIRES",
+            complementary_rows,
+            card_height=measure_card_height(complementary_rows, width - 72, min_height=122),
+        )
+
+        total_box_top = complementary_bottom - 18
+        total_box_height = 44
+        set_order_fill(ORDER_DARK)
+        set_order_stroke(ORDER_DARK)
+        c.roundRect(36, total_box_top - total_box_height, width - 72, total_box_height, 14, fill=1, stroke=0)
+        set_order_fill((1, 1, 1))
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(54, total_box_top - 18, "TOTAL TTC")
+        set_order_fill(ORDER_GOLD)
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(width - 176, total_box_top - 20, f"{breakdown['price_ttc']:.2f} EUR")
+
+        footer_y = 28
+        set_order_stroke(ORDER_BORDER)
+        c.setLineWidth(0.8)
+        c.line(36, footer_y + 18, width - 36, footer_y + 18)
+        set_order_fill(ORDER_MUTED)
+        c.setFont("Helvetica", 7.6)
+        c.drawString(
+            36,
+            footer_y,
+            "Justification de réservation préalable : Article R3120-2 du code des transports - Arrêté du 6 août 2025."
+        )
+
+        c.showPage()
+        c.save()
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        return pdf_bytes
 
     # ================================================================
     # HEADER BAND  (top 90 pt — white background with logo + title)
@@ -1439,6 +1756,17 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         (driver_profile or {}).get("company_phone")
         or (driver_profile or {}).get("phone")
         or settings.get("company_phone")
+        or "À compléter"
+    )
+    enriched_booking["document_driver_address"] = (
+        (driver_profile or {}).get("company_address")
+        or (driver_profile or {}).get("address")
+        or settings.get("company_address")
+        or "À compléter"
+    )
+    enriched_booking["document_driver_siret"] = (
+        (driver_profile or {}).get("company_siret")
+        or settings.get("company_siret")
         or "À compléter"
     )
     enriched_booking["document_driver_vtc_number"] = (

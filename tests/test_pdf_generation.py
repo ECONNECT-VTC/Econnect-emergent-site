@@ -34,10 +34,13 @@ SAMPLE_BOOKING = {
     "dropoff_address": "Aéroport CDG, Terminal 2",
     "pickup_date": "2024-06-01",
     "pickup_time": "08:00",
+    "created_at": "2024-05-31T16:45:00+00:00",
     "client_name": "Jean Dupont",
     "client_email": "jean@example.com",
+    "client_phone": "0601020304",
     "driver_name": "Michel Martin",
     "transfer_type": "Berline",
+    "vehicle_category_name": "Berline",
     "payment_method": "cb",
     "distance_km": "25.0",
     "price_per_km": "2.50",
@@ -184,8 +187,8 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "order", "000013")
 
         self._assert_valid_pdf(pdf, "order (pickup/dropoff labels)")
-        pickup_index = next(i for i, text in enumerate(captured_strings) if text.startswith("Prise en charge :"))
-        destination_index = next(i for i, text in enumerate(captured_strings) if text.startswith("Adresse de destination :"))
+        pickup_index = next(i for i, text in enumerate(captured_strings) if text.startswith("Lieu de prise en charge :"))
+        destination_index = next(i for i, text in enumerate(captured_strings) if text.startswith("Destination :"))
         self.assertGreater(destination_index, pickup_index)
 
     def test_order_uses_assigned_driver_company_details(self):
@@ -193,7 +196,10 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             **SAMPLE_BOOKING,
             "document_driver_name": "Karim Chauffeur",
             "document_driver_company": "Karim Transport SAS",
+            "document_driver_address": "12 avenue Victor Hugo, 75016 Paris",
             "document_driver_phone": "0611223344",
+            "document_driver_siret": "55224466800011",
+            "document_driver_vtc_number": "REVTC-751234",
         }
         captured_strings = []
         original_draw_string = server.canvas.Canvas.drawString
@@ -206,9 +212,59 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "order", "000014")
 
         self._assert_valid_pdf(pdf, "order (assigned driver company)")
-        self.assertIn("CHAUFFEUR / SOCIÉTÉ", captured_strings)
+        self.assertIn("IDENTITÉ CHAUFFEUR / SOCIÉTÉ", captured_strings)
         self.assertIn("Karim Chauffeur", captured_strings)
         self.assertIn("Karim Transport SAS", captured_strings)
+        self.assertIn("12 avenue Victor Hugo,", captured_strings)
+        self.assertIn("75016 Paris", captured_strings)
+        self.assertIn("55224466800011", captured_strings)
+        self.assertIn("REVTC-751234", captured_strings)
+
+    def test_order_redesign_includes_required_sections_and_na_fallbacks(self):
+        booking = {
+            **SAMPLE_BOOKING,
+            "client_phone": "",
+            "dropoff_address": "",
+            "notes": "",
+            "document_driver_name": "Nadia Benali",
+            "document_driver_company": "NB Prestige",
+            "document_driver_address": "",
+            "document_driver_phone": "",
+            "document_driver_siret": "",
+            "document_driver_vtc_number": "",
+            "vehicle_category_name": "Van",
+        }
+        settings = {
+            **SAMPLE_SETTINGS,
+            "company_address": "",
+            "company_phone": "",
+            "company_siret": "",
+            "company_vtc_number": "",
+        }
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(booking, settings, "order", "000015")
+
+        self._assert_valid_pdf(pdf, "order (required sections)")
+        self.assertIn("INFORMATIONS CLIENT", captured_strings)
+        self.assertIn("DÉTAILS DE LA COURSE", captured_strings)
+        self.assertIn("MENTIONS COMPLÉMENTAIRES", captured_strings)
+        self.assertIn("Date et heure de réservation :", captured_strings)
+        self.assertIn("Date et heure de prise en charge :", captured_strings)
+        self.assertIn("Nombre de passagers :", captured_strings)
+        self.assertIn("Téléphone :", captured_strings)
+        self.assertIn("Téléphone professionnel :", captured_strings)
+        self.assertIn("Destination :", captured_strings)
+        self.assertIn("Prix total TTC :", captured_strings)
+        self.assertIn("Mode de paiement :", captured_strings)
+        self.assertIn("Bagages / options :", captured_strings)
+        self.assertGreaterEqual(captured_strings.count("N/A"), 5)
 
 
 if __name__ == "__main__":
