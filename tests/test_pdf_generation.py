@@ -56,6 +56,7 @@ SAMPLE_SETTINGS = {
     "company_phone": "0600000000",
     "company_siret": "12345678900001",
     "company_vtc_number": "EVTC0001",
+    "company_iban": "FR76 3000 4000 5000 6000 7000 189",
 }
 
 
@@ -125,6 +126,46 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self._assert_valid_pdf(pdf, "invoice (no TVA rule explanation)")
         self.assertTrue(any("Montant TVA (" in text for text in captured_strings))
         self.assertFalse(any("TVA non récupérable par le preneur" in text for text in captured_strings))
+
+    def test_invoice_renders_payment_method_status_and_iban(self):
+        booking = {
+            **SAMPLE_BOOKING,
+            "payment_method": "virement",
+            "payment_status": "paid",
+        }
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "invoice", "000009B")
+
+        self._assert_valid_pdf(pdf, "invoice (payment info)")
+        self.assertIn("INFORMATIONS DE PAIEMENT", captured_strings)
+        self.assertTrue(any("Mode de paiement : Virement bancaire" == text for text in captured_strings))
+        self.assertTrue(any("Statut : Payée" == text for text in captured_strings))
+        self.assertTrue(any("IBAN : FR76 3000 4000 5000 6000 7000 189" == text for text in captured_strings))
+
+    def test_invoice_preserves_disposition_tva_rate(self):
+        booking = {
+            **SAMPLE_BOOKING,
+            "transfer_type": "Mise à disposition",
+        }
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "invoice", "000009C")
+
+        self._assert_valid_pdf(pdf, "invoice (disposition TVA)")
+        self.assertTrue(any("Montant TVA (20%)" == text for text in captured_strings))
 
     def test_order_legal_notice_contains_r3120_2_and_arrete_date(self):
         captured_strings = []

@@ -181,6 +181,8 @@ class AdminBookingCreate(BaseModel):
     distance_km: Optional[float] = None
     duration_minutes: Optional[float] = None
     payment_mode: Optional[str] = None  # "immediate" | "deferred" | None (defaults to deferred)
+    payment_method: Optional[str] = None
+    payment_status: Optional[str] = None
 
 class BookingResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -224,6 +226,7 @@ class BookingResponse(BaseModel):
     refund_currency: Optional[str] = None
     refund_initiated_by: Optional[str] = None
     payment_status: Optional[str] = None
+    payment_method: Optional[str] = None
     payment_completed_at: Optional[datetime] = None
     stripe_checkout_session_id: Optional[str] = None
     stripe_payment_intent_id: Optional[str] = None
@@ -731,6 +734,19 @@ async def get_commission_settings() -> dict:
 # Client VAT business rule (easy to adjust if regulation changes)
 CLIENT_TVA_RATE_STANDARD_COURSE = 0.10
 CLIENT_TVA_RATE_DISPOSITION = 0.20
+PAYMENT_METHOD_LABELS = {
+    "cb": "Carte bancaire",
+    "cash": "Espèces",
+    "virement": "Virement bancaire",
+}
+PAYMENT_STATUS_LABELS = {
+    "pending": "À payer",
+    "paid": "Payée",
+    "failed": "Paiement échoué",
+    "refunded": "Remboursée",
+    "partially_refunded": "Partiellement remboursée",
+    "not_required": "À payer",
+}
 
 def is_disposition_transfer(transfer_type: Optional[str]) -> bool:
     """Return True when the transfer type corresponds to a disposition service.
@@ -754,6 +770,40 @@ def get_client_tva_rate_for_booking(booking: Optional[dict]) -> float:
     if is_disposition_transfer((booking or {}).get("transfer_type")):
         return CLIENT_TVA_RATE_DISPOSITION
     return CLIENT_TVA_RATE_STANDARD_COURSE
+
+def normalize_payment_method_code(value: Any, fallback: Any = None) -> Optional[str]:
+    source = str(value or fallback or "").strip().lower()
+    normalized = ''.join(
+        char for char in unicodedata.normalize("NFD", source) if unicodedata.category(char) != "Mn"
+    )
+    if any(token in normalized for token in ["cb", "carte", "card", "bleue", "bleu"]):
+        return "cb"
+    if any(token in normalized for token in ["cash", "espece", "especes"]):
+        return "cash"
+    if "virement" in normalized:
+        return "virement"
+    return None
+
+def normalize_payment_status_code(value: Any) -> Optional[str]:
+    source = str(value or "").strip().lower()
+    normalized = ''.join(
+        char for char in unicodedata.normalize("NFD", source) if unicodedata.category(char) != "Mn"
+    )
+    if normalized in {"paid", "payee", "paye"}:
+        return "paid"
+    if normalized in {"pending", "due", "a payer", "a_payer", "unpaid"}:
+        return "pending"
+    if normalized in PAYMENT_STATUS_LABELS:
+        return normalized
+    return None
+
+def get_payment_method_label(value: Any, fallback: Any = None) -> str:
+    code = normalize_payment_method_code(value, fallback=fallback)
+    return PAYMENT_METHOD_LABELS.get(code, "N/A")
+
+def get_payment_status_label(value: Any, default: str = "N/A") -> str:
+    code = normalize_payment_status_code(value)
+    return PAYMENT_STATUS_LABELS.get(code, default)
 
 async def get_document_driver_profile(booking: dict) -> Optional[dict]:
     if bool(booking.get("fulfilled_by_admin")) or not booking.get("driver_id"):
@@ -904,21 +954,6 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         "is_driver_issuer": False,
     })
 
-    def detect_payment_method_label() -> str:
-        raw_method = str(booking.get("payment_method") or "").strip().lower()
-        raw_notes = str(booking.get("notes") or "").strip().lower()
-        source = raw_method or raw_notes
-        normalized = ''.join(
-            char for char in unicodedata.normalize("NFD", source) if unicodedata.category(char) != "Mn"
-        )
-        if any(token in normalized for token in ["cb", "carte", "card", "bleue", "bleu"]):
-            return "cb"
-        if any(token in normalized for token in ["cash", "espece", "especes"]):
-            return "cash"
-        if "virement" in normalized:
-            return "virement"
-        return "unknown"
-
     distance_km = None
     try:
         raw_distance = booking.get("distance_km")
@@ -942,7 +977,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     line_price_ht = breakdown["price_ht"]
     if distance_km and unit_price_ht:
         line_price_ht = round_amount(distance_km * unit_price_ht)
-    payment_method = detect_payment_method_label()
+    payment_method = normalize_payment_method_code(booking.get("payment_method"), fallback=booking.get("notes"))
     is_admin_fulfillment = bool(booking.get("fulfilled_by_admin"))
     driver_display_name = (
         booking.get("document_driver_name")
@@ -1062,11 +1097,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     )
     reservation_datetime = format_booking_creation(booking.get("created_at"))
     pickup_datetime = format_schedule(booking.get("pickup_date"), booking.get("pickup_time"))
-    payment_method_label = {
-        "cb": "Carte bancaire",
-        "cash": "Espèces",
-        "virement": "Virement bancaire",
-    }.get(payment_method, "N/A")
+    payment_method_label = get_payment_method_label(booking.get("payment_method"), fallback=booking.get("notes"))
+    payment_status_label = get_payment_status_label(booking.get("payment_status"), default="À payer")
     options_parts = []
     if clean_pdf_value(luggage_count, allow_zero=True) != "N/A":
         options_parts.append(f"{clean_pdf_value(luggage_count, allow_zero=True)} bagage(s) max")
@@ -1074,6 +1106,231 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     if notes_value != "N/A":
         options_parts.append(notes_value)
     bagages_options = " • ".join(options_parts) if options_parts else "N/A"
+
+    if is_invoice_document:
+        INVOICE_GOLD = (0.83, 0.69, 0.22)
+        INVOICE_DARK = (0.10, 0.10, 0.10)
+        INVOICE_BORDER = (0.82, 0.82, 0.82)
+        INVOICE_MUTED = (0.38, 0.38, 0.38)
+        INVOICE_LIGHT = (0.96, 0.96, 0.96)
+
+        def draw_wrapped_text(x_pos: float, y_pos: float, text: str, max_width: float, line_height: float = 10.5) -> float:
+            safe_text = text or "N/A"
+            lines = simpleSplit(safe_text, "Helvetica", 9.2, max_width) or [safe_text]
+            for index, line in enumerate(lines):
+                c.drawString(x_pos, y_pos - (index * line_height), line)
+            return len(lines) * line_height
+
+        def draw_party_box(x_pos: float, top_y: float, width_box: float, title_text: str, lines: list[str], height_box: float = 108) -> None:
+            bottom_y = top_y - height_box
+            set_stroke(INVOICE_BORDER)
+            c.setLineWidth(0.9)
+            c.rect(x_pos, bottom_y, width_box, height_box, fill=0, stroke=1)
+            set_fill(INVOICE_DARK)
+            c.rect(x_pos, top_y - 22, width_box, 22, fill=1, stroke=0)
+            set_fill(WHITE)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(x_pos + 12, top_y - 15, title_text)
+            cursor_y = top_y - 38
+            set_fill(DARK)
+            for index, line in enumerate(lines):
+                c.setFont("Helvetica-Bold" if index == 0 else "Helvetica", 9.2)
+                consumed = draw_wrapped_text(x_pos + 12, cursor_y, line, width_box - 24)
+                cursor_y -= consumed + 3
+
+        now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+        due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%d/%m/%Y")
+        company_iban = clean_pdf_value(settings.get("company_iban"))
+        service_description = "Mise à disposition VTC" if is_disposition_transfer(booking.get("transfer_type")) else "Course VTC"
+        invoice_qty = "1"
+        client_lines = [
+            clean_pdf_value(booking.get("client_name")),
+            clean_pdf_value(booking.get("client_email")),
+            clean_pdf_value(booking.get("client_phone")),
+        ]
+        issuer_lines = [
+            clean_pdf_value(issuer.get("name")),
+            clean_pdf_value(issuer.get("address")),
+            clean_pdf_value(issuer.get("email")),
+            f"Tél : {clean_pdf_value(issuer.get('phone'))}",
+        ]
+
+        c.setFillColorRGB(1, 1, 1)
+        c.rect(0, 0, width, height, fill=1, stroke=0)
+
+        header_top = height - 42
+        logo_drawn = False
+        try:
+            img = ImageReader(str(LOGO_PATH))
+            img_w, img_h = img.getSize()
+            logo_h = 62
+            logo_w = logo_h * img_w / img_h
+            c.drawImage(
+                img,
+                40,
+                header_top - 68,
+                width=logo_w,
+                height=logo_h,
+                mask='auto',
+                preserveAspectRatio=True,
+            )
+            logo_drawn = True
+        except Exception as exc:
+            logger.warning("PDF logo could not be drawn (%s); using text fallback.", exc)
+
+        set_fill(INVOICE_DARK)
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(120 if logo_drawn else 40, header_top - 18, clean_pdf_value(settings.get("company_name")))
+        c.setFont("Helvetica", 9)
+        c.drawString(120 if logo_drawn else 40, header_top - 34, clean_pdf_value(settings.get("company_address")))
+        c.drawString(120 if logo_drawn else 40, header_top - 48, clean_pdf_value(settings.get("company_email")))
+
+        if not logo_drawn:
+            set_fill(INVOICE_GOLD)
+            c.setFont("Helvetica-Bold", 16)
+            c.drawString(40, header_top - 66, "ECONNECT VTC")
+
+        box_x = width - 212
+        box_w = 172
+        box_top = header_top
+        box_h = 86
+        set_stroke(INVOICE_DARK)
+        c.setLineWidth(1.3)
+        c.rect(box_x, box_top - box_h, box_w, box_h, fill=0, stroke=1)
+        set_fill(INVOICE_DARK)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(box_x + 14, box_top - 18, f"FACTURE N° {document_number}")
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 9)
+        c.drawString(box_x + 14, box_top - 36, f"Date : {now_str}")
+        c.drawString(box_x + 14, box_top - 50, f"Échéance : {due_date}")
+
+        sections_top = box_top - box_h - 22
+        box_width = (width - 80 - 16) / 2
+        draw_party_box(40, sections_top, box_width, "ÉMETTEUR", issuer_lines)
+        draw_party_box(40 + box_width + 16, sections_top, box_width, "CLIENT", client_lines)
+
+        table_top = sections_top - 132
+        table_x = 40
+        table_w = width - 80
+        description_w = 248
+        qty_w = 52
+        price_ht_w = 84
+        tva_w = 64
+        total_ttc_w = table_w - description_w - qty_w - price_ht_w - tva_w
+        row_h = 72
+
+        set_fill(INVOICE_DARK)
+        c.rect(table_x, table_top - 24, table_w, 24, fill=1, stroke=0)
+        headers = [
+            ("Description", table_x + 10),
+            ("Qté", table_x + description_w + 10),
+            ("Prix HT", table_x + description_w + qty_w + 10),
+            ("TVA", table_x + description_w + qty_w + price_ht_w + 10),
+            ("Total TTC", table_x + description_w + qty_w + price_ht_w + tva_w + 10),
+        ]
+        set_fill(WHITE)
+        c.setFont("Helvetica-Bold", 8.6)
+        for header_text, x_pos in headers:
+            c.drawString(x_pos, table_top - 16, header_text)
+
+        set_stroke(INVOICE_BORDER)
+        c.setLineWidth(0.8)
+        c.rect(table_x, table_top - 24 - row_h, table_w, row_h, fill=0, stroke=1)
+        column_xs = [
+            table_x + description_w,
+            table_x + description_w + qty_w,
+            table_x + description_w + qty_w + price_ht_w,
+            table_x + description_w + qty_w + price_ht_w + tva_w,
+        ]
+        for x_pos in column_xs:
+            c.line(x_pos, table_top - 24, x_pos, table_top - 24 - row_h)
+
+        description_lines = [
+            service_description,
+            f"Départ : {clean_pdf_value(booking.get('pickup_address'))}",
+            f"Arrivée : {clean_pdf_value(booking.get('dropoff_address'))}",
+            f"Date : {clean_pdf_value(booking.get('pickup_date'))} à {clean_pdf_value(booking.get('pickup_time'))}",
+        ]
+        text_y = table_top - 38
+        set_fill(DARK)
+        c.setFont("Helvetica-Bold", 9.2)
+        c.drawString(table_x + 10, text_y, description_lines[0])
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 8.7)
+        for detail_line in description_lines[1:]:
+            text_y -= 11
+            c.drawString(table_x + 10, text_y, detail_line)
+
+        set_fill(DARK)
+        c.setFont("Helvetica", 9.2)
+        c.drawCentredString(table_x + description_w + (qty_w / 2), table_top - 55, invoice_qty)
+        c.drawRightString(table_x + description_w + qty_w + price_ht_w - 10, table_top - 55, f"{line_price_ht:.2f} EUR")
+        c.drawCentredString(
+            table_x + description_w + qty_w + price_ht_w + (tva_w / 2),
+            table_top - 55,
+            f"{round_amount(resolved_client_tva_rate * 100):.0f}%",
+        )
+        c.drawRightString(table_x + table_w - 10, table_top - 55, f"{breakdown['price_ttc']:.2f} EUR")
+
+        payment_top = table_top - 24 - row_h - 22
+        payment_h = 76
+        payment_w = 250
+        set_stroke(INVOICE_BORDER)
+        c.setLineWidth(0.9)
+        c.rect(table_x, payment_top - payment_h, payment_w, payment_h, fill=0, stroke=1)
+        set_fill(INVOICE_DARK)
+        c.rect(table_x, payment_top - 22, payment_w, 22, fill=1, stroke=0)
+        set_fill(WHITE)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(table_x + 12, payment_top - 15, "INFORMATIONS DE PAIEMENT")
+        set_fill(DARK)
+        c.setFont("Helvetica", 9)
+        c.drawString(table_x + 12, payment_top - 38, f"Mode de paiement : {payment_method_label}")
+        c.drawString(table_x + 12, payment_top - 52, f"Statut : {payment_status_label}")
+        c.drawString(table_x + 12, payment_top - 66, f"IBAN : {company_iban}")
+
+        totals_w = 214
+        totals_x = table_x + table_w - totals_w
+        totals_top = payment_top
+        line_gap = 18
+        set_stroke(INVOICE_BORDER)
+        c.setLineWidth(0.9)
+        c.rect(totals_x, totals_top - 58, totals_w, 58, fill=0, stroke=1)
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 9)
+        c.drawString(totals_x + 14, totals_top - 16, "Total HT")
+        c.drawRightString(totals_x + totals_w - 14, totals_top - 16, f"{breakdown['price_ht']:.2f} EUR")
+        c.drawString(totals_x + 14, totals_top - 16 - line_gap, f"Montant TVA ({round_amount(resolved_client_tva_rate * 100):.0f}%)")
+        c.drawRightString(totals_x + totals_w - 14, totals_top - 16 - line_gap, f"{breakdown['tva_client']:.2f} EUR")
+        set_fill(INVOICE_GOLD)
+        c.rect(totals_x, totals_top - 84, totals_w, 22, fill=1, stroke=0)
+        set_fill(DARK)
+        c.setFont("Helvetica-Bold", 9.5)
+        c.drawString(totals_x + 14, totals_top - 76, "TOTAL TTC")
+        c.drawRightString(totals_x + totals_w - 14, totals_top - 76, f"{breakdown['price_ttc']:.2f} EUR")
+
+        footer_y = 42
+        set_stroke(INVOICE_BORDER)
+        c.line(40, footer_y + 22, width - 40, footer_y + 22)
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 7.8)
+        c.drawCentredString(
+            width / 2,
+            footer_y + 8,
+            f"{clean_pdf_value(settings.get('company_name'))} — SIRET : {clean_pdf_value(settings.get('company_siret'))} — N° VTC : {clean_pdf_value(settings.get('company_vtc_number'))}"
+        )
+        c.drawCentredString(
+            width / 2,
+            footer_y - 4,
+            "Paiement sous 30 jours. Merci de votre confiance."
+        )
+
+        c.showPage()
+        c.save()
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        return pdf_bytes
 
     if is_order_document:
         ORDER_GOLD = (0.79, 0.64, 0.20)
@@ -3305,6 +3562,9 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
             vehicle_category_name = category["name"]
 
     payment_mode = booking.payment_mode or "deferred"
+    payment_method = normalize_payment_method_code(booking.payment_method)
+    payment_status = normalize_payment_status_code(booking.payment_status) or "pending"
+    payment_completed_at = datetime.now(timezone.utc) if payment_status == "paid" else None
 
     booking_doc = {
         "id": str(uuid.uuid4()),
@@ -3329,13 +3589,14 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "notes": booking.notes,
         "disposition_hours": booking.disposition_hours,
         "status": "QUOTE_ACCEPTED",
-        "payment_status": "not_required",
+        "payment_status": payment_status,
+        "payment_method": payment_method,
         "payment_mode": payment_mode,
-        "payment_completed_at": None,
+        "payment_completed_at": payment_completed_at,
         "stripe_checkout_session_id": None,
         "stripe_payment_intent_id": None,
-        "paid_amount": None,
-        "paid_currency": None,
+        "paid_amount": booking.estimated_price if payment_status == "paid" else None,
+        "paid_currency": "eur" if payment_status == "paid" else None,
         "driver_id": None,
         "driver_name": None,
         "driver_display_name": None,
@@ -3570,8 +3831,28 @@ async def admin_update_booking(booking_id: str, payload: dict, request: Request)
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", "transfer_type", "estimated_price", "vehicle_category_id"]
+    allowed_fields = [
+        "pickup_address",
+        "dropoff_address",
+        "pickup_date",
+        "pickup_time",
+        "notes",
+        "transfer_type",
+        "estimated_price",
+        "vehicle_category_id",
+        "payment_method",
+        "payment_status",
+    ]
     update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    if "payment_method" in update_data:
+        update_data["payment_method"] = normalize_payment_method_code(update_data.get("payment_method"))
+    if "payment_status" in update_data:
+        normalized_payment_status = normalize_payment_status_code(update_data.get("payment_status")) or "pending"
+        update_data["payment_status"] = normalized_payment_status
+        resolved_estimated_price = update_data.get("estimated_price", booking.get("estimated_price"))
+        update_data["payment_completed_at"] = datetime.now(timezone.utc) if normalized_payment_status == "paid" else None
+        update_data["paid_amount"] = resolved_estimated_price if normalized_payment_status == "paid" else None
+        update_data["paid_currency"] = "eur" if normalized_payment_status == "paid" else None
     await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
     return await db.bookings.find_one({"id": booking_id}, {"_id": 0})
 

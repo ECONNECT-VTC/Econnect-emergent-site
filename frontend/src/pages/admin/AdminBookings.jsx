@@ -12,6 +12,13 @@ import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, normalizeCourseStatus, stat
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
+import {
+  formatPaymentMethodLabel,
+  normalizeEditablePaymentStatus,
+  normalizePaymentMethod,
+  PAYMENT_METHOD_OPTIONS,
+  PAYMENT_STATUS_OPTIONS,
+} from '@/utils/paymentUtils';
 import { buildAdminEstimatePriceQuery, toOptionalNumber } from './adminBookingUtils';
 
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
@@ -41,7 +48,9 @@ const getInitialCreateForm = () => ({
   distance_km: '',
   duration_minutes: '',
   disposition_hours: '',
-  payment_mode: 'deferred'
+  payment_mode: 'deferred',
+  payment_method: '',
+  payment_status: 'pending',
 });
 
 const TIME_SLOTS = Array.from({ length: 48 }, (_, i) => {
@@ -282,7 +291,9 @@ const AdminBookings = () => {
           distance_km: toOptionalNumber(createForm.distance_km),
           duration_minutes: toOptionalNumber(createForm.duration_minutes),
           disposition_hours: toOptionalNumber(createForm.disposition_hours),
-          payment_mode: createForm.payment_mode || 'deferred'
+          payment_mode: createForm.payment_mode || 'deferred',
+          payment_method: normalizePaymentMethod(createForm.payment_method) || null,
+          payment_status: createForm.payment_status || 'pending',
         },
         { withCredentials: true }
       );
@@ -445,6 +456,8 @@ const AdminBookings = () => {
       pickup_time: booking.pickup_time || '',
       notes: booking.notes || '',
       estimated_price: booking.estimated_price != null ? String(booking.estimated_price) : '',
+      payment_method: normalizePaymentMethod(booking.payment_method),
+      payment_status: normalizeEditablePaymentStatus(booking.payment_status),
     });
     setEditDialogOpen(true);
   };
@@ -457,6 +470,8 @@ const AdminBookings = () => {
       const payload = { ...editForm };
       if (payload.estimated_price !== '') payload.estimated_price = Number(payload.estimated_price);
       else delete payload.estimated_price;
+      payload.payment_method = normalizePaymentMethod(payload.payment_method) || null;
+      payload.payment_status = payload.payment_status || 'pending';
       await axios.put(`${API_URL}/api/admin/bookings/${editingBooking.id}`, payload, { withCredentials: true });
       setEditDialogOpen(false);
       setEditingBooking(null);
@@ -697,6 +712,7 @@ const AdminBookings = () => {
                   {booking.disposition_hours != null && (
                     <p className="text-[#A1A1AA]">⏱ Mise à disposition: <span className="text-white">{booking.disposition_hours}h</span></p>
                   )}
+                  <p className="text-[#A1A1AA]">💳 Mode de paiement: <span className="text-white">{formatPaymentMethodLabel(booking.payment_method)}</span></p>
                   {booking.transfer_type === 'disposition' && booking.estimated_price != null && (
                     <p className="text-[#D4AF37]">Tarif horaire réservé: {Number(booking.estimated_price).toFixed(2)}€</p>
                   )}
@@ -892,7 +908,7 @@ const AdminBookings = () => {
               />
             </div>
             <div className="md:col-span-2">
-              <p className="text-sm text-[#A1A1AA] mb-2">Mode de paiement</p>
+              <p className="text-sm text-[#A1A1AA] mb-2">Déclenchement du paiement</p>
               <Select value={createForm.payment_mode} onValueChange={(v) => updateCreateField('payment_mode', v)}>
                 <SelectTrigger className="bg-[#1E1E1E] border-white/10">
                   <SelectValue />
@@ -908,6 +924,33 @@ const AdminBookings = () => {
               {createForm.payment_mode === 'deferred' && (
                 <p className="mt-1 text-xs text-[#A1A1AA]">La course sera créée sans paiement obligatoire. Le client pourra la consulter dans son espace s'il a un compte.</p>
               )}
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Mode de paiement</p>
+              <Select value={createForm.payment_method || 'unspecified'} onValueChange={(value) => updateCreateField('payment_method', value === 'unspecified' ? '' : value)}>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                  <SelectValue placeholder="Choisir un mode" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1E1E1E] border-white/10">
+                  <SelectItem value="unspecified">Non renseigné</SelectItem>
+                  {PAYMENT_METHOD_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Statut de paiement</p>
+              <Select value={createForm.payment_status} onValueChange={(value) => updateCreateField('payment_status', value)}>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1E1E1E] border-white/10">
+                  {PAYMENT_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="md:col-span-2">
               <p className="text-sm text-[#A1A1AA] mb-2">Notes</p>
@@ -1069,6 +1112,33 @@ const AdminBookings = () => {
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Prix estimé (€)</p>
               <Input type="number" min="0" step="0.01" value={editForm.estimated_price || ''} onChange={(e) => setEditForm({ ...editForm, estimated_price: e.target.value })} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Mode de paiement</p>
+              <Select value={editForm.payment_method || 'unspecified'} onValueChange={(value) => setEditForm({ ...editForm, payment_method: value === 'unspecified' ? '' : value })}>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                  <SelectValue placeholder="Choisir un mode" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1E1E1E] border-white/10">
+                  <SelectItem value="unspecified">Non renseigné</SelectItem>
+                  {PAYMENT_METHOD_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Statut de paiement</p>
+              <Select value={editForm.payment_status || 'pending'} onValueChange={(value) => setEditForm({ ...editForm, payment_status: value })}>
+                <SelectTrigger className="bg-[#1E1E1E] border-white/10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1E1E1E] border-white/10">
+                  {PAYMENT_STATUS_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {error && <p className="text-sm text-red-400">{error}</p>}
             <Button onClick={handleEditSubmit} disabled={editSubmitting} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
