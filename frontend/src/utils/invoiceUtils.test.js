@@ -4,6 +4,7 @@ import {
   generateInvoiceNumber,
   calculateVatAmount,
   getClientVatRate,
+  isDispositionTransfer,
 } from './invoiceUtils';
 
 describe('invoiceUtils', () => {
@@ -32,5 +33,17 @@ describe('invoiceUtils', () => {
     expect(getClientVatRate(undefined)).toBe(0.1);
     expect(getClientVatRate(null)).toBe(0.1);
     expect(getClientVatRate('simple')).toBe(0.1);
+  });
+
+  it('isDispositionTransfer correctly identifies disposition bookings', () => {
+    expect(isDispositionTransfer('Mise à disposition')).toBe(true);
+    expect(isDispositionTransfer('mise a disposition')).toBe(true);
+    expect(isDispositionTransfer('DISPOSITION')).toBe(true);
+    expect(isDispositionTransfer('disposition')).toBe(true);
+    expect(isDispositionTransfer('simple')).toBe(false);
+    expect(isDispositionTransfer('Berline')).toBe(false);
+    expect(isDispositionTransfer('')).toBe(false);
+    expect(isDispositionTransfer(null)).toBe(false);
+    expect(isDispositionTransfer(undefined)).toBe(false);
   });
 });

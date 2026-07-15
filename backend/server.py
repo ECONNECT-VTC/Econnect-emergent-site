@@ -1113,6 +1113,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         INVOICE_BORDER = (0.82, 0.82, 0.82)
         INVOICE_MUTED = (0.38, 0.38, 0.38)
         INVOICE_LIGHT = (0.96, 0.96, 0.96)
+        # Slightly lighter shade for section header backgrounds (reduced opacity)
+        INVOICE_HEADER_BG = (0.22, 0.22, 0.22)
 
         def draw_wrapped_text(x_pos: float, y_pos: float, text: str, max_width: float, line_height: float = 10.5) -> float:
             safe_text = text or "N/A"
@@ -1126,7 +1128,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             set_stroke(INVOICE_BORDER)
             c.setLineWidth(0.9)
             c.rect(x_pos, bottom_y, width_box, height_box, fill=0, stroke=1)
-            set_fill(INVOICE_DARK)
+            set_fill(INVOICE_HEADER_BG)
             c.rect(x_pos, top_y - 22, width_box, 22, fill=1, stroke=0)
             set_fill(WHITE)
             c.setFont("Helvetica-Bold", 9)
@@ -1194,8 +1196,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         box_w = 172
         box_top = header_top
         box_h = 86
-        set_stroke(INVOICE_DARK)
-        c.setLineWidth(1.3)
+        set_stroke(INVOICE_BORDER)
+        c.setLineWidth(0.8)
         c.rect(box_x, box_top - box_h, box_w, box_h, fill=0, stroke=1)
         set_fill(INVOICE_DARK)
         c.setFont("Helvetica-Bold", 10)
@@ -1220,7 +1222,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         total_ttc_w = table_w - description_w - qty_w - price_ht_w - tva_w
         row_h = 72
 
-        set_fill(INVOICE_DARK)
+        set_fill(INVOICE_HEADER_BG)
         c.rect(table_x, table_top - 24, table_w, 24, fill=1, stroke=0)
         headers = [
             ("Description", table_x + 10),
@@ -1252,6 +1254,15 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             f"Arrivée : {clean_pdf_value(booking.get('dropoff_address'))}",
             f"Date : {clean_pdf_value(booking.get('pickup_date'))} à {clean_pdf_value(booking.get('pickup_time'))}",
         ]
+        # For mise à disposition, append the number of hours
+        _disposition_hours = booking.get('disposition_hours')
+        if is_disposition_transfer(booking.get('transfer_type')) and _disposition_hours:
+            try:
+                _hours_val = float(_disposition_hours)
+                if _hours_val > 0:
+                    description_lines.append(f"Durée : {_hours_val:g}h")
+            except (TypeError, ValueError):
+                pass
         text_y = table_top - 38
         set_fill(DARK)
         c.setFont("Helvetica-Bold", 9.2)
@@ -1273,13 +1284,19 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         )
         c.drawRightString(table_x + table_w - 10, table_top - 55, f"{breakdown['price_ttc']:.2f} EUR")
 
-        payment_top = table_top - 24 - row_h - 22
+        # Penalties article placed just below the table (per invoice requirements)
+        penalties_note_y = table_top - 24 - row_h - 12
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 8)
+        c.drawString(table_x, penalties_note_y, "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal.")
+
+        payment_top = penalties_note_y - 20
         payment_h = 76
         payment_w = 250
         set_stroke(INVOICE_BORDER)
         c.setLineWidth(0.9)
         c.rect(table_x, payment_top - payment_h, payment_w, payment_h, fill=0, stroke=1)
-        set_fill(INVOICE_DARK)
+        set_fill(INVOICE_HEADER_BG)
         c.rect(table_x, payment_top - 22, payment_w, 22, fill=1, stroke=0)
         set_fill(WHITE)
         c.setFont("Helvetica-Bold", 9)
@@ -1287,7 +1304,13 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         set_fill(DARK)
         c.setFont("Helvetica", 9)
         c.drawString(table_x + 12, payment_top - 38, f"Mode de paiement : {payment_method_label}")
+        # Payment status in bold yellow (consistent with TOTAL TTC)
+        set_fill(INVOICE_GOLD)
+        c.setFont("Helvetica-Bold", 9)
         c.drawString(table_x + 12, payment_top - 52, f"Statut : {payment_status_label}")
+        # IBAN fully bold (label + value)
+        set_fill(DARK)
+        c.setFont("Helvetica-Bold", 9)
         c.drawString(table_x + 12, payment_top - 66, f"IBAN : {company_iban}")
 
         totals_w = 214
@@ -1313,18 +1336,21 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         footer_y = 42
         set_stroke(INVOICE_BORDER)
         c.line(40, footer_y + 22, width - 40, footer_y + 22)
+        # Footer line 1: company name in bold + siret/vtc details
+        _company_name_str = clean_pdf_value(settings.get('company_name'))
+        _siret_str = clean_pdf_value(settings.get('company_siret'))
+        _vtc_str = clean_pdf_value(settings.get('company_vtc_number'))
+        _rest_str = f" — SIRET : {_siret_str} — N° VTC : {_vtc_str}"
+        _cn_width = c.stringWidth(_company_name_str, "Helvetica-Bold", 8)
+        _rest_width = c.stringWidth(_rest_str, "Helvetica", 8)
+        _line_start_x = (width - _cn_width - _rest_width) / 2
+        set_fill(DARK)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(_line_start_x, footer_y + 8, _company_name_str)
         set_fill(INVOICE_MUTED)
-        c.setFont("Helvetica", 7.8)
-        c.drawCentredString(
-            width / 2,
-            footer_y + 8,
-            f"{clean_pdf_value(settings.get('company_name'))} — SIRET : {clean_pdf_value(settings.get('company_siret'))} — N° VTC : {clean_pdf_value(settings.get('company_vtc_number'))}"
-        )
-        c.drawCentredString(
-            width / 2,
-            footer_y - 4,
-            "Paiement sous 30 jours. Merci de votre confiance."
-        )
+        c.setFont("Helvetica", 8)
+        c.drawString(_line_start_x + _cn_width, footer_y + 8, _rest_str)
+        c.drawCentredString(width / 2, footer_y - 4, "Merci de votre confiance.")
 
         c.showPage()
         c.save()

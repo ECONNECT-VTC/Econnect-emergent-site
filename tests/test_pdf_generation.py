@@ -167,6 +167,67 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self._assert_valid_pdf(pdf, "invoice (disposition TVA)")
         self.assertTrue(any("Montant TVA (20%)" == text for text in captured_strings))
 
+    def test_invoice_renders_disposition_hours(self):
+        """Mise à disposition invoices must display the booked duration in hours."""
+        booking = {
+            **SAMPLE_BOOKING,
+            "transfer_type": "Mise à disposition",
+            "disposition_hours": 3.0,
+        }
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "invoice", "000009D")
+
+        self._assert_valid_pdf(pdf, "invoice (disposition hours)")
+        self.assertTrue(
+            any("Durée : 3h" in text for text in captured_strings),
+            f"Expected 'Durée : 3h' in captured strings but got: {captured_strings}"
+        )
+
+    def test_invoice_disposition_hours_absent_for_standard_course(self):
+        """Standard course invoices must NOT display a Durée line."""
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "invoice", "000009E")
+
+        self._assert_valid_pdf(pdf, "invoice (no disposition hours)")
+        self.assertFalse(
+            any("Durée :" in text for text in captured_strings),
+            "Standard course should not contain a Durée line"
+        )
+
+    def test_invoice_renders_penalties_note_below_table(self):
+        """Penalties notice must appear in the invoice body (below the table), not only in the footer."""
+        captured_strings = []
+        captured_positions = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            captured_positions.append((x, y, str(text)))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "invoice", "000009F")
+
+        self._assert_valid_pdf(pdf, "invoice (penalties note)")
+        self.assertTrue(
+            any("Tout retard" in text for text in captured_strings),
+            "Expected penalties notice ('Tout retard...') to appear in the invoice"
+        )
+
     def test_order_legal_notice_contains_r3120_2_and_arrete_date(self):
         captured_strings = []
         original_draw_string = server.canvas.Canvas.drawString

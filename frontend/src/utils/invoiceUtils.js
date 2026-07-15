@@ -105,22 +105,30 @@ export const CLIENT_TVA_RATES = {
 };
 
 /**
+ * Return true when the transfer type corresponds to a mise à disposition service.
+ * Matches "disposition" in any accent-normalised form.
+ * @param {string|null|undefined} transferType
+ * @returns {boolean}
+ */
+export const isDispositionTransfer = (transferType) => {
+  const normalizedType = String(transferType || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  return normalizedType.includes('disposition');
+};
+
+/**
  * Return the client VAT rate based on transfer type.
  * VAT is 20% for disposition services and 10% for other courses.
  * @param {string} transferType
  * @returns {number}
  */
 export const getClientVatRate = (transferType) => {
-  const normalizedType = String(transferType || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .trim();
-
-  if (normalizedType.includes('disposition')) {
+  if (isDispositionTransfer(transferType)) {
     return CLIENT_TVA_RATES.disposition;
   }
-
   return CLIENT_TVA_RATES.standardCourse;
 };
 
