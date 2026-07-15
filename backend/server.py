@@ -852,6 +852,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     MID_GREY  = (0.30, 0.30, 0.30)
     LIGHT_BG  = (0.97, 0.97, 0.97)    # light grey panel background
     WHITE     = (1.0,  1.0,  1.0)
+    PRIMARY_TEXT = DARK
 
     def set_fill(rgb):
         c.setFillColorRGB(*rgb)
@@ -886,10 +887,10 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     if is_order_document:
         GOLD = (0.83, 0.69, 0.22)
         GOLD_LIGHT = (0.18, 0.15, 0.08)
-        DARK = (0.95, 0.95, 0.95)
         DARK_GREY = (0.09, 0.09, 0.09)
         MID_GREY = (0.78, 0.78, 0.78)
         LIGHT_BG = (0.13, 0.13, 0.13)
+        PRIMARY_TEXT = (0.95, 0.95, 0.95)
     issuer = booking.get("issuer", {
         "name": settings["company_name"],
         "address": settings["company_address"],
@@ -1062,7 +1063,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.drawString(col2_x + 4, y + 6, right_column_label)
     y -= 4
 
-    set_fill(DARK)
+    set_fill(PRIMARY_TEXT)
     c.setFont("Helvetica-Bold", 9)
     c.drawString(col1_x + 4, y, issuer["name"])
     if is_order_document:
@@ -1164,7 +1165,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         set_stroke(GOLD)
         c.setLineWidth(0.5)
         c.rect(36, y - band_h + 12, width - 72, band_h, fill=0, stroke=1)
-        set_fill(DARK)
+        set_fill(PRIMARY_TEXT)
         c.setFont("Helvetica-Bold", 8)
         for text, x in zip(cols_text, xs):
             if x < 0:   # negative x means right-aligned at |x|
@@ -1201,7 +1202,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         y -= 12
 
         # Payment method row
-        set_fill(DARK)
+        set_fill(PRIMARY_TEXT)
         c.setFont("Helvetica", 9)
         c.drawString(36, y, "Mode de paiement :")
         c.drawString(138, y, f"{'[X]' if payment_method == 'cb' else '[ ]'} CB")
@@ -1227,7 +1228,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(36, y, "Récapitulatif de la réservation")
         y -= 12
 
-        set_fill(DARK)
+        set_fill(PRIMARY_TEXT)
         c.drawString(36, y, "Mode de paiement :")
         c.drawString(138, y, f"{'[X]' if payment_method == 'cb' else '[ ]'} CB")
         c.drawString(216, y, f"{'[X]' if payment_method == 'cash' else '[ ]'} Espèces")
@@ -1248,7 +1249,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         # Driver / commission / activity
         draw_table_header_band(["DESCRIPTION", "MONTANT"], [40, -(width - 36)])
         y -= 3
-        set_fill(DARK)
+        set_fill(PRIMARY_TEXT)
         c.setFont("Helvetica", 9)
 
     if is_driver_statement:
@@ -1257,7 +1258,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             # Sub-header for activity columns
             set_fill(LIGHT_BG)
             c.rect(36, y - table_row_h + 4, width - 72, table_row_h + 2, fill=1, stroke=0)
-            set_fill(DARK)
+            set_fill(PRIMARY_TEXT)
             c.setFont("Helvetica-Bold", 8)
             c.drawString(x_date, y, "DATE")
             c.drawString(x_service, y, "SERVICE")
@@ -1287,7 +1288,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             y -= 16
         else:
             description = "Rémunération trajet"
-            set_fill(DARK)
+            set_fill(PRIMARY_TEXT)
             c.setFont("Helvetica", 9)
             c.drawString(36, y, f"{description} - {booking.get('transfer_type', 'VTC')}")
             c.drawRightString(width - 36, y, f"{breakdown['driver_earning']:.2f} EUR HT")
@@ -1321,7 +1322,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(300, y - 27, booking.get('client_email', 'N/A'))
         y -= 46 + 8
 
-        set_fill(DARK)
+        set_fill(PRIMARY_TEXT)
         c.setFont("Helvetica", 9)
         c.drawString(36, y, f"Commission de gestion - {booking.get('transfer_type', 'VTC')}")
         c.drawRightString(width - 36, y, f"{breakdown['commission_ht']:.2f} EUR")
