@@ -23,12 +23,13 @@ describe('Invoice templates legal TVA mentions', () => {
     const clientTemplatePath = path.join(__dirname, 'InvoiceClientTemplate.jsx');
     const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
 
-    // Penalties section must exist in the template body
-    expect(clientTemplate).toContain('Tout retard entraîne des pénalités');
-    // Penalties must appear BEFORE the footer section marker
+    expect(clientTemplate).toContain('Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif');
+    expect(clientTemplate).toContain('Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux');
+    // Legal notices must appear in the body before the footer section marker
     const footerStart = clientTemplate.lastIndexOf('── Footer ─');
-    const penaltiesIndex = clientTemplate.lastIndexOf('Tout retard entraîne des pénalités');
-    expect(penaltiesIndex).toBeGreaterThan(0);
+    const penaltiesIndex = clientTemplate.lastIndexOf('Article L441-10 du Code de commerce');
+    const paymentInfoIndex = clientTemplate.lastIndexOf('Informations de paiement');
+    expect(penaltiesIndex).toBeGreaterThan(paymentInfoIndex);
     expect(footerStart).toBeGreaterThan(0);
     expect(penaltiesIndex).toBeLessThan(footerStart);
   });
@@ -37,8 +38,9 @@ describe('Invoice templates legal TVA mentions', () => {
     const clientTemplatePath = path.join(__dirname, 'InvoiceClientTemplate.jsx');
     const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
 
-    // Payment status must use bold yellow classes (consistent with TOTAL TTC)
-    expect(clientTemplate).toContain('font-bold text-[#111111] bg-[#D4AF37]');
+    // Payment status must use bold gold text without yellow background
+    expect(clientTemplate).toContain('font-bold text-[#D4AF37]');
+    expect(clientTemplate).not.toContain('bg-[#D4AF37] px-2 py-0.5 rounded-sm');
     // IBAN must be fully bold (label + value together)
     expect(clientTemplate).toContain('font-bold font-mono');
     // IBAN label and value must be in the same element (no separate label span)
@@ -87,6 +89,8 @@ describe('Invoice templates legal TVA mentions', () => {
     const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
 
     expect(clientTemplate).toContain('N° TVA');
+    expect(clientTemplate).toContain("- SIRET : {companySiret} - N° TVA : {companyVatNumber}");
+    expect(clientTemplate).toContain("- Tél : {companyPhone} - {companyEmail} - N° VTC : {companyVtc}");
     expect(clientTemplate).not.toContain('Merci de votre confiance');
   });
 

@@ -150,6 +150,20 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self.assertTrue(any("Statut : Payée" == text for text in captured_strings))
         self.assertTrue(any("IBAN : FR76 3000 4000 5000 6000 7000 189" == text for text in captured_strings))
 
+    def test_invoice_renders_statut_a_payer_text(self):
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "invoice", "000009B2")
+
+        self._assert_valid_pdf(pdf, "invoice (statut à payer)")
+        self.assertTrue(any("Statut à payer" == text for text in captured_strings))
+
     def test_invoice_preserves_disposition_tva_rate(self):
         booking = {
             **SAMPLE_BOOKING,
@@ -225,11 +239,25 @@ class TestGenerateFinancialPDF(unittest.TestCase):
 
         self._assert_valid_pdf(pdf, "invoice (penalties note)")
         self.assertTrue(
-            any("Tout retard" in text for text in captured_strings),
-            "Expected penalties notice ('Tout retard...') to appear in the invoice"
+            any(
+                "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif" in text
+                for text in captured_strings
+            ),
+            "Expected article L441-10 legal notice to appear in the invoice",
+        )
+        self.assertTrue(
+            any(
+                "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux" in text
+                for text in captured_strings
+            ),
+            "Expected payment-delay legal notice to appear in the invoice",
         )
 
     def test_invoice_footer_contains_vat_number_and_removes_thanks(self):
+        settings = {
+            **SAMPLE_SETTINGS,
+            "company_name": "Econnect VTC SARL",
+        }
         captured_strings = []
         original_draw_string = server.canvas.Canvas.drawString
         original_draw_centered = server.canvas.Canvas.drawCentredString
@@ -244,10 +272,13 @@ class TestGenerateFinancialPDF(unittest.TestCase):
 
         with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string), \
              patch.object(server.canvas.Canvas, "drawCentredString", new=spy_draw_centered):
-            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "invoice", "000009G")
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, settings, "invoice", "000009G")
 
         self._assert_valid_pdf(pdf, "invoice (footer VAT)")
         self.assertTrue(any("N° TVA : FR00123456789" in text for text in captured_strings))
+        self.assertTrue(any("ECONNECT VTC SARL" in text for text in captured_strings))
+        self.assertTrue(any(" - SIRET : 12345678900001 - N° TVA : FR00123456789" in text for text in captured_strings))
+        self.assertFalse(any("—" in text for text in captured_strings))
         self.assertFalse(any("Merci de votre confiance." == text for text in captured_strings))
 
     def test_order_legal_notice_contains_r3120_2_and_arrete_date(self):
