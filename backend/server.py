@@ -584,6 +584,7 @@ class CommissionSettings(BaseModel):
     company_email: str = "À compléter"
     company_siret: str = "À compléter"
     company_vtc_number: str = "À compléter"
+    company_iban: str = "À compléter"
     updated_at: datetime
 
 class CommissionSettingsUpdate(BaseModel):
@@ -596,6 +597,7 @@ class CommissionSettingsUpdate(BaseModel):
     company_email: Optional[str] = None
     company_siret: Optional[str] = None
     company_vtc_number: Optional[str] = None
+    company_iban: Optional[str] = None
 
 class FinancialStats(BaseModel):
     total_revenue_ttc: float
@@ -714,6 +716,7 @@ def get_default_commission_settings() -> dict:
         "company_email": "À compléter",
         "company_siret": "À compléter",
         "company_vtc_number": "À compléter",
+        "company_iban": "À compléter",
         "updated_at": datetime.now(timezone.utc)
     }
 
