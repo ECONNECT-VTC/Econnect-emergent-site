@@ -1073,12 +1073,13 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     bagages_options = " • ".join(options_parts) if options_parts else "N/A"
 
     if is_order_document:
-        ORDER_GOLD = (0.83, 0.69, 0.22)
-        ORDER_DARK = (0.08, 0.08, 0.08)
-        ORDER_TEXT = (0.15, 0.15, 0.15)
-        ORDER_MUTED = (0.38, 0.38, 0.38)
-        ORDER_CARD = (0.98, 0.97, 0.95)
-        ORDER_BORDER = (0.86, 0.82, 0.72)
+        ORDER_GOLD = (0.79, 0.64, 0.20)
+        ORDER_DARK = (0.18, 0.18, 0.18)
+        ORDER_TEXT = (0.20, 0.20, 0.20)
+        ORDER_MUTED = (0.34, 0.34, 0.34)
+        ORDER_CARD = (0.985, 0.98, 0.96)
+        ORDER_BORDER = (0.82, 0.78, 0.70)
+        ORDER_CARD_SHADOW = (0.93, 0.91, 0.87)
 
         def set_order_fill(rgb):
             c.setFillColorRGB(*rgb)
@@ -1122,7 +1123,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             width: float,
             title: str,
             rows: list[tuple[str, Any]],
-            card_height: Optional[float] = None
+            card_height: Optional[float] = None,
+            label_width: float = 118,
         ) -> float:
             """Render a rounded information card and return its bottom Y coordinate.
 
@@ -1136,31 +1138,32 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             Returns:
                 The bottom Y coordinate of the rendered card.
             """
-            label_width = 118
             value_x = x + 18 + label_width
             value_width = width - 28 - label_width
             resolved_height = card_height or measure_card_height(rows, width, label_width=label_width)
             bottom_y = top_y - resolved_height
 
+            set_order_fill(ORDER_CARD_SHADOW)
+            c.roundRect(x + 1.8, bottom_y - 1.8, width, resolved_height, 14, fill=1, stroke=0)
             set_order_fill(ORDER_CARD)
             set_order_stroke(ORDER_BORDER)
             c.setLineWidth(1)
             c.roundRect(x, bottom_y, width, resolved_height, 14, fill=1, stroke=1)
 
             set_order_fill(ORDER_GOLD)
-            c.setFont("Helvetica-Bold", 9)
+            c.setFont("Helvetica-Bold", 10)
             c.drawString(x + 18, top_y - 18, title)
 
             cursor_y = top_y - 36
             for label, value in rows:
                 set_order_fill(ORDER_MUTED)
-                c.setFont("Helvetica-Bold", 8.4)
+                c.setFont("Helvetica-Bold", 8.8)
                 c.drawString(x + 18, cursor_y, f"{label} :")
                 set_order_fill(ORDER_TEXT)
-                c.setFont("Helvetica", 9)
+                c.setFont("Helvetica", 9.4)
                 display_value = clean_pdf_value(value)
                 consumed_height = draw_wrapped_value(value_x, cursor_y, display_value, value_width)
-                cursor_y -= consumed_height + 7
+                cursor_y -= consumed_height + 8
 
             return bottom_y
 
@@ -1236,12 +1239,20 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             ("Date et heure de réservation", reservation_datetime),
             ("Date et heure de prise en charge", pickup_datetime),
             ("Lieu de prise en charge", booking.get("pickup_address")),
-            ("Destination", booking.get("dropoff_address")),
         ]
-        trip_bottom = draw_info_card(36, current_y, width - 72, "DÉTAILS DE LA COURSE", trip_rows, card_height=measure_card_height(trip_rows, width - 72, min_height=138))
+        trip_bottom = draw_info_card(
+            36,
+            current_y,
+            width - 72,
+            "DÉTAILS DE LA COURSE",
+            trip_rows,
+            card_height=measure_card_height(trip_rows, width - 72, label_width=164, min_height=138),
+            label_width=164,
+        )
 
         current_y = trip_bottom - 16
         complementary_rows = [
+            ("Destination", booking.get("dropoff_address")),
             ("Nombre de passagers", passenger_count),
             ("Prix total TTC", f"{breakdown['price_ttc']:.2f} EUR"),
             ("Mode de paiement", payment_method_label),
@@ -1253,7 +1264,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             width - 72,
             "MENTIONS COMPLÉMENTAIRES",
             complementary_rows,
-            card_height=measure_card_height(complementary_rows, width - 72, min_height=122),
+            card_height=measure_card_height(complementary_rows, width - 72, label_width=152, min_height=122),
+            label_width=152,
         )
 
         total_box_top = complementary_bottom - 18
@@ -1277,7 +1289,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(
             36,
             footer_y,
-            "Justification de réservation préalable : Article R3120-2 du code des transports - Arrêté du 6 août 2025."
+            "Réservation préalable conforme à l’article R3120-2 du Code des transports et à l’Arrêté du 6 août 2025."
         )
 
         c.showPage()
