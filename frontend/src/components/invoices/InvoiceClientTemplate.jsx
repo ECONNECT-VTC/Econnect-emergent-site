@@ -68,7 +68,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const paymentStatusLabel = formatPaymentStatusLabel(booking.payment_status);
   const paymentStatusText = `Statut : ${paymentStatusLabel}`;
   const footerCompanyName = companyName.replace(/econnect/gi, 'ECONNECT');
-  const normalizeInvoiceValue = (value, fallback = 'N/A') => {
+  const sanitizeInvoiceValue = (value, fallback = 'N/A') => {
     const text = String(value ?? '').trim();
     if (!text) return fallback;
     const normalized = text.toLowerCase();
@@ -77,13 +77,13 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
     }
     return text;
   };
-  const partnerCompanyName = normalizeInvoiceValue(
+  const partnerCompanyName = sanitizeInvoiceValue(
     booking?.issuer?.name || booking?.document_driver_company || booking?.driver_name
   );
-  const partnerCompanyAddress = normalizeInvoiceValue(
+  const partnerCompanyAddress = sanitizeInvoiceValue(
     booking?.issuer?.address || booking?.document_driver_address || booking?.driver_address
   );
-  const partnerCompanyVat = normalizeInvoiceValue(
+  const partnerCompanyVat = sanitizeInvoiceValue(
     booking?.document_driver_company_vat_number
       || booking?.document_driver_company_tva_number
       || booking?.issuer?.vat_number

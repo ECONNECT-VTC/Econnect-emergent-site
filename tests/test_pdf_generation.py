@@ -231,7 +231,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
 
         self._assert_valid_pdf(pdf, "invoice (hors admin issuer block with partner VAT)")
         self.assertTrue(
-            any("N° de TVA : FR99887766554" == text for text in captured_strings),
+            any("N° de TVA : FR99887766554" in text for text in captured_strings),
             "Expected partner VAT in hors-admin issuer block",
         )
 

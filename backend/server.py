@@ -1161,26 +1161,27 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             clean_pdf_value(booking.get("client_email")),
             clean_pdf_value(booking.get("client_phone")),
         ]
-        partner_vat_number = clean_pdf_value(
-            booking.get("document_driver_company_vat_number")
-            or booking.get("document_driver_company_tva_number")
-            or issuer.get("vat_number")
-            or issuer.get("company_vat_number")
-            or issuer.get("company_tva_number")
-        )
-        issuer_lines = [
-            clean_pdf_value(issuer.get("name")),
-            clean_pdf_value(issuer.get("address")),
-            clean_pdf_value(issuer.get("email")),
-            f"Tél : {clean_pdf_value(issuer.get('phone'))}",
-        ]
         if issuer.get("is_driver_issuer"):
+            partner_vat_number = clean_pdf_value(
+                booking.get("document_driver_company_vat_number")
+                or booking.get("document_driver_company_tva_number")
+                or issuer.get("vat_number")
+                or issuer.get("company_vat_number")
+                or issuer.get("company_tva_number")
+            )
             issuer_lines = [
                 clean_pdf_value(settings.get("company_name")),
                 "Facture émise par ECONNECT VTC pour :",
                 clean_pdf_value(issuer.get("name")),
                 clean_pdf_value(issuer.get("address")),
                 f"N° de TVA : {partner_vat_number}",
+            ]
+        else:
+            issuer_lines = [
+                clean_pdf_value(issuer.get("name")),
+                clean_pdf_value(issuer.get("address")),
+                clean_pdf_value(issuer.get("email")),
+                f"Tél : {clean_pdf_value(issuer.get('phone'))}",
             ]
 
         c.setFillColorRGB(1, 1, 1)
