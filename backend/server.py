@@ -997,7 +997,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             return "N/A"
         return text
 
-    def format_schedule(date_value, time_value) -> str:
+    def format_schedule(date_value: Any, time_value: Any) -> str:
         """Combine separate date/time inputs into a single printable reservation slot.
 
         Args:
@@ -1015,7 +1015,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             return date_text
         return f"{date_text} à {time_text}"
 
-    def format_booking_creation(value) -> str:
+    def format_booking_creation(value: Any) -> str:
         """Format the booking creation timestamp for the order form header.
 
         Args:
@@ -1087,7 +1087,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             c.setStrokeColorRGB(*rgb)
 
         def draw_wrapped_value(x: float, y_pos: float, text: str, max_width: float, line_height: float = 11.5) -> float:
-            wrapped_lines = simpleSplit(text, "Helvetica", 9, max_width) or ["N/A"]
+            safe_text = text or "N/A"
+            wrapped_lines = simpleSplit(safe_text, "Helvetica", 9, max_width) or [safe_text]
             for idx, line in enumerate(wrapped_lines):
                 c.drawString(x, y_pos - (idx * line_height), line)
             return len(wrapped_lines) * line_height
@@ -1098,7 +1099,16 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             label_width: float = 118,
             min_height: float = 120
         ) -> float:
-            """Return the required card height after accounting for wrapped row values."""
+            """Return the required card height after accounting for wrapped row values.
+
+            Args:
+                rows: Ordered list of ``(label, value)`` tuples rendered inside the card.
+                width: Outer card width in PDF points.
+                label_width: Reserved width for the left-hand label column.
+                min_height: Minimum card height to preserve visual balance.
+            Returns:
+                The card height in PDF points.
+            """
             value_width = width - 28 - label_width
             total_height = 34
             for _, value in rows:
@@ -1114,7 +1124,18 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             rows: list[tuple[str, Any]],
             card_height: Optional[float] = None
         ) -> float:
-            """Render a rounded information card and return its bottom Y coordinate."""
+            """Render a rounded information card and return its bottom Y coordinate.
+
+            Args:
+                x: Left coordinate of the card.
+                top_y: Top coordinate of the card in PDF points.
+                width: Outer card width in PDF points.
+                title: Section title displayed in the card header.
+                rows: Ordered list of ``(label, value)`` tuples rendered inside the card.
+                card_height: Optional fixed card height. When omitted, height is computed.
+            Returns:
+                The bottom Y coordinate of the rendered card.
+            """
             label_width = 118
             value_x = x + 18 + label_width
             value_width = width - 28 - label_width
