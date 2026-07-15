@@ -587,6 +587,7 @@ class CommissionSettings(BaseModel):
     company_email: str = "À compléter"
     company_siret: str = "À compléter"
     company_vtc_number: str = "À compléter"
+    company_vat_number: str = "À compléter"
     company_iban: str = "À compléter"
     updated_at: datetime
 
@@ -600,6 +601,7 @@ class CommissionSettingsUpdate(BaseModel):
     company_email: Optional[str] = None
     company_siret: Optional[str] = None
     company_vtc_number: Optional[str] = None
+    company_vat_number: Optional[str] = None
     company_iban: Optional[str] = None
 
 class FinancialStats(BaseModel):
@@ -719,6 +721,7 @@ def get_default_commission_settings() -> dict:
         "company_email": "À compléter",
         "company_siret": "À compléter",
         "company_vtc_number": "À compléter",
+        "company_vat_number": "À compléter",
         "company_iban": "À compléter",
         "updated_at": datetime.now(timezone.utc)
     }
@@ -1114,7 +1117,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         INVOICE_MUTED = (0.38, 0.38, 0.38)
         INVOICE_LIGHT = (0.96, 0.96, 0.96)
         # Slightly lighter shade for section header backgrounds (reduced opacity)
-        INVOICE_HEADER_BG = (0.22, 0.22, 0.22)
+        INVOICE_HEADER_BG = (0.28, 0.28, 0.28)
 
         def draw_wrapped_text(x_pos: float, y_pos: float, text: str, max_width: float, line_height: float = 10.5) -> float:
             safe_text = text or "N/A"
@@ -1143,6 +1146,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
         due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%d/%m/%Y")
         company_iban = clean_pdf_value(settings.get("company_iban"))
+        company_vat_number = clean_pdf_value(settings.get("company_vat_number") or settings.get("company_tva_number"))
         service_description = "Mise à disposition VTC" if is_disposition_transfer(booking.get("transfer_type")) else "Course VTC"
         invoice_qty = "1"
         client_lines = [
@@ -1161,16 +1165,22 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.rect(0, 0, width, height, fill=1, stroke=0)
 
         header_top = height - 42
+        branding_x = 40
+        branding_y = header_top - 70
+        branding_w = 220
+        branding_h = 68
+        set_fill(INVOICE_LIGHT)
+        c.roundRect(branding_x, branding_y, branding_w, branding_h, 6, fill=1, stroke=0)
         logo_drawn = False
         try:
             img = ImageReader(str(LOGO_PATH))
             img_w, img_h = img.getSize()
-            logo_h = 62
+            logo_h = 54
             logo_w = logo_h * img_w / img_h
             c.drawImage(
                 img,
-                40,
-                header_top - 68,
+                branding_x + ((branding_w - logo_w) / 2),
+                branding_y + ((branding_h - logo_h) / 2),
                 width=logo_w,
                 height=logo_h,
                 mask='auto',
@@ -1180,24 +1190,17 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         except Exception as exc:
             logger.warning("PDF logo could not be drawn (%s); using text fallback.", exc)
 
-        set_fill(INVOICE_DARK)
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(120 if logo_drawn else 40, header_top - 18, clean_pdf_value(settings.get("company_name")))
-        c.setFont("Helvetica", 9)
-        c.drawString(120 if logo_drawn else 40, header_top - 34, clean_pdf_value(settings.get("company_address")))
-        c.drawString(120 if logo_drawn else 40, header_top - 48, clean_pdf_value(settings.get("company_email")))
-
         if not logo_drawn:
-            set_fill(INVOICE_GOLD)
+            set_fill(INVOICE_DARK)
             c.setFont("Helvetica-Bold", 16)
-            c.drawString(40, header_top - 66, "ECONNECT VTC")
+            c.drawCentredString(branding_x + (branding_w / 2), branding_y + 27, "ECONNECT VTC")
 
         box_x = width - 212
         box_w = 172
         box_top = header_top
         box_h = 86
         set_stroke(INVOICE_BORDER)
-        c.setLineWidth(0.8)
+        c.setLineWidth(0.7)
         c.rect(box_x, box_top - box_h, box_w, box_h, fill=0, stroke=1)
         set_fill(INVOICE_DARK)
         c.setFont("Helvetica-Bold", 10)
@@ -1288,10 +1291,10 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         penalties_note_y = table_top - 24 - row_h - 12
         set_fill(INVOICE_MUTED)
         c.setFont("Helvetica", 8)
-        c.drawString(table_x, penalties_note_y, "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal.")
+        c.drawString(table_x, penalties_note_y, "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif.")
 
         payment_top = penalties_note_y - 20
-        payment_h = 76
+        payment_h = 92
         payment_w = 250
         set_stroke(INVOICE_BORDER)
         c.setLineWidth(0.9)
@@ -1304,14 +1307,26 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         set_fill(DARK)
         c.setFont("Helvetica", 9)
         c.drawString(table_x + 12, payment_top - 38, f"Mode de paiement : {payment_method_label}")
-        # Payment status in bold yellow (consistent with TOTAL TTC)
+        # Payment status in bold with yellow background
+        status_line = f"Statut : {payment_status_label}"
+        status_y = payment_top - 52
+        status_w = c.stringWidth(status_line, "Helvetica-Bold", 9)
         set_fill(INVOICE_GOLD)
+        c.rect(table_x + 10, status_y - 3, status_w + 6, 12, fill=1, stroke=0)
+        set_fill(DARK)
         c.setFont("Helvetica-Bold", 9)
-        c.drawString(table_x + 12, payment_top - 52, f"Statut : {payment_status_label}")
+        c.drawString(table_x + 13, status_y, status_line)
         # IBAN fully bold (label + value)
         set_fill(DARK)
         c.setFont("Helvetica-Bold", 9)
         c.drawString(table_x + 12, payment_top - 66, f"IBAN : {company_iban}")
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 8)
+        c.drawString(
+            table_x + 12,
+            payment_top - 80,
+            "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal",
+        )
 
         totals_w = 214
         totals_x = table_x + table_w - totals_w
@@ -1336,11 +1351,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         footer_y = 42
         set_stroke(INVOICE_BORDER)
         c.line(40, footer_y + 22, width - 40, footer_y + 22)
-        # Footer line 1: company name in bold + siret/vtc details
+        # Footer line 1: company name in bold + identifiers
         _company_name_str = clean_pdf_value(settings.get('company_name'))
         _siret_str = clean_pdf_value(settings.get('company_siret'))
         _vtc_str = clean_pdf_value(settings.get('company_vtc_number'))
-        _rest_str = f" — SIRET : {_siret_str} — N° VTC : {_vtc_str}"
+        _rest_str = f" — SIRET : {_siret_str} — N° TVA : {company_vat_number}"
         _cn_width = c.stringWidth(_company_name_str, "Helvetica-Bold", 8)
         _rest_width = c.stringWidth(_rest_str, "Helvetica", 8)
         _line_start_x = (width - _cn_width - _rest_width) / 2
@@ -1350,7 +1365,12 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         set_fill(INVOICE_MUTED)
         c.setFont("Helvetica", 8)
         c.drawString(_line_start_x + _cn_width, footer_y + 8, _rest_str)
-        c.drawCentredString(width / 2, footer_y - 4, "Merci de votre confiance.")
+        c.drawCentredString(
+            width / 2,
+            footer_y - 4,
+            f"{clean_pdf_value(settings.get('company_address'))} — Tél : {clean_pdf_value(settings.get('company_phone'))} — {clean_pdf_value(settings.get('company_email'))}",
+        )
+        c.drawCentredString(width / 2, footer_y - 16, f"N° VTC : {_vtc_str}")
 
         c.showPage()
         c.save()
@@ -3420,6 +3440,9 @@ async def get_all_bookings(request: Request, status: Optional[str] = None, inclu
             query["status"] = {"$nin": ["DRAFT", "QUOTE_SENT"]}
 
     bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    for booking in bookings:
+        booking["payment_method"] = normalize_payment_method_code(booking.get("payment_method"), fallback=booking.get("notes"))
+        booking["payment_status"] = normalize_payment_status_code(booking.get("payment_status")) or "pending"
     return [BookingResponse(**b) for b in bookings]
 
 @api_router.get("/admin/bookings/{booking_id}", response_model=BookingResponse)
@@ -3428,6 +3451,8 @@ async def get_admin_booking_detail(booking_id: str, request: Request):
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    booking["payment_method"] = normalize_payment_method_code(booking.get("payment_method"), fallback=booking.get("notes"))
+    booking["payment_status"] = normalize_payment_status_code(booking.get("payment_status")) or "pending"
     return BookingResponse(**booking)
 
 @api_router.post("/admin/bookings/{booking_id}/assign-self")
