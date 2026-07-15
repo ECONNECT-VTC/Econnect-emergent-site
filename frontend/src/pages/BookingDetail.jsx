@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useAuth } from '@/contexts/AuthContext';
 import API_URL from '@/config';
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
+import { formatPaymentMethodLabel, formatPaymentStatusLabel } from '@/utils/paymentUtils';
 import { getClientFacingDriverName, shouldRenderAssignedDriverForAdmin } from '../utils/driverDisplay';
 import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, normalizeCourseStatus, statusEquals } from '../utils/courseWorkflow';
 import {
@@ -30,6 +31,7 @@ const TRANSFER_TYPE_LABELS = {
 const BookingDetail = () => {
   const { bookingId, lang = 'fr' } = useParams();
   const { user } = useAuth();
+  const userRole = user?.role;
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -40,9 +42,9 @@ const BookingDetail = () => {
     const fetchBooking = async () => {
       try {
         let response;
-        if (user?.role === 'admin') {
+        if (userRole === 'admin') {
           response = await axios.get(`${API_URL}/api/admin/bookings/${bookingId}`, { withCredentials: true });
-        } else if (user?.role === 'driver') {
+        } else if (userRole === 'driver') {
           response = await axios.get(`${API_URL}/api/driver/bookings/${bookingId}`, { withCredentials: true });
         } else {
           response = await axios.get(`${API_URL}/api/bookings/${bookingId}`, { withCredentials: true });
@@ -60,14 +62,14 @@ const BookingDetail = () => {
         setLoading(false);
       }
     };
-    if (user) fetchBooking();
-  }, [bookingId, user?.role]);
+    if (userRole) fetchBooking();
+  }, [bookingId, userRole]);
 
   const refreshBooking = async () => {
     let response;
-    if (user?.role === 'admin') {
+    if (userRole === 'admin') {
       response = await axios.get(`${API_URL}/api/admin/bookings/${bookingId}`, { withCredentials: true });
-    } else if (user?.role === 'driver') {
+    } else if (userRole === 'driver') {
       response = await axios.get(`${API_URL}/api/driver/bookings/${bookingId}`, { withCredentials: true });
     } else {
       response = await axios.get(`${API_URL}/api/bookings/${bookingId}`, { withCredentials: true });
@@ -99,8 +101,8 @@ const BookingDetail = () => {
   };
 
   const backPath = () => {
-    if (user?.role === 'admin') return `/${lang}/admin/bookings`;
-    if (user?.role === 'driver') return `/${lang}/driver`;
+    if (userRole === 'admin') return `/${lang}/admin/bookings`;
+    if (userRole === 'driver') return `/${lang}/driver`;
     return `/${lang}/client/bookings`;
   };
 
@@ -130,10 +132,10 @@ const BookingDetail = () => {
     order_form: 'Bon de commande',
     invoice: 'Facture',
   };
-  const shouldRenderDriverCard = user?.role === 'admin'
+  const shouldRenderDriverCard = userRole === 'admin'
     ? shouldRenderAssignedDriverForAdmin(booking)
     : true;
-  const displayedDriverName = user?.role === 'admin'
+  const displayedDriverName = userRole === 'admin'
     ? (booking.driver_display_name || booking.driver_name)
     : getClientFacingDriverName(booking);
 
@@ -156,14 +158,14 @@ const BookingDetail = () => {
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyle}`}>{statusLabel}</span>
             </div>
 
-            {booking.fulfilled_by_admin && user?.role === 'admin' && (
+            {booking.fulfilled_by_admin && userRole === 'admin' && (
               <div className="mb-4 px-3 py-2 bg-purple-500/10 border border-purple-500/30 rounded-lg text-purple-300 text-sm flex items-center gap-2">
                 <CheckCircle size={16} />
                 Course réalisée par l'admin — exonérée de commission
               </div>
             )}
 
-            {user?.role === 'admin' && booking.fulfilled_by_admin && statusEquals(booking.status, 'ASSIGNED') && (
+            {userRole === 'admin' && booking.fulfilled_by_admin && statusEquals(booking.status, 'ASSIGNED') && (
               <button
                 type="button"
                 className="mb-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
@@ -174,7 +176,7 @@ const BookingDetail = () => {
               </button>
             )}
 
-            {user?.role === 'admin' && booking.fulfilled_by_admin && statusEquals(booking.status, 'IN_PROGRESS') && (
+            {userRole === 'admin' && booking.fulfilled_by_admin && statusEquals(booking.status, 'IN_PROGRESS') && (
               <button
                 type="button"
                 className="mb-4 rounded-lg bg-[#D4AF37] px-4 py-2 text-sm font-medium text-[#0A0A0A] hover:bg-[#F0C74A] disabled:opacity-60"
@@ -296,7 +298,7 @@ const BookingDetail = () => {
               {booking.transfer_type === 'disposition' && booking.disposition_hours != null && (
                 <p className="text-xs text-[#A1A1AA] mt-2">Tarification calculée sur {booking.disposition_hours}h réservées.</p>
               )}
-              {booking.fulfilled_by_admin && user?.role === 'admin' && (
+              {booking.fulfilled_by_admin && userRole === 'admin' && (
                 <p className="text-xs text-purple-300 mt-2">Commission: 0€ (réalisée par admin)</p>
               )}
               {booking.refund_amount != null && (
@@ -308,11 +310,25 @@ const BookingDetail = () => {
             </div>
           )}
 
+          <div className="glass rounded-xl p-6">
+            <h3 className="text-lg font-semibold mb-4">Paiement</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="text-[#A1A1AA]">Mode</span>
+                <span>{formatPaymentMethodLabel(booking.payment_method)}</span>
+              </div>
+              <div className="flex justify-between gap-4">
+                <span className="text-[#A1A1AA]">Statut</span>
+                <span>{formatPaymentStatusLabel(booking.payment_status)}</span>
+              </div>
+            </div>
+          </div>
+
           {/* Driver info */}
           {shouldRenderDriverCard && (
             <div className="glass rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4">
-                {user?.role === 'admin' ? 'Chauffeur assigné' : 'Votre chauffeur'}
+                {userRole === 'admin' ? 'Chauffeur assigné' : 'Votre chauffeur'}
               </h3>
               <div className="flex items-center gap-3">
                 <CarSimple size={20} className="text-[#D4AF37]" />
@@ -361,10 +377,10 @@ const BookingDetail = () => {
                   {booking.refunded_at && (
                     <p className="text-xs text-emerald-200">Date: {new Date(booking.refunded_at).toLocaleString('fr-FR')}</p>
                   )}
-                  {user?.role === 'admin' && booking.stripe_refund_id && (
+                  {userRole === 'admin' && booking.stripe_refund_id && (
                     <p className="text-xs text-emerald-200 break-all">Stripe refund ID: {booking.stripe_refund_id}</p>
                   )}
-                  {user?.role === 'admin' && booking.refund_initiated_by && (
+                  {userRole === 'admin' && booking.refund_initiated_by && (
                     <p className="text-xs text-emerald-200">Initié par: {booking.refund_initiated_by}</p>
                   )}
                 </div>

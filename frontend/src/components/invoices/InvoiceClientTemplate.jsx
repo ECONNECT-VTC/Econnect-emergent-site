@@ -8,6 +8,7 @@ import {
   computeHtFromTtc,
 } from '@/utils/invoiceUtils';
 import LogoDisplay from '@/components/LogoDisplay';
+import { formatPaymentMethodLabel, formatPaymentStatusLabel } from '@/utils/paymentUtils';
 
 /**
  * InvoiceClientTemplate
@@ -52,15 +53,6 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const linePriceHt = distanceKm && unitPriceHt
     ? distanceKm * unitPriceHt
     : Number(booking.price_ht || 0);
-
-  const normalizePaymentMethod = () => {
-    const raw = String(booking.payment_method || booking.notes || '').toLowerCase();
-    if (raw.includes('cb') || raw.includes('carte')) return 'cb';
-    if (raw.includes('cash') || raw.includes('espece') || raw.includes('espèce')) return 'cash';
-    if (raw.includes('virement')) return 'virement';
-    return null;
-  };
-  const paymentMethod = normalizePaymentMethod();
 
   const serviceDescription = booking.transfer_type
     ? `Course VTC — ${booking.transfer_type}`
@@ -194,14 +186,13 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         <p className="text-[#555555] text-xs uppercase tracking-widest font-semibold mb-2">Informations de paiement</p>
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-[#555555]">Mode de paiement :</span>
-          <span className="font-medium">
-            {paymentMethod === 'cb' && 'Carte bancaire (CB)'}
-            {paymentMethod === 'cash' && 'Espèces'}
-            {paymentMethod === 'virement' && 'Virement bancaire'}
-            {!paymentMethod && '—'}
-          </span>
+          <span className="font-medium">{formatPaymentMethodLabel(booking.payment_method || booking.notes)}</span>
         </div>
-        {(paymentMethod === 'virement' || companyIban !== 'À compléter') && (
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-[#555555]">Statut :</span>
+          <span className="font-medium">{formatPaymentStatusLabel(booking.payment_status)}</span>
+        </div>
+        {(String(booking.payment_method || booking.notes || '').toLowerCase().includes('virement') || companyIban !== 'À compléter') && (
           <div className="flex items-center gap-3">
             <span className="text-[#555555]">IBAN :</span>
             <span className="font-mono font-medium">{companyIban}</span>
@@ -227,4 +218,3 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
 };
 
 export default InvoiceClientTemplate;
-

@@ -22,6 +22,10 @@ jest.mock('@/config', () => 'http://api.test', { virtual: true });
 jest.mock('@/utils/vehicleCategories', () => ({
   getCategoryDisplayName: (categoryName) => (categoryName === 'Berline' ? 'Confort Classique' : categoryName),
 }), { virtual: true });
+jest.mock('@/utils/paymentUtils', () => ({
+  formatPaymentMethodLabel: (value) => (value === 'virement' ? 'Virement bancaire' : 'Non renseigné'),
+  formatPaymentStatusLabel: (value) => (value === 'paid' ? 'Payée' : 'À payer'),
+}), { virtual: true });
 
 const BookingDetail = require('./BookingDetail').default;
 
@@ -45,6 +49,8 @@ describe('BookingDetail vehicle category display', () => {
         transfer_type: 'simple',
         vehicle_category_name: 'Berline',
         status: 'pending',
+        payment_method: 'virement',
+        payment_status: 'paid',
         created_at: '2026-06-08T12:00:00Z',
       },
     });
@@ -68,6 +74,8 @@ describe('BookingDetail vehicle category display', () => {
     });
 
     expect(container.textContent).toContain('Confort Classique');
+    expect(container.textContent).toContain('Virement bancaire');
+    expect(container.textContent).toContain('Payée');
   });
 
   it('shows explicit fallback when driver is admin-like label', async () => {
