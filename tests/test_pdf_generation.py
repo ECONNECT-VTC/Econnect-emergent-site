@@ -175,7 +175,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self._assert_valid_pdf(pdf, "order (no designation)")
         self.assertNotIn("DÉSIGNATION", captured_strings)
 
-    def test_order_destination_is_in_complementary_mentions(self):
+    def test_order_destination_is_in_trip_details(self):
         captured_strings = []
         original_draw_string = server.canvas.Canvas.drawString
 
@@ -187,9 +187,11 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "order", "000013")
 
         self._assert_valid_pdf(pdf, "order (destination placement)")
-        complementary_index = next(i for i, text in enumerate(captured_strings) if text == "MENTIONS COMPLÉMENTAIRES")
+        trip_index = next(i for i, text in enumerate(captured_strings) if text == "DÉTAILS DE LA COURSE")
         destination_index = next(i for i, text in enumerate(captured_strings) if text.startswith("Destination :"))
-        self.assertGreater(destination_index, complementary_index)
+        self.assertGreater(destination_index, trip_index)
+        complementary_index = next(i for i, text in enumerate(captured_strings) if text == "INFORMATIONS COMPLÉMENTAIRES")
+        self.assertGreater(complementary_index, destination_index)
 
     def test_order_uses_assigned_driver_company_details(self):
         booking = {
@@ -254,12 +256,12 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self._assert_valid_pdf(pdf, "order (required sections)")
         self.assertIn("INFORMATIONS CLIENT", captured_strings)
         self.assertIn("DÉTAILS DE LA COURSE", captured_strings)
-        self.assertIn("MENTIONS COMPLÉMENTAIRES", captured_strings)
+        self.assertIn("INFORMATIONS COMPLÉMENTAIRES", captured_strings)
         self.assertIn("Date et heure de réservation :", captured_strings)
         self.assertIn("Date et heure de prise en charge :", captured_strings)
         self.assertIn("Nombre de passagers :", captured_strings)
         self.assertIn("Téléphone :", captured_strings)
-        self.assertIn("Téléphone professionnel :", captured_strings)
+        self.assertNotIn("Téléphone professionnel :", captured_strings)
         self.assertIn("Destination :", captured_strings)
         self.assertIn("Prix total TTC :", captured_strings)
         self.assertIn("Mode de paiement :", captured_strings)

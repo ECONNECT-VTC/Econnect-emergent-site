@@ -1077,9 +1077,9 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         ORDER_DARK = (0.18, 0.18, 0.18)
         ORDER_TEXT = (0.20, 0.20, 0.20)
         ORDER_MUTED = (0.34, 0.34, 0.34)
-        ORDER_CARD = (0.985, 0.98, 0.96)
-        ORDER_BORDER = (0.82, 0.78, 0.70)
-        ORDER_CARD_SHADOW = (0.93, 0.91, 0.87)
+        ORDER_CARD = (0.97, 0.965, 0.945)
+        ORDER_BORDER = (0.68, 0.63, 0.50)
+        ORDER_CARD_SHADOW = (0.86, 0.83, 0.76)
 
         def set_order_fill(rgb):
             c.setFillColorRGB(*rgb)
@@ -1147,7 +1147,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             c.roundRect(x + 1.8, bottom_y - 1.8, width, resolved_height, 14, fill=1, stroke=0)
             set_order_fill(ORDER_CARD)
             set_order_stroke(ORDER_BORDER)
-            c.setLineWidth(1)
+            c.setLineWidth(1.5)
             c.roundRect(x, bottom_y, width, resolved_height, 14, fill=1, stroke=1)
 
             set_order_fill(ORDER_GOLD)
@@ -1219,7 +1219,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             ("Nom du chauffeur", driver_display_name),
             ("Dénomination sociale", driver_company_name),
             ("Adresse complète", booking.get("document_driver_address") or issuer.get("address")),
-            ("Téléphone professionnel", driver_phone),
+            ("Téléphone", driver_phone),
             ("SIREN / SIRET", booking.get("document_driver_siret") or issuer.get("siret")),
             ("REVTC", driver_vtc_number),
         ]
@@ -1239,6 +1239,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             ("Date et heure de réservation", reservation_datetime),
             ("Date et heure de prise en charge", pickup_datetime),
             ("Lieu de prise en charge", booking.get("pickup_address")),
+            ("Destination", booking.get("dropoff_address")),
         ]
         trip_bottom = draw_info_card(
             36,
@@ -1246,13 +1247,12 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             width - 72,
             "DÉTAILS DE LA COURSE",
             trip_rows,
-            card_height=measure_card_height(trip_rows, width - 72, label_width=164, min_height=138),
+            card_height=measure_card_height(trip_rows, width - 72, label_width=164, min_height=155),
             label_width=164,
         )
 
         current_y = trip_bottom - 16
         complementary_rows = [
-            ("Destination", booking.get("dropoff_address")),
             ("Nombre de passagers", passenger_count),
             ("Prix total TTC", f"{breakdown['price_ttc']:.2f} EUR"),
             ("Mode de paiement", payment_method_label),
@@ -1262,7 +1262,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             36,
             current_y,
             width - 72,
-            "MENTIONS COMPLÉMENTAIRES",
+            "INFORMATIONS COMPLÉMENTAIRES",
             complementary_rows,
             card_height=measure_card_height(complementary_rows, width - 72, label_width=152, min_height=122),
             label_width=152,
