@@ -109,6 +109,15 @@ describe('Invoice templates legal TVA mentions', () => {
     expect(clientTemplate).toContain('Chauffeur : {partnerDriverName}');
     expect(clientTemplate).toContain('Numéro de Téléphone : {partnerPhoneNumber}');
     expect(clientTemplate).toContain('Numéro de TVA : {partnerCompanyVat}');
+    const introIndex = clientTemplate.indexOf('Facture émise par ECONNECT VTC pour :');
+    const companyNameIndex = clientTemplate.indexOf('{partnerCompanyName}');
+    const driverIndex = clientTemplate.indexOf('Chauffeur : {partnerDriverName}');
+    const phoneIndex = clientTemplate.indexOf('Numéro de Téléphone : {partnerPhoneNumber}');
+    const vatIndex = clientTemplate.indexOf('Numéro de TVA : {partnerCompanyVat}');
+    expect(introIndex).toBeLessThan(companyNameIndex);
+    expect(companyNameIndex).toBeLessThan(driverIndex);
+    expect(driverIndex).toBeLessThan(phoneIndex);
+    expect(phoneIndex).toBeLessThan(vatIndex);
     expect(clientTemplate).toContain('booking?.issuer?.name');
     expect(clientTemplate).not.toContain('Facture émise par ECONNECT VTC au nom et pour le compte de :');
     expect(clientTemplate).not.toContain('LeCab');
