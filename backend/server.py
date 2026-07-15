@@ -1086,20 +1086,20 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         def set_order_stroke(rgb):
             c.setStrokeColorRGB(*rgb)
 
-        def draw_wrapped_value(x: float, y_value: float, text: str, max_width: float, line_height: float = 11.5) -> float:
+        def draw_wrapped_value(x: float, y_pos: float, text: str, max_width: float, line_height: float = 11.5) -> float:
             wrapped_lines = simpleSplit(text, "Helvetica", 9, max_width) or ["N/A"]
             for idx, line in enumerate(wrapped_lines):
-                c.drawString(x, y_value - (idx * line_height), line)
+                c.drawString(x, y_pos - (idx * line_height), line)
             return len(wrapped_lines) * line_height
 
         def measure_card_height(
             rows: list[tuple[str, Any]],
-            width_value: float,
+            width: float,
             label_width: float = 118,
             min_height: float = 120
         ) -> float:
             """Return the required card height after accounting for wrapped row values."""
-            value_width = width_value - 28 - label_width
+            value_width = width - 28 - label_width
             total_height = 34
             for _, value in rows:
                 wrapped_lines = simpleSplit(clean_pdf_value(value), "Helvetica", 9, value_width) or ["N/A"]
@@ -1109,26 +1109,26 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         def draw_info_card(
             x: float,
             top_y: float,
-            width_value: float,
-            title_value: str,
+            width: float,
+            title: str,
             rows: list[tuple[str, Any]],
             card_height: Optional[float] = None
         ) -> float:
             """Render a rounded information card and return its bottom Y coordinate."""
             label_width = 118
             value_x = x + 18 + label_width
-            value_width = width_value - 28 - label_width
-            resolved_height = card_height or measure_card_height(rows, width_value, label_width=label_width)
+            value_width = width - 28 - label_width
+            resolved_height = card_height or measure_card_height(rows, width, label_width=label_width)
             bottom_y = top_y - resolved_height
 
             set_order_fill(ORDER_CARD)
             set_order_stroke(ORDER_BORDER)
             c.setLineWidth(1)
-            c.roundRect(x, bottom_y, width_value, resolved_height, 14, fill=1, stroke=1)
+            c.roundRect(x, bottom_y, width, resolved_height, 14, fill=1, stroke=1)
 
             set_order_fill(ORDER_GOLD)
             c.setFont("Helvetica-Bold", 9)
-            c.drawString(x + 18, top_y - 18, title_value)
+            c.drawString(x + 18, top_y - 18, title)
 
             cursor_y = top_y - 36
             for label, value in rows:
