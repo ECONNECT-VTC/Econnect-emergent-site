@@ -223,6 +223,15 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             any("Numéro de TVA : N/A" in text for text in captured_strings),
             "Expected VAT fallback in hors-admin issuer block",
         )
+        intro_index = next((i for i, text in enumerate(captured_strings) if text == "Facture émise par ECONNECT VTC pour :"), -1)
+        company_index = next((i for i, text in enumerate(captured_strings) if text == "ECONNECT VTC SARL"), -1)
+        driver_index = next((i for i, text in enumerate(captured_strings) if text == "Chauffeur : Michel Martin"), -1)
+        phone_index = next((i for i, text in enumerate(captured_strings) if text == "Numéro de Téléphone : 0600000000"), -1)
+        vat_index = next((i for i, text in enumerate(captured_strings) if text == "Numéro de TVA : N/A"), -1)
+        self.assertTrue(
+            intro_index < company_index < driver_index < phone_index < vat_index,
+            "Expected issuer block lines in order: intro, company, driver, phone, VAT",
+        )
         self.assertFalse(
             any("LeCab" in text for text in captured_strings),
             "LeCab must not appear in hors-admin issuer block",
