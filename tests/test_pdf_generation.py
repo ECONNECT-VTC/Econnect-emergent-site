@@ -135,9 +135,13 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "order", "000010")
 
         self._assert_valid_pdf(pdf, "order (legal notice)")
-        self.assertIn("Justification réglementaire", captured_strings)
+        self.assertNotIn("Justification réglementaire", captured_strings)
         self.assertTrue(any("Article R3120-2 du code des transports" in text for text in captured_strings))
         self.assertTrue(any("Arrêté du 6 août 2025" in text for text in captured_strings))
+        self.assertEqual(
+            captured_strings[-1],
+            "Justification de réservation préalable : Article R3120-2 du code des transports - Arrêté du 6 août 2025.",
+        )
 
     def test_activity_total_label_is_ttc_and_legal_box_is_removed(self):
         captured_strings = []
@@ -167,6 +171,44 @@ class TestGenerateFinancialPDF(unittest.TestCase):
 
         self._assert_valid_pdf(pdf, "order (no designation)")
         self.assertNotIn("DÉSIGNATION", captured_strings)
+
+    def test_order_destination_is_under_pickup(self):
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "order", "000013")
+
+        self._assert_valid_pdf(pdf, "order (pickup/dropoff labels)")
+        pickup_index = next(i for i, text in enumerate(captured_strings) if text.startswith("Prise en charge :"))
+        destination_index = next(i for i, text in enumerate(captured_strings) if text.startswith("Adresse de destination :"))
+        self.assertGreater(destination_index, pickup_index)
+
+    def test_order_uses_assigned_driver_company_details(self):
+        booking = {
+            **SAMPLE_BOOKING,
+            "document_driver_name": "Karim Chauffeur",
+            "document_driver_company": "Karim Transport SAS",
+            "document_driver_phone": "0611223344",
+        }
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "order", "000014")
+
+        self._assert_valid_pdf(pdf, "order (assigned driver company)")
+        self.assertIn("CHAUFFEUR / SOCIÉTÉ", captured_strings)
+        self.assertIn("Karim Chauffeur", captured_strings)
+        self.assertIn("Karim Transport SAS", captured_strings)
 
 
 if __name__ == "__main__":
