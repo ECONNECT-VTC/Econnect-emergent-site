@@ -189,7 +189,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
 
         self._assert_valid_pdf(pdf, "invoice (hors admin issuer block)")
         self.assertTrue(
-            any("Facture \u00e9mise par ECONNECT VTC au nom et pour le compte de :" == text for text in captured_strings),
+            any("Facture émise par ECONNECT VTC au nom et pour le compte de :" == text for text in captured_strings),
             "Expected hors-admin intro line in invoice",
         )
         self.assertTrue(
@@ -197,7 +197,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             "Expected company name in hors-admin issuer block",
         )
         self.assertTrue(
-            any("N\u00b0 de TVA : FR00123456789" in text for text in captured_strings),
+            any("N° de TVA : FR00123456789" in text for text in captured_strings),
             "Expected VAT number in hors-admin issuer block",
         )
         self.assertFalse(

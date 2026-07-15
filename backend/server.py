@@ -1344,16 +1344,16 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(table_x, legal_notes_y - 11, legal_note_2)
 
         if issuer.get("is_driver_issuer"):
-            _econnect_name = re.sub(r"\beconnect\b", "ECONNECT", clean_pdf_value(settings.get('company_name')), flags=re.IGNORECASE)
+            econnect_name = re.sub(r"\beconnect\b", "ECONNECT", clean_pdf_value(settings.get('company_name')), flags=re.IGNORECASE)
             issuer_block_y = legal_notes_y - 28
             set_fill(INVOICE_MUTED)
             c.setFont("Helvetica-Oblique", 8)
-            c.drawString(table_x, issuer_block_y, "Facture \u00e9mise par ECONNECT VTC au nom et pour le compte de :")
+            c.drawString(table_x, issuer_block_y, "Facture émise par ECONNECT VTC au nom et pour le compte de :")
             c.setFont("Helvetica-Bold", 8)
-            c.drawString(table_x, issuer_block_y - 11, _econnect_name)
+            c.drawString(table_x, issuer_block_y - 11, econnect_name)
             c.setFont("Helvetica", 8)
             c.drawString(table_x, issuer_block_y - 22, clean_pdf_value(settings.get('company_address')))
-            c.drawString(table_x, issuer_block_y - 33, f"N\u00b0 de TVA : {company_vat_number}")
+            c.drawString(table_x, issuer_block_y - 33, f"N° de TVA : {company_vat_number}")
 
         footer_y = 42
         set_stroke(INVOICE_BORDER)
