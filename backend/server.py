@@ -1154,7 +1154,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         company_iban = clean_pdf_value(settings.get("company_iban"))
         # Support legacy `company_tva_number` while `company_vat_number` is the canonical VAT key.
         company_vat_number = clean_pdf_value(settings.get("company_vat_number") or settings.get("company_tva_number"))
-        service_description = "Mise à disposition VTC" if is_disposition_transfer(booking.get("transfer_type")) else "Course VTC"
+        service_description = "Mise à disposition VTC" if is_disposition_transfer(booking.get("transfer_type")) else "Courses effectuées"
         invoice_qty = "1"
         client_lines = [
             clean_pdf_value(booking.get("client_name")),
@@ -1169,12 +1169,17 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
                 or issuer.get("company_vat_number")
                 or issuer.get("company_tva_number")
             )
+            partner_phone_number = clean_pdf_value(
+                issuer.get("phone")
+                or booking.get("document_driver_phone")
+                or booking.get("driver_phone")
+            )
             issuer_lines = [
-                clean_pdf_value(settings.get("company_name")),
                 "Facture émise par ECONNECT VTC pour :",
                 clean_pdf_value(issuer.get("name")),
-                clean_pdf_value(issuer.get("address")),
-                f"N° de TVA : {partner_vat_number}",
+                f"Chauffeur : {clean_pdf_value(booking.get('driver_name'))}",
+                f"Numéro de Téléphone : {partner_phone_number}",
+                f"Numéro de TVA : {partner_vat_number}",
             ]
         else:
             issuer_lines = [

@@ -106,10 +106,20 @@ describe('Invoice templates legal TVA mentions', () => {
     const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
 
     expect(clientTemplate).toContain('Facture émise par ECONNECT VTC pour :');
-    expect(clientTemplate).toContain('N° de TVA : {partnerCompanyVat}');
+    expect(clientTemplate).toContain('Chauffeur : {partnerDriverName}');
+    expect(clientTemplate).toContain('Numéro de Téléphone : {partnerPhoneNumber}');
+    expect(clientTemplate).toContain('Numéro de TVA : {partnerCompanyVat}');
     expect(clientTemplate).toContain('booking?.issuer?.name');
     expect(clientTemplate).not.toContain('Facture émise par ECONNECT VTC au nom et pour le compte de :');
     expect(clientTemplate).not.toContain('LeCab');
+  });
+
+  it('client template service description uses "Courses effectuées" wording', () => {
+    const clientTemplatePath = path.join(__dirname, 'InvoiceClientTemplate.jsx');
+    const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
+
+    expect(clientTemplate).toContain('Courses effectuées');
+    expect(clientTemplate).not.toContain('Course VTC');
   });
 
   it('client template payment status always uses "Statut : " prefix', () => {

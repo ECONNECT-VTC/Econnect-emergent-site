@@ -164,6 +164,21 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self._assert_valid_pdf(pdf, "invoice (statut à payer)")
         self.assertTrue(any("Statut : À payer" == text for text in captured_strings))
 
+    def test_invoice_service_description_uses_courses_effectuees_wording(self):
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "invoice", "000009B3")
+
+        self._assert_valid_pdf(pdf, "invoice (service description wording)")
+        self.assertTrue(any("Courses effectuées" == text for text in captured_strings))
+        self.assertFalse(any("Course VTC" == text for text in captured_strings))
+
     def test_invoice_hors_admin_issuer_block(self):
         booking = {
             **SAMPLE_BOOKING,
@@ -197,7 +212,15 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             "Expected company name in hors-admin issuer block",
         )
         self.assertTrue(
-            any("N° de TVA : N/A" in text for text in captured_strings),
+            any("Chauffeur : Michel Martin" in text for text in captured_strings),
+            "Expected driver name in hors-admin issuer block",
+        )
+        self.assertTrue(
+            any("Numéro de Téléphone : 0600000000" in text for text in captured_strings),
+            "Expected partner phone in hors-admin issuer block",
+        )
+        self.assertTrue(
+            any("Numéro de TVA : N/A" in text for text in captured_strings),
             "Expected VAT fallback in hors-admin issuer block",
         )
         self.assertFalse(
@@ -231,7 +254,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
 
         self._assert_valid_pdf(pdf, "invoice (hors admin issuer block with partner VAT)")
         self.assertTrue(
-            any("N° de TVA : FR99887766554" in text for text in captured_strings),
+            any("Numéro de TVA : FR99887766554" in text for text in captured_strings),
             "Expected partner VAT in hors-admin issuer block",
         )
 
