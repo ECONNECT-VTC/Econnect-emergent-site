@@ -852,6 +852,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     MID_GREY  = (0.30, 0.30, 0.30)
     LIGHT_BG  = (0.97, 0.97, 0.97)    # light grey panel background
     WHITE     = (1.0,  1.0,  1.0)
+    PRIMARY_TEXT = DARK
 
     def set_fill(rgb):
         c.setFillColorRGB(*rgb)
@@ -883,6 +884,13 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     is_order_document = document_type == "order"
     is_invoice_document = document_type == "invoice"
     is_driver_statement = document_type in ("driver", "activity")
+    if is_order_document:
+        GOLD = (0.83, 0.69, 0.22)
+        GOLD_LIGHT = (0.18, 0.15, 0.08)
+        DARK_GREY = (0.09, 0.09, 0.09)
+        MID_GREY = (0.78, 0.78, 0.78)
+        LIGHT_BG = (0.13, 0.13, 0.13)
+        PRIMARY_TEXT = (0.95, 0.95, 0.95)
     issuer = booking.get("issuer", {
         "name": settings["company_name"],
         "address": settings["company_address"],
@@ -967,8 +975,12 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     header_top = height - 20
     header_bot = height - 105
 
-    # White header background
-    set_fill(WHITE)
+    if is_order_document:
+        set_fill((0.04, 0.04, 0.04))
+        c.rect(0, 0, width, height, fill=1, stroke=0)
+
+    # Header background
+    set_fill(LIGHT_BG if is_order_document else WHITE)
     c.rect(0, header_bot, width, header_top - header_bot, fill=1, stroke=0)
 
     # --- Logo (left side, height ~55 pt) ---
@@ -1047,14 +1059,16 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     set_fill(GOLD)
     c.setFont("Helvetica-Bold", 8)
     c.drawString(col1_x + 4, y + 6, "ÉMETTEUR")
-    right_column_label = "CHAUFFEUR" if is_driver_statement else ("PASSAGER" if is_order_document else "DESTINATAIRE")
+    right_column_label = "CHAUFFEUR / SOCIÉTÉ" if is_order_document else ("CHAUFFEUR" if is_driver_statement else "DESTINATAIRE")
     c.drawString(col2_x + 4, y + 6, right_column_label)
     y -= 4
 
-    set_fill(DARK)
+    set_fill(PRIMARY_TEXT)
     c.setFont("Helvetica-Bold", 9)
     c.drawString(col1_x + 4, y, issuer["name"])
-    if is_driver_statement:
+    if is_order_document:
+        c.drawString(col2_x + 4, y, driver_display_name)
+    elif is_driver_statement:
         c.drawString(col2_x + 4, y, driver_display_name)
     else:
         c.drawString(col2_x + 4, y, booking.get("client_name", "N/A"))
@@ -1063,7 +1077,9 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     set_fill(MID_GREY)
     c.setFont("Helvetica", 8)
     c.drawString(col1_x + 4, y, issuer["address"])
-    if is_driver_statement:
+    if is_order_document:
+        c.drawString(col2_x + 4, y, driver_company_name)
+    elif is_driver_statement:
         c.drawString(col2_x + 4, y, "Administrateur" if is_admin_fulfillment else driver_company_name)
     else:
         c.drawString(col2_x + 4, y, booking.get("client_email", "N/A"))
@@ -1072,7 +1088,9 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     c.drawString(col1_x + 4, y, issuer["email"])
     y -= 11
     c.drawString(col1_x + 4, y, f"Tél : {issuer['phone']}")
-    if not is_driver_statement and booking.get("client_phone"):
+    if is_order_document:
+        c.drawString(col2_x + 4, y, f"Tél : {driver_phone}")
+    elif not is_driver_statement and booking.get("client_phone"):
         c.drawString(col2_x + 4, y, f"Tél : {booking.get('client_phone')}")
     y -= 18
 
@@ -1107,9 +1125,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
     set_fill(MID_GREY)
     c.setFont("Helvetica", 9)
-    c.drawString(36, y, f"Départ : {booking.get('pickup_address', 'N/A')}")
+    pickup_label = "Prise en charge" if is_order_document else "Départ"
+    dropoff_label = "Adresse de destination" if is_order_document else "Arrivée"
+    c.drawString(36, y, f"{pickup_label} : {booking.get('pickup_address', 'N/A')}")
     y -= 12
-    c.drawString(36, y, f"Arrivée : {booking.get('dropoff_address', 'N/A')}")
+    c.drawString(36, y, f"{dropoff_label} : {booking.get('dropoff_address', 'N/A')}")
     y -= 12
     c.drawString(36, y, f"Date : {booking.get('pickup_date', 'N/A')} à {booking.get('pickup_time', 'N/A')}")
     if is_order_document:
@@ -1145,7 +1165,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         set_stroke(GOLD)
         c.setLineWidth(0.5)
         c.rect(36, y - band_h + 12, width - 72, band_h, fill=0, stroke=1)
-        set_fill(DARK)
+        set_fill(PRIMARY_TEXT)
         c.setFont("Helvetica-Bold", 8)
         for text, x in zip(cols_text, xs):
             if x < 0:   # negative x means right-aligned at |x|
@@ -1182,7 +1202,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         y -= 12
 
         # Payment method row
-        set_fill(DARK)
+        set_fill(PRIMARY_TEXT)
         c.setFont("Helvetica", 9)
         c.drawString(36, y, "Mode de paiement :")
         c.drawString(138, y, f"{'[X]' if payment_method == 'cb' else '[ ]'} CB")
@@ -1208,7 +1228,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(36, y, "Récapitulatif de la réservation")
         y -= 12
 
-        set_fill(DARK)
+        set_fill(PRIMARY_TEXT)
         c.drawString(36, y, "Mode de paiement :")
         c.drawString(138, y, f"{'[X]' if payment_method == 'cb' else '[ ]'} CB")
         c.drawString(216, y, f"{'[X]' if payment_method == 'cash' else '[ ]'} Espèces")
@@ -1229,7 +1249,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         # Driver / commission / activity
         draw_table_header_band(["DESCRIPTION", "MONTANT"], [40, -(width - 36)])
         y -= 3
-        set_fill(DARK)
+        set_fill(PRIMARY_TEXT)
         c.setFont("Helvetica", 9)
 
     if is_driver_statement:
@@ -1238,7 +1258,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             # Sub-header for activity columns
             set_fill(LIGHT_BG)
             c.rect(36, y - table_row_h + 4, width - 72, table_row_h + 2, fill=1, stroke=0)
-            set_fill(DARK)
+            set_fill(PRIMARY_TEXT)
             c.setFont("Helvetica-Bold", 8)
             c.drawString(x_date, y, "DATE")
             c.drawString(x_service, y, "SERVICE")
@@ -1268,7 +1288,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             y -= 16
         else:
             description = "Rémunération trajet"
-            set_fill(DARK)
+            set_fill(PRIMARY_TEXT)
             c.setFont("Helvetica", 9)
             c.drawString(36, y, f"{description} - {booking.get('transfer_type', 'VTC')}")
             c.drawRightString(width - 36, y, f"{breakdown['driver_earning']:.2f} EUR HT")
@@ -1302,7 +1322,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(300, y - 27, booking.get('client_email', 'N/A'))
         y -= 46 + 8
 
-        set_fill(DARK)
+        set_fill(PRIMARY_TEXT)
         c.setFont("Helvetica", 9)
         c.drawString(36, y, f"Commission de gestion - {booking.get('transfer_type', 'VTC')}")
         c.drawRightString(width - 36, y, f"{breakdown['commission_ht']:.2f} EUR")
@@ -1325,7 +1345,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     legal_lines = []
     if is_order_document:
         legal_lines = [
-            "Justification de réservation préalable : Article R3120-2 du code des transports – Arrêté du 6 août 2025."
+            "Justification de réservation préalable : Article R3120-2 du code des transports - Arrêté du 6 août 2025."
         ]
     elif document_type != "activity":
         legal_lines = [
@@ -1333,9 +1353,10 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         ]
 
     footer_top_y = 60
-    legal_box_y = footer_top_y + 12 if legal_lines else None
-    legal_box_h = 24 + (len(legal_lines) * 11) if legal_lines else 0
-    min_total_start_y = (legal_box_y + legal_box_h + 26) if legal_lines else (footer_top_y + 44)
+    show_legal_box = bool(legal_lines) and not is_order_document
+    legal_box_y = footer_top_y + 12 if show_legal_box else None
+    legal_box_h = 24 + (len(legal_lines) * 11) if show_legal_box else 0
+    min_total_start_y = (legal_box_y + legal_box_h + 26) if show_legal_box else (footer_top_y + 44)
     y = max(y - 6, min_total_start_y)
 
     box_h = 30
@@ -1352,7 +1373,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     # ================================================================
     # FOOTER  — anchored issuer section + dedicated legal notice block
     # ================================================================
-    if legal_lines:
+    if show_legal_box:
         set_fill(LIGHT_BG)
         set_stroke(DARK_GREY)
         c.setLineWidth(0.8)
@@ -1390,6 +1411,9 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         footer_top_y - 43,
         f"{issuer['email']}  |  SIRET : {issuer['siret']}"
     )
+    if is_order_document and legal_lines:
+        c.setFont("Helvetica", 7.2)
+        c.drawString(36, 8, legal_lines[0])
 
     c.showPage()
     c.save()
