@@ -1305,7 +1305,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         set_fill(DARK)
         c.setFont("Helvetica", 9)
         c.drawString(table_x + 12, payment_top - 38, f"Mode de paiement : {payment_method_label}")
-        status_line = "Statut à payer" if payment_status_label == "À payer" else f"Statut : {payment_status_label}"
+        status_line = f"Statut : {payment_status_label}"
         status_y = payment_top - 52
         set_fill(INVOICE_GOLD)
         c.setFont("Helvetica-Bold", 9)
@@ -1342,6 +1342,18 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.setFont("Helvetica", 8)
         c.drawString(table_x, legal_notes_y, legal_note_1)
         c.drawString(table_x, legal_notes_y - 11, legal_note_2)
+
+        if issuer.get("is_driver_issuer"):
+            econnect_name = re.sub(r"\beconnect\b", "ECONNECT", clean_pdf_value(settings.get('company_name')), flags=re.IGNORECASE)
+            issuer_block_y = legal_notes_y - 28
+            set_fill(INVOICE_MUTED)
+            c.setFont("Helvetica-Oblique", 8)
+            c.drawString(table_x, issuer_block_y, "Facture émise par ECONNECT VTC au nom et pour le compte de :")
+            c.setFont("Helvetica-Bold", 8)
+            c.drawString(table_x, issuer_block_y - 11, econnect_name)
+            c.setFont("Helvetica", 8)
+            c.drawString(table_x, issuer_block_y - 22, clean_pdf_value(settings.get('company_address')))
+            c.drawString(table_x, issuer_block_y - 33, f"N° de TVA : {company_vat_number}")
 
         footer_y = 42
         set_stroke(INVOICE_BORDER)
@@ -1765,15 +1777,6 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     if is_order_document:
         y -= 12
         c.drawString(36, y, f"Service : {'Mise à disposition' if is_disposition_transfer(booking.get('transfer_type')) else 'Course'}")
-    if is_invoice_document and issuer.get("is_driver_issuer"):
-        y -= 12
-        set_fill(DARK_GREY)
-        c.setFont("Helvetica-Oblique", 8)
-        c.drawString(
-            36,
-            y,
-            f"Facture éditée par la société {settings['company_name']} pour la société à laquelle le chauffeur est rattaché."
-        )
     y -= 16
 
     # Gold divider

@@ -66,7 +66,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
     ? `Course VTC — ${booking.transfer_type}`
     : 'Course VTC';
   const paymentStatusLabel = formatPaymentStatusLabel(booking.payment_status);
-  const paymentStatusText = paymentStatusLabel === 'À payer' ? 'Statut à payer' : `Statut : ${paymentStatusLabel}`;
+  const paymentStatusText = `Statut : ${paymentStatusLabel}`;
   const footerCompanyName = companyName.replace(/econnect/gi, 'ECONNECT');
 
   return (
@@ -227,9 +227,12 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
       {/* ── Footer ─────────────────────────────────────────────── */}
       <div className="px-8 py-5 text-xs text-[#777777] text-center space-y-1">
         {isDriverIssued && (
-          <p className="text-[#333333] font-semibold mb-2">
-            Facture éditée par la société ECONNECT VTC pour la société à laquelle le chauffeur est rattaché.
-          </p>
+          <div className="text-left mb-3">
+            <p className="text-[#333333] font-semibold">Facture émise par ECONNECT VTC au nom et pour le compte de :</p>
+            <p className="mt-1 font-bold text-[#333333]">{footerCompanyName}</p>
+            <p className="mt-0.5">{companyAddress}</p>
+            <p className="mt-0.5">N° de TVA : {companyVatNumber}</p>
+          </div>
         )}
         <p className="mt-1">
           <span className="font-bold text-[#333333]">{footerCompanyName}</span>
