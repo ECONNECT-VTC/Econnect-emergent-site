@@ -38,6 +38,9 @@ load_dotenv(ROOT_DIR / '.env')
 LOGO_PATH = ROOT_DIR / "assets" / "logo.png"
 if not LOGO_PATH.exists():
     LOGO_PATH = ROOT_DIR.parent / "frontend" / "public" / "photo" / "logo-cropped.png"
+INVOICE_LOGO_PATH = ROOT_DIR / "assets" / "logo-invoice-hd.png"
+if not INVOICE_LOGO_PATH.exists():
+    INVOICE_LOGO_PATH = LOGO_PATH
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -1174,7 +1177,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.roundRect(branding_x, branding_y, branding_w, branding_h, 6, fill=1, stroke=0)
         logo_drawn = False
         try:
-            img = ImageReader(str(LOGO_PATH))
+            img = ImageReader(str(INVOICE_LOGO_PATH))
             img_w, img_h = img.getSize()
             logo_h = 54
             logo_w = logo_h * img_w / img_h
@@ -1288,13 +1291,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         )
         c.drawRightString(table_x + table_w - 10, table_top - 55, f"{breakdown['price_ttc']:.2f} EUR")
 
-        # Penalties article placed just below the table (per invoice requirements)
-        penalties_note_y = table_top - 24 - row_h - 12
-        set_fill(INVOICE_MUTED)
-        c.setFont("Helvetica", 8)
-        c.drawString(table_x, penalties_note_y, "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif.")
-
-        payment_top = penalties_note_y - 20
+        payment_top = table_top - 24 - row_h - 20
         payment_h = 92
         payment_w = 250
         set_stroke(INVOICE_BORDER)
@@ -1308,30 +1305,15 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         set_fill(DARK)
         c.setFont("Helvetica", 9)
         c.drawString(table_x + 12, payment_top - 38, f"Mode de paiement : {payment_method_label}")
-        # Payment status in bold with yellow background
-        status_line = f"Statut : {payment_status_label}"
+        status_line = "Statut à payer" if payment_status_label == "À payer" else f"Statut : {payment_status_label}"
         status_y = payment_top - 52
-        status_w = c.stringWidth(status_line, "Helvetica-Bold", 9)
-        status_pad_x = 6
-        status_box_h = 12
-        status_box_x = table_x + 10
-        status_box_y = status_y - 3
         set_fill(INVOICE_GOLD)
-        c.rect(status_box_x, status_box_y, status_w + status_pad_x, status_box_h, fill=1, stroke=0)
-        set_fill(DARK)
         c.setFont("Helvetica-Bold", 9)
-        c.drawString(table_x + 13, status_y, status_line)
+        c.drawString(table_x + 12, status_y, status_line)
         # IBAN fully bold (label + value)
         set_fill(DARK)
         c.setFont("Helvetica-Bold", 9)
         c.drawString(table_x + 12, payment_top - 66, f"IBAN : {company_iban}")
-        set_fill(INVOICE_MUTED)
-        c.setFont("Helvetica", 8)
-        c.drawString(
-            table_x + 12,
-            payment_top - 80,
-            "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal.",
-        )
 
         totals_w = 214
         totals_x = table_x + table_w - totals_w
@@ -1353,14 +1335,22 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(totals_x + 14, totals_top - 76, "TOTAL TTC")
         c.drawRightString(totals_x + totals_w - 14, totals_top - 76, f"{breakdown['price_ttc']:.2f} EUR")
 
+        legal_note_1 = "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif"
+        legal_note_2 = "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux"
+        legal_notes_y = payment_top - payment_h - 18
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 8)
+        c.drawString(table_x, legal_notes_y, legal_note_1)
+        c.drawString(table_x, legal_notes_y - 11, legal_note_2)
+
         footer_y = 42
         set_stroke(INVOICE_BORDER)
         c.line(40, footer_y + 22, width - 40, footer_y + 22)
         # Footer line 1: company name in bold + identifiers
-        _company_name_str = clean_pdf_value(settings.get('company_name'))
+        _company_name_str = re.sub(r"econnect", "ECONNECT", clean_pdf_value(settings.get('company_name')), flags=re.IGNORECASE)
         _siret_str = clean_pdf_value(settings.get('company_siret'))
         _vtc_str = clean_pdf_value(settings.get('company_vtc_number'))
-        _rest_str = f" — SIRET : {_siret_str} — N° TVA : {company_vat_number}"
+        _rest_str = f" - SIRET : {_siret_str} - N° TVA : {company_vat_number}"
         _cn_width = c.stringWidth(_company_name_str, "Helvetica-Bold", 8)
         _rest_width = c.stringWidth(_rest_str, "Helvetica", 8)
         _line_start_x = (width - _cn_width - _rest_width) / 2
@@ -1373,7 +1363,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawCentredString(
             width / 2,
             footer_y - 4,
-            f"{clean_pdf_value(settings.get('company_address'))} — Tél : {clean_pdf_value(settings.get('company_phone'))} — {clean_pdf_value(settings.get('company_email'))}",
+            f"{clean_pdf_value(settings.get('company_address'))} - Tél : {clean_pdf_value(settings.get('company_phone'))} - {clean_pdf_value(settings.get('company_email'))}",
         )
         c.drawCentredString(width / 2, footer_y - 16, f"N° VTC : {_vtc_str}")
 

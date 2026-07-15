@@ -8,7 +8,6 @@ import {
   computeHtFromTtc,
   isDispositionTransfer,
 } from '@/utils/invoiceUtils';
-import LogoDisplay from '@/components/LogoDisplay';
 import { formatPaymentMethodLabel, formatPaymentStatusLabel } from '@/utils/paymentUtils';
 
 /**
@@ -66,6 +65,9 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const serviceDescription = booking.transfer_type
     ? `Course VTC — ${booking.transfer_type}`
     : 'Course VTC';
+  const paymentStatusLabel = formatPaymentStatusLabel(booking.payment_status);
+  const paymentStatusText = paymentStatusLabel === 'À payer' ? 'Statut à payer' : `Statut : ${paymentStatusLabel}`;
+  const footerCompanyName = companyName.replace(/econnect/gi, 'ECONNECT');
 
   return (
     <div className="bg-white border border-[#D0D0D0] shadow-lg max-w-3xl mx-auto text-[#111111] print:shadow-none print:border-0">
@@ -74,7 +76,12 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         {/* Left: logo only branding */}
         <div className="flex-1 min-w-0">
           <div className="inline-flex bg-[#F3F3F3] rounded-md px-4 py-2">
-            <LogoDisplay className="h-[64px] w-[220px]" priority />
+            <img
+              src="/photo/logo-invoice-hd.png"
+              alt="Logo ECONNECT VTC"
+              className="h-[64px] w-[220px] object-contain"
+              loading="eager"
+            />
           </div>
         </div>
 
@@ -173,13 +180,6 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         </table>
       </div>
 
-      {/* ── Penalties article ──────────────────────────────────── */}
-      <div className="px-8 py-3 border-b border-[#D0D0D0]">
-        <p className="text-xs text-[#777777]">
-          Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif.
-        </p>
-      </div>
-
       {/* ── Totals + Payment ───────────────────────────────────── */}
       <div className="px-8 py-6 border-b border-[#D0D0D0] flex flex-col items-end gap-6">
         {/* Totals block */}
@@ -207,32 +207,32 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
           <span className="font-medium">{formatPaymentMethodLabel(booking.payment_method || booking.notes)}</span>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-[#555555]">Statut :</span>
-          <span className="font-bold text-[#111111] bg-[#D4AF37] px-2 py-0.5 rounded-sm">{formatPaymentStatusLabel(booking.payment_status)}</span>
+          <span className="font-bold text-[#D4AF37]">{paymentStatusText}</span>
         </div>
         {(String(booking.payment_method || booking.notes || '').toLowerCase().includes('virement') || companyIban !== 'À compléter') && (
           <div className="flex items-center gap-3">
             <span className="font-bold font-mono">IBAN : {companyIban}</span>
           </div>
         )}
-        <p className="text-xs text-[#777777] pt-1">
-          Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal
-        </p>
+      </div>
+      <div className="px-8 pb-5 border-b border-[#D0D0D0] text-xs text-[#777777]">
+        <p><br /><br />Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif</p>
+        <p className="mt-1">Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux</p>
       </div>
 
       {/* ── Footer ─────────────────────────────────────────────── */}
       <div className="px-8 py-5 text-xs text-[#777777] text-center space-y-1">
         {isDriverIssued && (
           <p className="text-[#333333] font-semibold mb-2">
-            Facture éditée par la société Econnect VTC pour la société à laquelle le chauffeur est rattaché.
+            Facture éditée par la société ECONNECT VTC pour la société à laquelle le chauffeur est rattaché.
           </p>
         )}
         <p className="mt-1">
-          <span className="font-bold text-[#333333]">{companyName}</span>
-          {' '}— SIRET : {companySiret} — N° TVA : {companyVatNumber}
+          <span className="font-bold text-[#333333]">{footerCompanyName}</span>
+          {' '}- SIRET : {companySiret} - N° TVA : {companyVatNumber}
         </p>
         <p className="mt-1">
-          {companyAddress} — Tél : {companyPhone} — {companyEmail} — N° VTC : {companyVtc}
+          {companyAddress} - Tél : {companyPhone} - {companyEmail} - N° VTC : {companyVtc}
         </p>
       </div>
     </div>
