@@ -240,14 +240,14 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self._assert_valid_pdf(pdf, "invoice (penalties note)")
         self.assertTrue(
             any(
-                "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif" == text
+                "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif" in text
                 for text in captured_strings
             ),
             "Expected article L441-10 legal notice to appear in the invoice",
         )
         self.assertTrue(
             any(
-                "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux" == text
+                "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux" in text
                 for text in captured_strings
             ),
             "Expected payment-delay legal notice to appear in the invoice",

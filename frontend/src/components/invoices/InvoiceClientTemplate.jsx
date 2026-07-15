@@ -81,6 +81,10 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
               alt="Logo ECONNECT VTC"
               className="h-[64px] w-[220px] object-contain"
               loading="eager"
+              onError={(event) => {
+                event.currentTarget.onerror = null;
+                event.currentTarget.src = '/photo/logo-cropped.png';
+              }}
             />
           </div>
         </div>
@@ -216,7 +220,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         )}
       </div>
       <div className="px-8 pb-5 border-b border-[#D0D0D0] text-xs text-[#777777]">
-        <p><br /><br />Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif</p>
+        <p className="pt-4">Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif</p>
         <p className="mt-1">Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux</p>
       </div>
 

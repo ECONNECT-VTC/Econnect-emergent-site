@@ -1347,7 +1347,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         set_stroke(INVOICE_BORDER)
         c.line(40, footer_y + 22, width - 40, footer_y + 22)
         # Footer line 1: company name in bold + identifiers
-        _company_name_str = re.sub(r"econnect", "ECONNECT", clean_pdf_value(settings.get('company_name')), flags=re.IGNORECASE)
+        _company_name_str = re.sub(r"\beconnect\b", "ECONNECT", clean_pdf_value(settings.get('company_name')), flags=re.IGNORECASE)
         _siret_str = clean_pdf_value(settings.get('company_siret'))
         _vtc_str = clean_pdf_value(settings.get('company_vtc_number'))
         _rest_str = f" - SIRET : {_siret_str} - N° TVA : {company_vat_number}"
