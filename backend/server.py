@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from html import escape as html_escape
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from urllib.parse import urlencode
 
 # Third-party
@@ -1061,12 +1061,17 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             c.setStrokeColorRGB(*rgb)
 
         def draw_wrapped_value(x: float, y_value: float, text: str, max_width: float, line_height: float = 11.5) -> float:
-            wrapped_lines = simpleSplit(clean_pdf_value(text), "Helvetica", 9, max_width) or ["N/A"]
+            wrapped_lines = simpleSplit(text, "Helvetica", 9, max_width) or ["N/A"]
             for idx, line in enumerate(wrapped_lines):
                 c.drawString(x, y_value - (idx * line_height), line)
             return len(wrapped_lines) * line_height
 
-        def measure_card_height(rows: list, width_value: float, label_width: float = 118, min_height: float = 120) -> float:
+        def measure_card_height(
+            rows: list[tuple[str, Any]],
+            width_value: float,
+            label_width: float = 118,
+            min_height: float = 120
+        ) -> float:
             value_width = width_value - 28 - label_width
             total_height = 34
             for _, value in rows:
@@ -1074,7 +1079,14 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
                 total_height += (len(wrapped_lines) * 11.5) + 7
             return max(total_height, min_height)
 
-        def draw_info_card(x: float, top_y: float, width_value: float, title_value: str, rows: list, card_height: Optional[float] = None):
+        def draw_info_card(
+            x: float,
+            top_y: float,
+            width_value: float,
+            title_value: str,
+            rows: list[tuple[str, Any]],
+            card_height: Optional[float] = None
+        ) -> float:
             label_width = 118
             value_x = x + 18 + label_width
             value_width = width_value - 28 - label_width
@@ -1097,7 +1109,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
                 c.drawString(x + 18, cursor_y, f"{label} :")
                 set_order_fill(ORDER_TEXT)
                 c.setFont("Helvetica", 9)
-                consumed_height = draw_wrapped_value(value_x, cursor_y, value, value_width)
+                display_value = clean_pdf_value(value)
+                consumed_height = draw_wrapped_value(value_x, cursor_y, display_value, value_width)
                 cursor_y -= consumed_height + 7
 
             return bottom_y
