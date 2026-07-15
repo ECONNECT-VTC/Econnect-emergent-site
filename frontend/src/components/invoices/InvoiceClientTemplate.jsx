@@ -63,8 +63,8 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
     : null;
 
   const serviceDescription = booking.transfer_type
-    ? `Course VTC — ${booking.transfer_type}`
-    : 'Course VTC';
+    ? `Courses effectuées — ${booking.transfer_type}`
+    : 'Courses effectuées';
   const paymentStatusLabel = formatPaymentStatusLabel(booking.payment_status);
   const paymentStatusText = `Statut : ${paymentStatusLabel}`;
   const footerCompanyName = companyName.replace(/econnect/gi, 'ECONNECT');
@@ -80,15 +80,18 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const partnerCompanyName = sanitizeInvoiceValue(
     booking?.issuer?.name || booking?.document_driver_company || booking?.driver_name
   );
-  const partnerCompanyAddress = sanitizeInvoiceValue(
-    booking?.issuer?.address || booking?.document_driver_address || booking?.driver_address
-  );
   const partnerCompanyVat = sanitizeInvoiceValue(
     booking?.document_driver_company_vat_number
       || booking?.document_driver_company_tva_number
       || booking?.issuer?.vat_number
       || booking?.issuer?.company_vat_number
       || booking?.issuer?.company_tva_number
+  );
+  const partnerDriverName = sanitizeInvoiceValue(
+    booking?.issuer?.driver_name || booking?.driver_name
+  );
+  const partnerPhoneNumber = sanitizeInvoiceValue(
+    booking?.issuer?.phone || booking?.document_driver_phone || booking?.driver_phone
   );
 
   return (
@@ -146,8 +149,9 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
               <div className="pt-2 mt-2 border-t border-[#E5E5E5] space-y-1">
                 <p className="text-[#333333] font-semibold">Facture émise par ECONNECT VTC pour :</p>
                 <p className="font-bold text-[#333333]">{partnerCompanyName}</p>
-                <p className="text-[#555555]">{partnerCompanyAddress}</p>
-                <p className="text-[#555555]">N° de TVA : {partnerCompanyVat}</p>
+                <p className="text-[#555555]">Chauffeur : {partnerDriverName}</p>
+                <p className="text-[#555555]">Numéro de Téléphone : {partnerPhoneNumber}</p>
+                <p className="text-[#555555]">Numéro de TVA : {partnerCompanyVat}</p>
               </div>
             )}
           </div>
