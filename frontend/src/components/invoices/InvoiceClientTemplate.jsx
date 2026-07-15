@@ -54,6 +54,18 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
     ? distanceKm * unitPriceHt
     : Number(booking.price_ht || 0);
 
+  // Detect mise à disposition and expose duration in hours
+  const isDispositionOrder = Boolean(
+    String(booking.transfer_type || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .includes('disposition')
+  );
+  const dispositionHours = isDispositionOrder && Number(booking.disposition_hours) > 0
+    ? Number(booking.disposition_hours)
+    : null;
+
   const serviceDescription = booking.transfer_type
     ? `Course VTC — ${booking.transfer_type}`
     : 'Course VTC';
@@ -61,10 +73,10 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   return (
     <div className="bg-white border border-[#D0D0D0] shadow-lg max-w-3xl mx-auto text-[#111111] print:shadow-none print:border-0">
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="px-8 py-6 flex justify-between items-start border-b border-[#D0D0D0]">
+      <div className="px-8 py-5 flex justify-between items-start gap-6 border-b border-[#D0D0D0]">
         {/* Left: logo + company */}
-        <div>
-          <LogoDisplay className="h-[120px]" priority />
+        <div className="flex-1 min-w-0">
+          <LogoDisplay className="h-[72px]" priority />
           <p className="text-[#555555] text-xs uppercase tracking-widest mt-2">
             Service de Transport Privé Premium
           </p>
@@ -73,7 +85,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         </div>
 
         {/* Right: invoice number + date box */}
-        <div className="border-2 border-[#111111] rounded-md px-6 py-4 text-right min-w-[200px]">
+        <div className="border border-[#CCCCCC] rounded-md px-6 py-4 text-right min-w-[200px] flex-shrink-0">
           <p className="text-xs uppercase tracking-widest text-[#555555] font-semibold">Facture N°</p>
           <p className="text-2xl font-bold font-mono text-[#111111] mt-1">{invoiceNumber}</p>
           <div className="mt-3 border-t border-[#DDDDDD] pt-2 space-y-1 text-xs text-[#555555]">
@@ -93,7 +105,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
       <div className="grid grid-cols-2 border-b border-[#D0D0D0]">
         {/* Émetteur */}
         <div className="border-r border-[#D0D0D0]">
-          <div className="bg-[#1A1A1A] px-6 py-2">
+          <div className="bg-[#2A2A2A] px-6 py-2">
             <p className="text-white text-xs uppercase tracking-widest font-semibold">Émetteur</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
@@ -108,7 +120,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
 
         {/* Client */}
         <div>
-          <div className="bg-[#1A1A1A] px-6 py-2">
+          <div className="bg-[#2A2A2A] px-6 py-2">
             <p className="text-white text-xs uppercase tracking-widest font-semibold">Client</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
@@ -125,7 +137,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
       <div className="px-8 py-6 border-b border-[#D0D0D0]">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="bg-[#1A1A1A] text-white">
+            <tr className="bg-[#2A2A2A] text-white">
               <th className="text-left px-3 py-2 text-xs uppercase tracking-widest font-semibold rounded-tl">Description</th>
               <th className="text-center px-3 py-2 text-xs uppercase tracking-widest font-semibold">Qté</th>
               <th className="text-right px-3 py-2 text-xs uppercase tracking-widest font-semibold">Prix HT</th>
@@ -148,6 +160,11 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
                     Le {booking.pickup_date}{booking.pickup_time ? ` à ${booking.pickup_time}` : ''}
                   </p>
                 )}
+                {dispositionHours !== null && (
+                  <p className="text-[#555555] text-xs">
+                    Durée : {dispositionHours}h
+                  </p>
+                )}
               </td>
               <td className="text-center px-3 py-3 font-mono">
                 {distanceKm != null ? `${distanceKm.toFixed(2)} km` : '1'}
@@ -160,6 +177,13 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      {/* ── Penalties notice ───────────────────────────────────── */}
+      <div className="px-8 py-3 border-b border-[#D0D0D0]">
+        <p className="text-xs text-[#777777]">
+          Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal.
+        </p>
       </div>
 
       {/* ── Totals + Payment ───────────────────────────────────── */}
@@ -190,12 +214,11 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-[#555555]">Statut :</span>
-          <span className="font-medium">{formatPaymentStatusLabel(booking.payment_status)}</span>
+          <span className="font-bold text-[#D4AF37]">{formatPaymentStatusLabel(booking.payment_status)}</span>
         </div>
         {(String(booking.payment_method || booking.notes || '').toLowerCase().includes('virement') || companyIban !== 'À compléter') && (
           <div className="flex items-center gap-3">
-            <span className="text-[#555555]">IBAN :</span>
-            <span className="font-mono font-medium">{companyIban}</span>
+            <span className="font-bold font-mono">IBAN : {companyIban}</span>
           </div>
         )}
       </div>
@@ -207,11 +230,14 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
             Facture éditée par la société Econnect VTC pour la société à laquelle le chauffeur est rattaché.
           </p>
         )}
-        <p>Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux d'intérêt légal.</p>
         <p className="mt-1">
-          {companyName} — SIRET : {companySiret} — N° VTC : {companyVtc}
+          <span className="font-bold text-[#333333]">{companyName}</span>
+          {' '}— SIRET : {companySiret} — N° VTC : {companyVtc}
         </p>
-        <p className="mt-1">{companyName} © {new Date().getFullYear()} — Merci de votre confiance.</p>
+        <p className="mt-1">
+          <span className="font-bold text-[#333333]">{companyName}</span>
+          {' '}© {new Date().getFullYear()} — Merci de votre confiance.
+        </p>
       </div>
     </div>
   );
