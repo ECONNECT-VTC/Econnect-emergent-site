@@ -829,6 +829,7 @@ async def build_document_issuer_profile(booking: dict, settings: dict, driver: O
         "phone": settings.get("company_phone", "À compléter"),
         "siret": settings["company_siret"],
         "vtc_number": settings["company_vtc_number"],
+        "vat_number": settings.get("company_vat_number") or settings.get("company_tva_number"),
         "is_driver_issuer": False,
     }
 
@@ -846,6 +847,7 @@ async def build_document_issuer_profile(booking: dict, settings: dict, driver: O
         "phone": driver.get("company_phone") or driver.get("phone") or issuer["phone"],
         "siret": driver.get("company_siret") or issuer["siret"],
         "vtc_number": driver.get("company_vtc_number") or issuer["vtc_number"],
+        "vat_number": driver.get("company_vat_number") or driver.get("company_tva_number") or issuer.get("vat_number"),
         "is_driver_issuer": True,
     }
 
@@ -957,6 +959,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         "phone": settings.get("company_phone", "À compléter"),
         "siret": settings["company_siret"],
         "vtc_number": settings["company_vtc_number"],
+        "vat_number": settings.get("company_vat_number") or settings.get("company_tva_number"),
         "is_driver_issuer": False,
     })
 
@@ -1158,12 +1161,27 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             clean_pdf_value(booking.get("client_email")),
             clean_pdf_value(booking.get("client_phone")),
         ]
+        partner_vat_number = clean_pdf_value(
+            booking.get("document_driver_company_vat_number")
+            or booking.get("document_driver_company_tva_number")
+            or issuer.get("vat_number")
+            or issuer.get("company_vat_number")
+            or issuer.get("company_tva_number")
+        )
         issuer_lines = [
             clean_pdf_value(issuer.get("name")),
             clean_pdf_value(issuer.get("address")),
             clean_pdf_value(issuer.get("email")),
             f"Tél : {clean_pdf_value(issuer.get('phone'))}",
         ]
+        if issuer.get("is_driver_issuer"):
+            issuer_lines = [
+                clean_pdf_value(settings.get("company_name")),
+                "Facture émise par ECONNECT VTC pour :",
+                clean_pdf_value(issuer.get("name")),
+                clean_pdf_value(issuer.get("address")),
+                f"N° de TVA : {partner_vat_number}",
+            ]
 
         c.setFillColorRGB(1, 1, 1)
         c.rect(0, 0, width, height, fill=1, stroke=0)
@@ -1342,18 +1360,6 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.setFont("Helvetica", 8)
         c.drawString(table_x, legal_notes_y, legal_note_1)
         c.drawString(table_x, legal_notes_y - 11, legal_note_2)
-
-        if issuer.get("is_driver_issuer"):
-            econnect_name = re.sub(r"\beconnect\b", "ECONNECT", clean_pdf_value(settings.get('company_name')), flags=re.IGNORECASE)
-            issuer_block_y = legal_notes_y - 28
-            set_fill(INVOICE_MUTED)
-            c.setFont("Helvetica-Oblique", 8)
-            c.drawString(table_x, issuer_block_y, "Facture émise par ECONNECT VTC au nom et pour le compte de :")
-            c.setFont("Helvetica-Bold", 8)
-            c.drawString(table_x, issuer_block_y - 11, econnect_name)
-            c.setFont("Helvetica", 8)
-            c.drawString(table_x, issuer_block_y - 22, clean_pdf_value(settings.get('company_address')))
-            c.drawString(table_x, issuer_block_y - 33, f"N° de TVA : {company_vat_number}")
 
         footer_y = 42
         set_stroke(INVOICE_BORDER)

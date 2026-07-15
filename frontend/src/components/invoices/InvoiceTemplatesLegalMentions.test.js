@@ -101,12 +101,14 @@ describe('Invoice templates legal TVA mentions', () => {
     expect(clientTemplate).not.toContain('Service de Transport Privé Premium');
   });
 
-  it('client template shows hors admin issuer block with ECONNECT VTC', () => {
+  it('client template shows hors admin issuer block under Émetteur with partner VAT fallback', () => {
     const clientTemplatePath = path.join(__dirname, 'InvoiceClientTemplate.jsx');
     const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
 
-    expect(clientTemplate).toContain('Facture émise par ECONNECT VTC au nom et pour le compte de :');
-    expect(clientTemplate).toContain('N° de TVA : {companyVatNumber}');
+    expect(clientTemplate).toContain('Facture émise par ECONNECT VTC pour :');
+    expect(clientTemplate).toContain('N° de TVA : {partnerCompanyVat}');
+    expect(clientTemplate).toContain('booking?.issuer?.name');
+    expect(clientTemplate).not.toContain('Facture émise par ECONNECT VTC au nom et pour le compte de :');
     expect(clientTemplate).not.toContain('LeCab');
   });
 

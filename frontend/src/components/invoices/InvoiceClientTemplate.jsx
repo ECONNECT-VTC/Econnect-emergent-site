@@ -68,6 +68,28 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const paymentStatusLabel = formatPaymentStatusLabel(booking.payment_status);
   const paymentStatusText = `Statut : ${paymentStatusLabel}`;
   const footerCompanyName = companyName.replace(/econnect/gi, 'ECONNECT');
+  const normalizeInvoiceValue = (value, fallback = 'N/A') => {
+    const text = String(value ?? '').trim();
+    if (!text) return fallback;
+    const normalized = text.toLowerCase();
+    if (['à compléter', 'a compléter', 'a completer', 'n/a', 'na', 'none', 'null'].includes(normalized)) {
+      return fallback;
+    }
+    return text;
+  };
+  const partnerCompanyName = normalizeInvoiceValue(
+    booking?.issuer?.name || booking?.document_driver_company || booking?.driver_name
+  );
+  const partnerCompanyAddress = normalizeInvoiceValue(
+    booking?.issuer?.address || booking?.document_driver_address || booking?.driver_address
+  );
+  const partnerCompanyVat = normalizeInvoiceValue(
+    booking?.document_driver_company_vat_number
+      || booking?.document_driver_company_tva_number
+      || booking?.issuer?.vat_number
+      || booking?.issuer?.company_vat_number
+      || booking?.issuer?.company_tva_number
+  );
 
   return (
     <div className="bg-white border border-[#D0D0D0] shadow-lg max-w-3xl mx-auto text-[#111111] print:shadow-none print:border-0">
@@ -119,6 +141,14 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
             <p className="text-[#555555]">{companyEmail}</p>
             {companyPhone && companyPhone !== 'À compléter' && (
               <p className="text-[#555555]">{companyPhone}</p>
+            )}
+            {isDriverIssued && (
+              <div className="pt-2 mt-2 border-t border-[#E5E5E5] space-y-1">
+                <p className="text-[#333333] font-semibold">Facture émise par ECONNECT VTC pour :</p>
+                <p className="font-bold text-[#333333]">{partnerCompanyName}</p>
+                <p className="text-[#555555]">{partnerCompanyAddress}</p>
+                <p className="text-[#555555]">N° de TVA : {partnerCompanyVat}</p>
+              </div>
             )}
           </div>
         </div>
@@ -226,14 +256,6 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
 
       {/* ── Footer ─────────────────────────────────────────────── */}
       <div className="px-8 py-5 text-xs text-[#777777] text-center space-y-1">
-        {isDriverIssued && (
-          <div className="text-left mb-3">
-            <p className="text-[#333333] font-semibold">Facture émise par ECONNECT VTC au nom et pour le compte de :</p>
-            <p className="mt-1 font-bold text-[#333333]">{footerCompanyName}</p>
-            <p className="mt-0.5">{companyAddress}</p>
-            <p className="mt-0.5">N° de TVA : {companyVatNumber}</p>
-          </div>
-        )}
         <p className="mt-1">
           <span className="font-bold text-[#333333]">{footerCompanyName}</span>
           {' '}- SIRET : {companySiret} - N° TVA : {companyVatNumber}
