@@ -88,7 +88,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
       || booking?.issuer?.company_tva_number
   );
   const partnerDriverName = sanitizeInvoiceValue(
-    booking?.driver_name || booking?.issuer?.driver_name
+    booking?.issuer?.driver_name || booking?.driver_name
   );
   const partnerPhoneNumber = sanitizeInvoiceValue(
     booking?.issuer?.phone || booking?.document_driver_phone || booking?.driver_phone

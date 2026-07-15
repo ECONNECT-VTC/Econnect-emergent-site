@@ -1174,10 +1174,14 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
                 or booking.get("document_driver_phone")
                 or booking.get("driver_phone")
             )
+            driver_name = clean_pdf_value(
+                issuer.get("driver_name")
+                or booking.get("driver_name")
+            )
             issuer_lines = [
                 "Facture émise par ECONNECT VTC pour :",
                 clean_pdf_value(issuer.get("name")),
-                f"Chauffeur : {clean_pdf_value(booking.get('driver_name'))}",
+                f"Chauffeur : {driver_name}",
                 f"Numéro de Téléphone : {partner_phone_number}",
                 f"Numéro de TVA : {partner_vat_number}",
             ]
