@@ -1,7 +1,7 @@
 import React from 'react';
 import { formatDate, calculateDueDate, formatCurrency, formatInvoiceNumber } from '@/utils/invoiceUtils';
 
-const INVOICE_PLACEHOLDER_VALUES = ['à compléter', 'a compléter', 'a completer', 'n/a', 'na', 'none', 'null'];
+const INVOICE_PLACEHOLDER_VALUES = ['a completer', 'n/a', 'na', 'none', 'null'];
 
 /**
  * InvoiceCommissionTemplate
@@ -43,7 +43,10 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
   const sanitizeInvoiceValue = (value, fallback = 'N/A') => {
     const text = String(value ?? '').trim();
     if (!text) return fallback;
-    const normalized = text.toLowerCase();
+    const normalized = text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
     if (INVOICE_PLACEHOLDER_VALUES.includes(normalized)) {
       return fallback;
     }
