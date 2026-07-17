@@ -87,6 +87,42 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "commission", "000004")
         self._assert_valid_pdf(pdf, "commission")
 
+    def test_commission_redesign_uses_company_sections_and_euro_symbol(self):
+        booking = {
+            **SAMPLE_BOOKING,
+            "document_driver_name": "Karim Chauffeur",
+            "document_driver_company": "Karim Transport SAS",
+            "document_driver_address": "12 avenue Victor Hugo, 75016 Paris",
+            "document_driver_phone": "0611223344",
+            "document_driver_siret": "55224466800011",
+            "document_driver_company_vat_number": "FR66552244668",
+        }
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+        original_draw_right_string = server.canvas.Canvas.drawRightString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        def spy_draw_right_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_right_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string), \
+             patch.object(server.canvas.Canvas, "drawRightString", new=spy_draw_right_string):
+            pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "commission", "000004B")
+
+        self._assert_valid_pdf(pdf, "commission (redesign)")
+        self.assertIn("NOTRE SOCIÉTÉ", captured_strings)
+        self.assertIn("SOCIÉTÉ DE RATTACHEMENT", captured_strings)
+        self.assertIn("ECONNECT VTC SARL", captured_strings)
+        self.assertIn("Karim Transport SAS", captured_strings)
+        self.assertFalse(any(text == "ÉMETTEUR" for text in captured_strings))
+        self.assertFalse(any("Destinataire" in text for text in captured_strings))
+        self.assertFalse(any(" EUR" in text for text in captured_strings))
+        self.assertTrue(any("€" in text for text in captured_strings))
+
     def test_activity_document(self):
         pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "activity", "000005")
         self._assert_valid_pdf(pdf, "activity")
