@@ -147,8 +147,15 @@ describe('Invoice templates legal TVA mentions', () => {
     expect(commissionTemplate).not.toContain('Émetteur');
     expect(commissionTemplate).not.toContain('Destinataire');
     expect(commissionTemplate).not.toContain('EUR');
-    expect(commissionTemplate).toContain('Notre société');
-    expect(commissionTemplate).toContain('Société de rattachement chauffeur');
+    expect(commissionTemplate).toContain('SOCIETE EMETRICE');
+    expect(commissionTemplate).toContain('SOCIETE PARTENANAIRE');
+    expect(commissionTemplate).toContain('commission sur course');
+    expect(commissionTemplate).toContain('commission mise à disposition');
+    expect(commissionTemplate).not.toContain('Commission de gestion');
+    expect(commissionTemplate).not.toContain('Facture Client (');
+    expect(commissionTemplate).not.toContain('Document confidentiel');
+    expect(commissionTemplate).not.toContain('Base client TTC');
+    expect(commissionTemplate).not.toContain('Montant reversé chauffeur');
     expect(commissionTemplate).toContain('/photo/logo-invoice-hd.png');
     expect(commissionTemplate).toContain('partnerCompanyName');
     expect(commissionTemplate).toContain('partnerCompanyAddress');

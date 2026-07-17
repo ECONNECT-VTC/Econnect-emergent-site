@@ -114,14 +114,37 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "commission", "000014")
 
         self._assert_valid_pdf(pdf, "commission (redesign)")
-        self.assertIn("NOTRE SOCIÉTÉ", captured_strings)
-        self.assertIn("SOCIÉTÉ DE RATTACHEMENT", captured_strings)
+        self.assertIn("SOCIETE EMETRICE", captured_strings)
+        self.assertIn("SOCIETE PARTENANAIRE", captured_strings)
         self.assertIn("ECONNECT VTC SARL", captured_strings)
         self.assertIn("Karim Transport SAS", captured_strings)
         self.assertFalse(any(text == "ÉMETTEUR" for text in captured_strings))
         self.assertFalse(any("Destinataire" in text for text in captured_strings))
         self.assertFalse(any(" EUR" in text for text in captured_strings))
         self.assertTrue(any("€" in text for text in captured_strings))
+        self.assertTrue(any("commission sur course" in text for text in captured_strings))
+        self.assertFalse(any("Commission de gestion" in text for text in captured_strings))
+        self.assertFalse(any("DÉTAIL DU CALCUL" in text for text in captured_strings))
+        self.assertFalse(any("Facture Client (" in text for text in captured_strings))
+        self.assertFalse(any("Document confidentiel" in text for text in captured_strings))
+
+    def test_commission_redesign_uses_disposition_label_for_disposition_transfers(self):
+        booking = {
+            **SAMPLE_BOOKING,
+            "transfer_type": "Mise à disposition",
+        }
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "commission", "000015")
+
+        self._assert_valid_pdf(pdf, "commission (disposition label)")
+        self.assertTrue(any("commission mise à disposition" in text for text in captured_strings))
 
     def test_activity_document(self):
         pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "activity", "000005")

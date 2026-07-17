@@ -1,5 +1,11 @@
 import React from 'react';
-import { formatDate, calculateDueDate, formatCurrency, formatInvoiceNumber } from '@/utils/invoiceUtils';
+import {
+  formatDate,
+  calculateDueDate,
+  formatCurrency,
+  formatInvoiceNumber,
+  isDispositionTransfer,
+} from '@/utils/invoiceUtils';
 
 const INVOICE_PLACEHOLDER_VALUES = ['a completer', 'n/a', 'na', 'none', 'null'];
 
@@ -40,6 +46,9 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
   const companyVatNumber = settings?.company_vat_number || settings?.company_tva_number || 'À compléter';
   const commissionRate = Math.round((booking.commission_rate || settings?.commission_rate || 0.1) * 100);
   const tvaCommRate = Math.round((booking.tva_commission_rate || settings?.tva_commission_rate || 0.2) * 100);
+  const commissionServiceLabel = isDispositionTransfer(booking.transfer_type)
+    ? 'commission mise à disposition'
+    : 'commission sur course';
   const sanitizeInvoiceValue = (value, fallback = 'N/A') => {
     const text = String(value ?? '').trim();
     if (!text) return fallback;
@@ -118,7 +127,7 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
       <div className="grid grid-cols-2 border-b border-[#D0D0D0]">
         <div className="border-r border-[#D0D0D0]">
           <div className="bg-black/80 px-6 py-2">
-            <p className="text-white text-xs uppercase tracking-widest font-semibold">Notre société</p>
+            <p className="text-white text-xs uppercase tracking-widest font-semibold">SOCIETE EMETRICE</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
             <p className="font-bold text-base">{companyName}</p>
@@ -131,7 +140,7 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
         </div>
         <div>
           <div className="bg-black/80 px-6 py-2">
-            <p className="text-white text-xs uppercase tracking-widest font-semibold">Société de rattachement chauffeur</p>
+            <p className="text-white text-xs uppercase tracking-widest font-semibold">SOCIETE PARTENANAIRE</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
             <p className="font-bold text-base">{partnerCompanyName}</p>
@@ -183,7 +192,7 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
             <p className="text-white text-xs uppercase tracking-widest font-semibold">Trajet concerné</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
-            <p className="font-medium">Commission de gestion — {booking.transfer_type || 'VTC'}</p>
+            <p className="font-medium">{commissionServiceLabel}</p>
             <p className="text-[#555555]">Client : {booking.client_name || 'N/A'}</p>
             <p className="text-[#555555]">Départ : {booking.pickup_address || 'N/A'}</p>
             <p className="text-[#555555]">Arrivée : {booking.dropoff_address || 'N/A'}</p>
@@ -195,25 +204,23 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
 
         {/* Amounts breakdown */}
         <div className="pb-6 border-b border-[#D0D0D0]">
-          <table className="w-full text-sm border-collapse">
+          <table className="w-full text-sm border-collapse table-fixed">
             <thead>
               <tr className="bg-black/80 text-white">
-                <th className="text-left px-3 py-2 text-xs uppercase tracking-widest font-semibold rounded-tl">Description</th>
-                <th className="text-right px-3 py-2 text-xs uppercase tracking-widest font-semibold">Montant HT</th>
-                <th className="text-right px-3 py-2 text-xs uppercase tracking-widest font-semibold">TVA</th>
-                <th className="text-right px-3 py-2 text-xs uppercase tracking-widest font-semibold rounded-tr">Total TTC</th>
+                <th className="text-left px-3 py-2 text-xs uppercase tracking-widest font-semibold rounded-tl w-[55%]">Description</th>
+                <th className="text-center px-3 py-2 text-xs uppercase tracking-widest font-semibold w-[15%]">Montant HT</th>
+                <th className="text-center px-3 py-2 text-xs uppercase tracking-widest font-semibold w-[10%]">TVA</th>
+                <th className="text-center px-4 py-2 text-xs uppercase tracking-wide font-semibold rounded-tr whitespace-nowrap w-[20%]">Total TTC</th>
               </tr>
             </thead>
             <tbody>
               <tr className="border-b border-[#E0E0E0]">
                 <td className="px-3 py-3">
-                  <p className="font-medium">Commission de gestion — {booking.transfer_type || 'VTC'}</p>
-                  <p className="text-[#555555] text-xs mt-1">Base client TTC : {formatCurrency(booking.price_ttc)}</p>
-                  <p className="text-[#555555] text-xs">Montant reversé chauffeur : {formatCurrency(booking.driver_earning)}</p>
+                  <p className="font-medium">{commissionServiceLabel}</p>
                 </td>
-                <td className="text-right px-3 py-3 font-mono">{formatCurrency(booking.commission_ht)}</td>
-                <td className="text-right px-3 py-3 font-mono">{tvaCommRate}&nbsp;%</td>
-                <td className="text-right px-3 py-3 font-mono font-semibold">{formatCurrency(booking.commission_ttc)}</td>
+                <td className="text-center px-3 py-3 font-mono tabular-nums">{formatCurrency(booking.commission_ht)}</td>
+                <td className="text-center px-3 py-3 font-mono tabular-nums">{tvaCommRate}&nbsp;%</td>
+                <td className="text-center px-4 py-3 font-mono tabular-nums font-semibold whitespace-nowrap">{formatCurrency(booking.commission_ttc)}</td>
               </tr>
             </tbody>
           </table>
@@ -235,14 +242,10 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
               <span className="font-mono font-bold text-[#111111] text-lg">{formatCurrency(booking.commission_ttc)}</span>
             </div>
           </div>
-          <p className="text-[#777777] text-xs">
-            = Facture Client ({formatCurrency(booking.price_ttc)}) − Facture Chauffeur ({formatCurrency(booking.driver_earning)})
-          </p>
         </div>
 
         {/* Footer */}
         <div className="pt-4 border-t border-[#D0D0D0] text-xs text-[#777777] space-y-1 text-center">
-          <p className="font-semibold text-[#333333]">⚠ Document confidentiel — réservé à l'administration.</p>
           <p className="mt-1">
             <span className="font-bold text-[#333333]">{companyName}</span>
             {' '}- SIRET : {companySiret} - N° TVA : {companyVatNumber}
