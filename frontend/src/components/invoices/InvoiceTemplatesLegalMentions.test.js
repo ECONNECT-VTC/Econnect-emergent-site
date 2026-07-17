@@ -23,8 +23,8 @@ describe('ActivityStatementTemplate', () => {
     expect(activityTemplate).toContain("Relevé d'activité N°");
   });
 
-  it('shows SOCIETE EMETRICE and SOCIETE PARTENAIRE sections', () => {
-    expect(activityTemplate).toContain('SOCIETE EMETRICE');
+  it('shows Émetteur and SOCIETE PARTENAIRE sections', () => {
+    expect(activityTemplate).toContain('Émetteur');
     expect(activityTemplate).toContain('SOCIETE PARTENAIRE');
   });
 
@@ -72,8 +72,8 @@ describe('ActivityStatementTemplate', () => {
     expect(activityTemplate).not.toContain('LogoDisplay');
   });
 
-  it('uses border border-[#CCCCCC] for the document number box', () => {
-    expect(activityTemplate).toContain('border border-[#CCCCCC]');
+  it('uses a gold border for the document number box', () => {
+    expect(activityTemplate).toContain('border border-[#D4AF37]');
   });
 });
 
