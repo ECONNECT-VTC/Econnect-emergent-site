@@ -2175,7 +2175,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             c.drawString(x_date, y, f"{booking.get('pickup_date', 'N/A')} {booking.get('pickup_time', '')}")
             c.drawString(x_service, y, booking.get('transfer_type', 'VTC'))
             c.drawString(x_ref, y, document_number)
-            c.drawRightString(x_amount, y, f"{breakdown['driver_earning']:.2f} EUR")
+            c.drawRightString(x_amount, y, f"{breakdown['driver_earning']:.2f} €")
             y -= table_row_h
 
             set_stroke(GOLD)
@@ -2185,10 +2185,10 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
             c.setFont("Helvetica", 9)
             c.drawString(36, y, "Récapitulatif : Montant course client TTC")
-            c.drawRightString(width - 36, y, f"{breakdown['price_ttc']:.2f} EUR")
+            c.drawRightString(width - 36, y, f"{breakdown['price_ttc']:.2f} €")
             y -= table_row_h
             c.drawString(36, y, "Commission prélevée TTC")
-            c.drawRightString(width - 36, y, f"- {breakdown['commission_ttc']:.2f} EUR")
+            c.drawRightString(width - 36, y, f"- {breakdown['commission_ttc']:.2f} €")
             y -= 16
         else:
             description = "Rémunération trajet"
@@ -2271,7 +2271,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     set_fill(WHITE)
     c.setFont("Helvetica-Bold", 11)
     c.drawString(44, y - 4, total_label)
-    c.drawRightString(width - 44, y - 4, f"{total_value:.2f} EUR")
+    c.drawRightString(width - 44, y - 4, f"{total_value:.2f} €")
     y -= box_h + 16
 
     # ================================================================

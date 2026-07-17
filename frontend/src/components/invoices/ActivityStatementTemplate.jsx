@@ -93,6 +93,10 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
     ? formatInvoiceNumber(booking.client_invoice_number)
     : null;
 
+  const driverInvoiceRef = booking.driver_invoice_number
+    ? formatInvoiceNumber(booking.driver_invoice_number)
+    : null;
+
   const priceTtc = Number(booking.price_ttc || 0);
   const commissionTtc = Number(booking.commission_ttc || 0);
   const driverEarning = Number(booking.driver_earning || 0);
@@ -181,12 +185,20 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
         </div>
 
         {/* ── Client invoice reference ──────────────────────────── */}
-        {clientInvoiceRef && (
+        {(clientInvoiceRef || driverInvoiceRef) && (
           <div className="bg-[#F7F7F7] rounded-lg px-4 py-3 text-sm space-y-1 border border-[#E5E5E5]">
-            <div>
-              <span className="text-[#555555]">Réf. facture client : </span>
-              <span className="text-[#111111] font-mono font-semibold">{clientInvoiceRef}</span>
-            </div>
+            {clientInvoiceRef && (
+              <div>
+                <span className="text-[#555555]">Réf. facture client : </span>
+                <span className="text-[#111111] font-mono font-semibold">{clientInvoiceRef}</span>
+              </div>
+            )}
+            {driverInvoiceRef && (
+              <div>
+                <span className="text-[#555555]">Réf. facture chauffeur : </span>
+                <span className="text-[#111111] font-mono font-semibold">{driverInvoiceRef}</span>
+              </div>
+            )}
           </div>
         )}
 
@@ -240,7 +252,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
 
         {/* ── Totals ───────────────────────────────────────────── */}
         <div className="flex flex-col items-end gap-6">
-          <div className="w-72 text-sm">
+          <div className="w-64 text-sm">
             <div className="flex justify-between py-2 border-b border-[#E0E0E0]">
               <span className="text-[#555555]">Montant course TTC</span>
               <span className="font-mono font-semibold">{formatCurrency(priceTtc)}</span>
