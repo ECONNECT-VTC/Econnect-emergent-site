@@ -138,4 +138,22 @@ describe('Invoice templates legal TVA mentions', () => {
     expect(clientTemplate).toContain('`Statut : ${paymentStatusLabel}`');
     expect(clientTemplate).not.toContain("'Statut à payer'");
   });
+
+  it('commission template reuses client-style layout and partner company fields', () => {
+    const commissionTemplatePath = path.join(__dirname, 'InvoiceCommissionTemplate.jsx');
+    const commissionTemplate = fs.readFileSync(commissionTemplatePath, 'utf-8');
+
+    expect(commissionTemplate).not.toContain('LogoDisplay');
+    expect(commissionTemplate).not.toContain('Émetteur');
+    expect(commissionTemplate).not.toContain('Destinataire');
+    expect(commissionTemplate).not.toContain('EUR');
+    expect(commissionTemplate).toContain('Notre société');
+    expect(commissionTemplate).toContain('Société de rattachement chauffeur');
+    expect(commissionTemplate).toContain('/photo/logo-invoice-hd.png');
+    expect(commissionTemplate).toContain('partnerCompanyName');
+    expect(commissionTemplate).toContain('partnerCompanyAddress');
+    expect(commissionTemplate).toContain('partnerCompanyVat');
+    expect(commissionTemplate).toContain('Chauffeur : {partnerDriverName}');
+    expect(commissionTemplate).toContain('Commission TTC');
+  });
 });

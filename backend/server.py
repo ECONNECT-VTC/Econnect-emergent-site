@@ -944,6 +944,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     title = title_map.get(document_type, "DOCUMENT")
     is_order_document = document_type == "order"
     is_invoice_document = document_type == "invoice"
+    is_commission_document = document_type == "commission"
     is_driver_statement = document_type in ("driver", "activity")
     if is_order_document:
         GOLD = (0.83, 0.69, 0.22)
@@ -1394,6 +1395,287 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             f"{clean_pdf_value(settings.get('company_address'))} - Tél : {clean_pdf_value(settings.get('company_phone'))} - {clean_pdf_value(settings.get('company_email'))}",
         )
         c.drawCentredString(width / 2, footer_y - 16, f"N° VTC : {_vtc_str}")
+
+        c.showPage()
+        c.save()
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        return pdf_bytes
+
+    if is_commission_document:
+        INVOICE_GOLD = (0.83, 0.69, 0.22)
+        INVOICE_DARK = (0.10, 0.10, 0.10)
+        INVOICE_BORDER = (0.82, 0.82, 0.82)
+        INVOICE_MUTED = (0.38, 0.38, 0.38)
+        INVOICE_LIGHT = (0.96, 0.96, 0.96)
+        INVOICE_HEADER_BG = (0.28, 0.28, 0.28)
+
+        def draw_wrapped_text(x_pos: float, y_pos: float, text: str, max_width: float, line_height: float = 10.5) -> float:
+            safe_text = text or "N/A"
+            lines = simpleSplit(safe_text, "Helvetica", 9.2, max_width) or [safe_text]
+            for index, line in enumerate(lines):
+                c.drawString(x_pos, y_pos - (index * line_height), line)
+            return len(lines) * line_height
+
+        def draw_party_box(x_pos: float, top_y: float, width_box: float, title_text: str, lines: list[str], height_box: float = 124) -> None:
+            bottom_y = top_y - height_box
+            set_stroke(INVOICE_BORDER)
+            c.setLineWidth(0.9)
+            c.rect(x_pos, bottom_y, width_box, height_box, fill=0, stroke=1)
+            set_fill(INVOICE_HEADER_BG)
+            c.rect(x_pos, top_y - 22, width_box, 22, fill=1, stroke=0)
+            set_fill(WHITE)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(x_pos + 12, top_y - 15, title_text)
+            cursor_y = top_y - 38
+            set_fill(INVOICE_DARK)
+            for index, line in enumerate(lines):
+                c.setFont("Helvetica-Bold" if index == 0 else "Helvetica", 9.2)
+                consumed = draw_wrapped_text(x_pos + 12, cursor_y, line, width_box - 24)
+                cursor_y -= consumed + 3
+
+        def format_euro(amount: Any) -> str:
+            try:
+                return f"{round_amount(float(amount or 0)):.2f} €"
+            except (TypeError, ValueError):
+                return "0.00 €"
+
+        def build_company_lines(*values: str) -> list[str]:
+            return [value for value in values if clean_pdf_value(value) != "N/A"]
+
+        now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+        due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%d/%m/%Y")
+        company_vat_number = clean_pdf_value(settings.get("company_vat_number") or settings.get("company_tva_number"))
+        operator_name = clean_pdf_value(settings.get("company_name"))
+        operator_address = clean_pdf_value(settings.get("company_address"))
+        operator_email = clean_pdf_value(settings.get("company_email"))
+        operator_phone = clean_pdf_value(settings.get("company_phone"))
+        operator_siret = clean_pdf_value(settings.get("company_siret"))
+        operator_vtc = clean_pdf_value(settings.get("company_vtc_number"))
+        partner_name = clean_pdf_value(booking.get("document_driver_company") or issuer.get("name") or settings.get("company_name"))
+        partner_address = clean_pdf_value(booking.get("document_driver_address") or (None if is_admin_fulfillment else issuer.get("address")) or settings.get("company_address"))
+        partner_email = clean_pdf_value((None if is_admin_fulfillment else issuer.get("email")) or settings.get("company_email"))
+        partner_phone = clean_pdf_value(booking.get("document_driver_phone") or (None if is_admin_fulfillment else issuer.get("phone")) or settings.get("company_phone"))
+        partner_siret = clean_pdf_value(booking.get("document_driver_siret") or (None if is_admin_fulfillment else issuer.get("siret")) or settings.get("company_siret"))
+        partner_vat_number = clean_pdf_value(
+            booking.get("document_driver_company_vat_number")
+            or booking.get("document_driver_company_tva_number")
+            or (None if is_admin_fulfillment else issuer.get("vat_number"))
+            or settings.get("company_vat_number")
+            or settings.get("company_tva_number")
+        )
+        commission_service_label = "Commission de gestion"
+        transfer_type_label = clean_pdf_value(booking.get("transfer_type"))
+        commission_description = commission_service_label if transfer_type_label == "N/A" else f"{commission_service_label} — {transfer_type_label}"
+        operator_lines = build_company_lines(
+            operator_name,
+            operator_address,
+            operator_email,
+            f"Tél : {operator_phone}",
+            f"SIRET : {operator_siret}",
+            f"N° TVA : {company_vat_number}",
+        )
+        partner_lines = build_company_lines(
+            partner_name,
+            partner_address,
+            partner_email,
+            f"Tél : {partner_phone}",
+            f"SIRET : {partner_siret}",
+            f"N° TVA : {partner_vat_number}",
+            f"Chauffeur : {clean_pdf_value(driver_display_name)}",
+        )
+
+        c.setFillColorRGB(1, 1, 1)
+        c.rect(0, 0, width, height, fill=1, stroke=0)
+
+        header_top = height - 42
+        branding_x = 40
+        branding_y = header_top - 70
+        branding_w = 220
+        branding_h = 68
+        set_fill(INVOICE_LIGHT)
+        c.roundRect(branding_x, branding_y, branding_w, branding_h, 6, fill=1, stroke=0)
+        logo_drawn = False
+        try:
+            img = ImageReader(str(INVOICE_LOGO_PATH))
+            img_w, img_h = img.getSize()
+            logo_h = 54
+            logo_w = logo_h * img_w / img_h
+            c.drawImage(
+                img,
+                branding_x + ((branding_w - logo_w) / 2),
+                branding_y + ((branding_h - logo_h) / 2),
+                width=logo_w,
+                height=logo_h,
+                mask='auto',
+                preserveAspectRatio=True,
+            )
+            logo_drawn = True
+        except Exception as exc:
+            logger.warning("PDF logo could not be drawn (%s); using text fallback.", exc)
+
+        if not logo_drawn:
+            set_fill(INVOICE_DARK)
+            c.setFont("Helvetica-Bold", 16)
+            c.drawCentredString(branding_x + (branding_w / 2), branding_y + 27, "ECONNECT VTC")
+
+        box_x = width - 212
+        box_w = 172
+        box_top = header_top
+        box_h = 98
+        set_stroke(INVOICE_BORDER)
+        c.setLineWidth(0.7)
+        c.rect(box_x, box_top - box_h, box_w, box_h, fill=0, stroke=1)
+        set_fill(INVOICE_DARK)
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(box_x + 14, box_top - 18, f"FACTURE N° {document_number}")
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 9)
+        c.drawString(box_x + 14, box_top - 36, f"Type : Commission")
+        c.drawString(box_x + 14, box_top - 50, f"Date : {now_str}")
+        c.drawString(box_x + 14, box_top - 64, f"Échéance : {due_date}")
+
+        sections_top = box_top - box_h - 22
+        box_width = (width - 80 - 16) / 2
+        draw_party_box(40, sections_top, box_width, "NOTRE SOCIÉTÉ", operator_lines)
+        draw_party_box(40 + box_width + 16, sections_top, box_width, "SOCIÉTÉ DE RATTACHEMENT", partner_lines)
+
+        table_top = sections_top - 146
+        table_x = 40
+        table_w = width - 80
+        description_w = 280
+        qty_w = 48
+        price_ht_w = 84
+        tva_w = 64
+        total_ttc_w = table_w - description_w - qty_w - price_ht_w - tva_w
+        row_h = 82
+
+        set_fill(INVOICE_HEADER_BG)
+        c.rect(table_x, table_top - 24, table_w, 24, fill=1, stroke=0)
+        headers = [
+            ("Description", table_x + 10),
+            ("Qté", table_x + description_w + 10),
+            ("Montant HT", table_x + description_w + qty_w + 10),
+            ("TVA", table_x + description_w + qty_w + price_ht_w + 10),
+            ("Total TTC", table_x + description_w + qty_w + price_ht_w + tva_w + 10),
+        ]
+        set_fill(WHITE)
+        c.setFont("Helvetica-Bold", 8.6)
+        for header_text, x_pos in headers:
+            c.drawString(x_pos, table_top - 16, header_text)
+
+        set_stroke(INVOICE_BORDER)
+        c.setLineWidth(0.8)
+        c.rect(table_x, table_top - 24 - row_h, table_w, row_h, fill=0, stroke=1)
+        column_xs = [
+            table_x + description_w,
+            table_x + description_w + qty_w,
+            table_x + description_w + qty_w + price_ht_w,
+            table_x + description_w + qty_w + price_ht_w + tva_w,
+        ]
+        for x_pos in column_xs:
+            c.line(x_pos, table_top - 24, x_pos, table_top - 24 - row_h)
+
+        description_lines = [
+            commission_description,
+            f"Client : {clean_pdf_value(booking.get('client_name'))}",
+            f"Départ : {clean_pdf_value(booking.get('pickup_address'))}",
+            f"Arrivée : {clean_pdf_value(booking.get('dropoff_address'))}",
+            f"Date : {clean_pdf_value(booking.get('pickup_date'))} à {clean_pdf_value(booking.get('pickup_time'))}",
+        ]
+        text_y = table_top - 38
+        set_fill(INVOICE_DARK)
+        c.setFont("Helvetica-Bold", 9.2)
+        c.drawString(table_x + 10, text_y, description_lines[0])
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 8.7)
+        for detail_line in description_lines[1:]:
+            text_y -= 11
+            c.drawString(table_x + 10, text_y, detail_line)
+
+        set_fill(INVOICE_DARK)
+        c.setFont("Helvetica", 9.2)
+        c.drawCentredString(table_x + description_w + (qty_w / 2), table_top - 58, "1")
+        c.drawRightString(table_x + description_w + qty_w + price_ht_w - 10, table_top - 58, format_euro(breakdown["commission_ht"]))
+        c.drawCentredString(
+            table_x + description_w + qty_w + price_ht_w + (tva_w / 2),
+            table_top - 58,
+            f"{round_amount(settings['tva_commission_rate'] * 100):.0f}%",
+        )
+        c.drawRightString(table_x + table_w - 10, table_top - 58, format_euro(breakdown["commission_ttc"]))
+
+        detail_top = table_top - 24 - row_h - 18
+        detail_h = 78
+        detail_w = table_w
+        set_stroke(INVOICE_BORDER)
+        c.setLineWidth(0.9)
+        c.rect(table_x, detail_top - detail_h, detail_w, detail_h, fill=0, stroke=1)
+        set_fill(INVOICE_HEADER_BG)
+        c.rect(table_x, detail_top - 22, detail_w, 22, fill=1, stroke=0)
+        set_fill(WHITE)
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(table_x + 12, detail_top - 15, "DÉTAIL DU CALCUL")
+        detail_rows = [
+            ("Montant course TTC (client)", format_euro(breakdown["price_ttc"])),
+            ("Montant reversé chauffeur", format_euro(breakdown["driver_earning"])),
+            (f"Commission HT ({round_amount(settings['commission_rate'] * 100):.0f}%)", format_euro(breakdown["commission_ht"])),
+            (f"TVA commission ({round_amount(settings['tva_commission_rate'] * 100):.0f}%)", format_euro(breakdown["tva_commission"])),
+        ]
+        detail_y = detail_top - 36
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 9)
+        for label, value in detail_rows:
+            c.drawString(table_x + 12, detail_y, label)
+            c.drawRightString(table_x + detail_w - 12, detail_y, value)
+            detail_y -= 14
+
+        totals_w = 214
+        totals_x = table_x + table_w - totals_w
+        totals_top = detail_top - detail_h - 18
+        line_gap = 18
+        set_stroke(INVOICE_BORDER)
+        c.setLineWidth(0.9)
+        c.rect(totals_x, totals_top - 58, totals_w, 58, fill=0, stroke=1)
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 9)
+        c.drawString(totals_x + 14, totals_top - 16, "Commission HT")
+        c.drawRightString(totals_x + totals_w - 14, totals_top - 16, format_euro(breakdown["commission_ht"]))
+        c.drawString(totals_x + 14, totals_top - 16 - line_gap, f"Montant TVA ({round_amount(settings['tva_commission_rate'] * 100):.0f}%)")
+        c.drawRightString(totals_x + totals_w - 14, totals_top - 16 - line_gap, format_euro(breakdown["tva_commission"]))
+        set_fill(INVOICE_GOLD)
+        c.rect(totals_x, totals_top - 84, totals_w, 22, fill=1, stroke=0)
+        set_fill(INVOICE_DARK)
+        c.setFont("Helvetica-Bold", 9.5)
+        c.drawString(totals_x + 14, totals_top - 76, "COMMISSION TTC")
+        c.drawRightString(totals_x + totals_w - 14, totals_top - 76, format_euro(breakdown["commission_ttc"]))
+
+        note_y = totals_top - 104
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 8)
+        c.drawString(table_x, note_y, f"Facture Client ({format_euro(breakdown['price_ttc'])}) − Facture Chauffeur ({format_euro(breakdown['driver_earning'])})")
+        set_fill(INVOICE_DARK)
+        c.setFont("Helvetica-Bold", 8.5)
+        c.drawString(table_x, note_y - 16, "Document confidentiel — réservé à l'administration.")
+
+        footer_y = 42
+        set_stroke(INVOICE_BORDER)
+        c.line(40, footer_y + 22, width - 40, footer_y + 22)
+        footer_company_name = re.sub(r"\beconnect\b", "ECONNECT", operator_name, flags=re.IGNORECASE)
+        footer_rest = f" - SIRET : {operator_siret} - N° TVA : {company_vat_number}"
+        company_width = c.stringWidth(footer_company_name, "Helvetica-Bold", 8)
+        rest_width = c.stringWidth(footer_rest, "Helvetica", 8)
+        line_start_x = (width - company_width - rest_width) / 2
+        set_fill(INVOICE_DARK)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(line_start_x, footer_y + 8, footer_company_name)
+        set_fill(INVOICE_MUTED)
+        c.setFont("Helvetica", 8)
+        c.drawString(line_start_x + company_width, footer_y + 8, footer_rest)
+        c.drawCentredString(
+            width / 2,
+            footer_y - 4,
+            f"{operator_address} - Tél : {operator_phone} - {operator_email} - N° VTC : {operator_vtc}",
+        )
 
         c.showPage()
         c.save()
