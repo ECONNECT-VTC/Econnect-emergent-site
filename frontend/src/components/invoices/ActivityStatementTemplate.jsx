@@ -88,7 +88,6 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
   const periodLabel = booking.pickup_date
     ? `${booking.pickup_date}${booking.pickup_time ? ` à ${booking.pickup_time}` : ''}`
     : dateStr;
-  const rideDateTimeLabel = `Le ${periodLabel}`;
 
   const clientInvoiceRef = booking.client_invoice_number
     ? formatInvoiceNumber(booking.client_invoice_number)
@@ -171,7 +170,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
           {[
             ['Date', dateStr],
             ['Taux commission', `${commissionRate}%`],
-            ['Période', periodLabel],
+            ['Date et heure', periodLabel],
           ].map(([label, value]) => (
             <div key={label}>
               <p className="text-[#555555] text-xs uppercase tracking-widest mb-1 font-semibold">{label}</p>
@@ -198,7 +197,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
             <p className="text-[#555555]">Client : {booking.client_name || 'N/A'}</p>
             <p className="text-[#555555]">Départ : {booking.pickup_address || 'N/A'}</p>
             <p className="text-[#555555]">Arrivée : {booking.dropoff_address || 'N/A'}</p>
-            <p className="text-[#555555]">{rideDateTimeLabel}</p>
+            <p className="text-[#555555]">Le {periodLabel}</p>
           </div>
         </div>
 
@@ -216,7 +215,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
               <tr className="border-b border-[#E0E0E0]">
                 <td className="px-3 py-3">
                   <p className="font-medium">{serviceLabel}</p>
-                  <p className="text-[#555555] text-xs mt-0.5">{rideDateTimeLabel}</p>
+                  <p className="text-[#555555] text-xs mt-0.5">Le {periodLabel}</p>
                   <p className="text-[#555555] text-xs">
                     {booking.pickup_address || 'N/A'} → {booking.dropoff_address || 'N/A'}
                   </p>
