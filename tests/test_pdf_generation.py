@@ -111,7 +111,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
 
         with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string), \
              patch.object(server.canvas.Canvas, "drawRightString", new=spy_draw_right_string):
-            pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "commission", "000004B")
+            pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "commission", "000014")
 
         self._assert_valid_pdf(pdf, "commission (redesign)")
         self.assertIn("NOTRE SOCIÉTÉ", captured_strings)

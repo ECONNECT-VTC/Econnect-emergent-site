@@ -40,7 +40,6 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
   const companyVatNumber = settings?.company_vat_number || settings?.company_tva_number || 'À compléter';
   const commissionRate = Math.round((booking.commission_rate || settings?.commission_rate || 0.1) * 100);
   const tvaCommRate = Math.round((booking.tva_commission_rate || settings?.tva_commission_rate || 0.2) * 100);
-  const footerCompanyName = companyName.replace(/\beconnect\b/gi, 'ECONNECT');
   const sanitizeInvoiceValue = (value, fallback = 'N/A') => {
     const text = String(value ?? '').trim();
     if (!text) return fallback;
@@ -242,7 +241,7 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
         <div className="pt-4 border-t border-[#D0D0D0] text-xs text-[#777777] space-y-1 text-center">
           <p className="font-semibold text-[#333333]">⚠ Document confidentiel — réservé à l'administration.</p>
           <p className="mt-1">
-            <span className="font-bold text-[#333333]">{footerCompanyName}</span>
+            <span className="font-bold text-[#333333]">{companyName}</span>
             {' '}- SIRET : {companySiret} - N° TVA : {companyVatNumber}
           </p>
           <p className="mt-1">
