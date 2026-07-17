@@ -166,11 +166,12 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
       </div>
 
       <div className="px-8 py-6 space-y-6">
+        {/* ── Metadata grid ────────────────────────────────────── */}
         <div className="grid grid-cols-3 gap-4">
           {[
             ['Date', dateStr],
             ['Taux commission', `${commissionRate}%`],
-            ['Date et heure', periodLabel],
+            ['Service', serviceLabel],
           ].map(([label, value]) => (
             <div key={label}>
               <p className="text-[#555555] text-xs uppercase tracking-widest mb-1 font-semibold">{label}</p>
@@ -179,6 +180,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
           ))}
         </div>
 
+        {/* ── Client invoice reference ──────────────────────────── */}
         {clientInvoiceRef && (
           <div className="bg-[#F7F7F7] rounded-lg px-4 py-3 text-sm space-y-1 border border-[#E5E5E5]">
             <div>
@@ -188,6 +190,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
           </div>
         )}
 
+        {/* ── Trajet concerné ──────────────────────────────────── */}
         <div className="border border-[#D0D0D0] rounded-md overflow-hidden">
           <div className="bg-black/80 px-6 py-2">
             <p className="text-white text-xs uppercase tracking-widest font-semibold">Trajet concerné</p>
@@ -197,42 +200,47 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
             <p className="text-[#555555]">Client : {booking.client_name || 'N/A'}</p>
             <p className="text-[#555555]">Départ : {booking.pickup_address || 'N/A'}</p>
             <p className="text-[#555555]">Arrivée : {booking.dropoff_address || 'N/A'}</p>
-            <p className="text-[#555555]">Le {periodLabel}</p>
+            <p className="text-[#555555]">
+              Le {booking.pickup_date || 'N/A'}{booking.pickup_time ? ` à ${booking.pickup_time}` : ''}
+            </p>
           </div>
         </div>
 
+        {/* ── Activity table ───────────────────────────────────── */}
         <div className="pb-6 border-b border-[#D0D0D0]">
           <table className="w-full text-sm border-collapse table-fixed">
             <thead>
               <tr className="bg-black/80 text-white">
-                <th className="text-left px-3 py-2 text-xs uppercase tracking-widest font-semibold rounded-tl w-[52%]">Description</th>
-                <th className="text-center px-3 py-2 text-xs uppercase tracking-widest font-semibold w-[16%]">Course TTC</th>
+                <th className="text-left px-3 py-2 text-xs uppercase tracking-widest font-semibold rounded-tl w-[22%]">Date</th>
+                <th className="text-left px-3 py-2 text-xs uppercase tracking-widest font-semibold w-[26%]">Service / Réf.</th>
+                <th className="text-center px-3 py-2 text-xs uppercase tracking-widest font-semibold w-[18%]">Course TTC</th>
                 <th className="text-center px-3 py-2 text-xs uppercase tracking-widest font-semibold w-[16%]">Commission TTC</th>
-                <th className="text-center px-4 py-2 text-xs uppercase tracking-wide font-semibold rounded-tr whitespace-nowrap w-[16%]">Versé HT</th>
+                <th className="text-center px-3 py-2 text-xs uppercase tracking-widest font-semibold rounded-tr w-[18%]">Versé HT</th>
               </tr>
             </thead>
             <tbody>
               <tr className="border-b border-[#E0E0E0]">
+                <td className="px-3 py-3 text-xs text-[#555555]">
+                  {booking.pickup_date || 'N/A'}
+                  {booking.pickup_time ? <><br />{booking.pickup_time}</> : null}
+                </td>
                 <td className="px-3 py-3">
                   <p className="font-medium">{serviceLabel}</p>
-                  <p className="text-[#555555] text-xs mt-0.5">Le {periodLabel}</p>
-                  <p className="text-[#555555] text-xs">
-                    {booking.pickup_address || 'N/A'} → {booking.dropoff_address || 'N/A'}
-                  </p>
-                  <p className="text-[#555555] text-xs">Réf. relevé : {activityNumber}</p>
+                  <p className="text-[#555555] text-xs mt-0.5">{activityNumber}</p>
                 </td>
                 <td className="text-center px-3 py-3 font-mono tabular-nums">{formatCurrency(priceTtc)}</td>
                 <td className="text-center px-3 py-3 font-mono tabular-nums text-[#D4AF37]">
                   − {formatCurrency(commissionTtc)}
                 </td>
-                <td className="text-center px-4 py-3 font-mono tabular-nums font-semibold whitespace-nowrap">{formatCurrency(driverEarning)}</td>
+                <td className="text-center px-3 py-3 font-mono tabular-nums font-semibold">{formatCurrency(driverEarning)}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
+        {/* ── Totals ───────────────────────────────────────────── */}
         <div className="flex flex-col items-end gap-6">
-          <div className="w-64 text-sm">
+          <div className="w-72 text-sm">
             <div className="flex justify-between py-2 border-b border-[#E0E0E0]">
               <span className="text-[#555555]">Montant course TTC</span>
               <span className="font-mono font-semibold">{formatCurrency(priceTtc)}</span>
@@ -248,6 +256,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
           </div>
         </div>
 
+        {/* ── Footer ─────────────────────────────────────────────── */}
         <div className="pt-4 border-t border-[#D0D0D0] text-xs text-[#777777] space-y-1 text-center">
           <p className="mt-1">
             <span className="font-bold text-[#333333]">{companyName}</span>
