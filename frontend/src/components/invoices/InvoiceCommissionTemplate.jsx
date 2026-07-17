@@ -48,7 +48,7 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
   const tvaCommRate = Math.round((booking.tva_commission_rate || settings?.tva_commission_rate || 0.2) * 100);
   const commissionServiceLabel = isDispositionTransfer(booking.transfer_type)
     ? 'commission mise à disposition'
-    : 'commission sur course';
+    : 'Commission sur course';
   const sanitizeInvoiceValue = (value, fallback = 'N/A') => {
     const text = String(value ?? '').trim();
     if (!text) return fallback;
@@ -140,7 +140,7 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
         </div>
         <div>
           <div className="bg-black/80 px-6 py-2">
-            <p className="text-white text-xs uppercase tracking-widest font-semibold">SOCIETE PARTENANAIRE</p>
+            <p className="text-white text-xs uppercase tracking-widest font-semibold">SOCIETE PARTENAIRE</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
             <p className="font-bold text-base">{partnerCompanyName}</p>

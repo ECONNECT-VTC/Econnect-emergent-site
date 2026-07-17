@@ -1467,7 +1467,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         commission_description = (
             "commission mise à disposition"
             if is_disposition_transfer(booking.get("transfer_type"))
-            else "commission sur course"
+            else "Commission sur course"
         )
         operator_lines = build_company_lines(
             operator_name,
@@ -1540,7 +1540,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         sections_top = box_top - box_h - 22
         box_width = (width - 80 - 16) / 2
         draw_party_box(40, sections_top, box_width, "SOCIETE EMETRICE", operator_lines)
-        draw_party_box(40 + box_width + 16, sections_top, box_width, "SOCIETE PARTENANAIRE", partner_lines)
+        draw_party_box(40 + box_width + 16, sections_top, box_width, "SOCIETE PARTENAIRE", partner_lines)
 
         table_top = sections_top - 146
         table_x = 40

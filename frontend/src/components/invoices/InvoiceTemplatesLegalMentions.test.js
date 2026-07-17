@@ -148,8 +148,8 @@ describe('Invoice templates legal TVA mentions', () => {
     expect(commissionTemplate).not.toContain('Destinataire');
     expect(commissionTemplate).not.toContain('EUR');
     expect(commissionTemplate).toContain('SOCIETE EMETRICE');
-    expect(commissionTemplate).toContain('SOCIETE PARTENANAIRE');
-    expect(commissionTemplate).toContain('commission sur course');
+    expect(commissionTemplate).toContain('SOCIETE PARTENAIRE');
+    expect(commissionTemplate).toContain('Commission sur course');
     expect(commissionTemplate).toContain('commission mise à disposition');
     expect(commissionTemplate).not.toContain('Commission de gestion');
     expect(commissionTemplate).not.toContain('Facture Client (');
