@@ -1464,9 +1464,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             or settings.get("company_vat_number")
             or settings.get("company_tva_number")
         )
-        commission_service_label = "Commission de gestion"
-        transfer_type_label = clean_pdf_value(booking.get("transfer_type"))
-        commission_description = commission_service_label if transfer_type_label == "N/A" else f"{commission_service_label} — {transfer_type_label}"
+        commission_description = (
+            "commission mise à disposition"
+            if is_disposition_transfer(booking.get("transfer_type"))
+            else "commission sur course"
+        )
         operator_lines = build_company_lines(
             operator_name,
             operator_address,
@@ -1537,32 +1539,28 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
 
         sections_top = box_top - box_h - 22
         box_width = (width - 80 - 16) / 2
-        draw_party_box(40, sections_top, box_width, "NOTRE SOCIÉTÉ", operator_lines)
-        draw_party_box(40 + box_width + 16, sections_top, box_width, "SOCIÉTÉ DE RATTACHEMENT", partner_lines)
+        draw_party_box(40, sections_top, box_width, "SOCIETE EMETRICE", operator_lines)
+        draw_party_box(40 + box_width + 16, sections_top, box_width, "SOCIETE PARTENANAIRE", partner_lines)
 
         table_top = sections_top - 146
         table_x = 40
         table_w = width - 80
-        description_w = 280
-        qty_w = 48
-        price_ht_w = 84
-        tva_w = 64
+        description_w = 250
+        qty_w = 42
+        price_ht_w = 88
+        tva_w = 60
         total_ttc_w = table_w - description_w - qty_w - price_ht_w - tva_w
         row_h = 82
 
         set_fill(INVOICE_HEADER_BG)
         c.rect(table_x, table_top - 24, table_w, 24, fill=1, stroke=0)
-        headers = [
-            ("Description", table_x + 10),
-            ("Qté", table_x + description_w + 10),
-            ("Montant HT", table_x + description_w + qty_w + 10),
-            ("TVA", table_x + description_w + qty_w + price_ht_w + 10),
-            ("Total TTC", table_x + description_w + qty_w + price_ht_w + tva_w + 10),
-        ]
         set_fill(WHITE)
         c.setFont("Helvetica-Bold", 8.6)
-        for header_text, x_pos in headers:
-            c.drawString(x_pos, table_top - 16, header_text)
+        c.drawString(table_x + 10, table_top - 16, "Description")
+        c.drawCentredString(table_x + description_w + (qty_w / 2), table_top - 16, "Qté")
+        c.drawCentredString(table_x + description_w + qty_w + (price_ht_w / 2), table_top - 16, "Montant HT")
+        c.drawCentredString(table_x + description_w + qty_w + price_ht_w + (tva_w / 2), table_top - 16, "TVA")
+        c.drawCentredString(table_x + description_w + qty_w + price_ht_w + tva_w + (total_ttc_w / 2), table_top - 16, "Total TTC")
 
         set_stroke(INVOICE_BORDER)
         c.setLineWidth(0.8)
@@ -1596,42 +1594,25 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         set_fill(INVOICE_DARK)
         c.setFont("Helvetica", 9.2)
         c.drawCentredString(table_x + description_w + (qty_w / 2), table_top - 58, "1")
-        c.drawRightString(table_x + description_w + qty_w + price_ht_w - 10, table_top - 58, format_euro(breakdown["commission_ht"]))
+        c.drawCentredString(
+            table_x + description_w + qty_w + (price_ht_w / 2),
+            table_top - 58,
+            format_euro(breakdown["commission_ht"]),
+        )
         c.drawCentredString(
             table_x + description_w + qty_w + price_ht_w + (tva_w / 2),
             table_top - 58,
             f"{round_amount(settings['tva_commission_rate'] * 100):.0f}%",
         )
-        c.drawRightString(table_x + table_w - 10, table_top - 58, format_euro(breakdown["commission_ttc"]))
-
-        detail_top = table_top - 24 - row_h - 18
-        detail_h = 78
-        detail_w = table_w
-        set_stroke(INVOICE_BORDER)
-        c.setLineWidth(0.9)
-        c.rect(table_x, detail_top - detail_h, detail_w, detail_h, fill=0, stroke=1)
-        set_fill(INVOICE_HEADER_BG)
-        c.rect(table_x, detail_top - 22, detail_w, 22, fill=1, stroke=0)
-        set_fill(WHITE)
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(table_x + 12, detail_top - 15, "DÉTAIL DU CALCUL")
-        detail_rows = [
-            ("Montant course TTC (client)", format_euro(breakdown["price_ttc"])),
-            ("Montant reversé chauffeur", format_euro(breakdown["driver_earning"])),
-            (f"Commission HT ({round_amount(settings['commission_rate'] * 100):.0f}%)", format_euro(breakdown["commission_ht"])),
-            (f"TVA commission ({round_amount(settings['tva_commission_rate'] * 100):.0f}%)", format_euro(breakdown["tva_commission"])),
-        ]
-        detail_y = detail_top - 36
-        set_fill(INVOICE_MUTED)
-        c.setFont("Helvetica", 9)
-        for label, value in detail_rows:
-            c.drawString(table_x + 12, detail_y, label)
-            c.drawRightString(table_x + detail_w - 12, detail_y, value)
-            detail_y -= 14
+        c.drawCentredString(
+            table_x + description_w + qty_w + price_ht_w + tva_w + (total_ttc_w / 2),
+            table_top - 58,
+            format_euro(breakdown["commission_ttc"]),
+        )
 
         totals_w = 214
         totals_x = table_x + table_w - totals_w
-        totals_top = detail_top - detail_h - 18
+        totals_top = table_top - 24 - row_h - 18
         line_gap = 18
         set_stroke(INVOICE_BORDER)
         c.setLineWidth(0.9)
@@ -1648,14 +1629,6 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.setFont("Helvetica-Bold", 9.5)
         c.drawString(totals_x + 14, totals_top - 76, "COMMISSION TTC")
         c.drawRightString(totals_x + totals_w - 14, totals_top - 76, format_euro(breakdown["commission_ttc"]))
-
-        note_y = totals_top - 104
-        set_fill(INVOICE_MUTED)
-        c.setFont("Helvetica", 8)
-        c.drawString(table_x, note_y, f"Facture Client ({format_euro(breakdown['price_ttc'])}) − Facture Chauffeur ({format_euro(breakdown['driver_earning'])})")
-        set_fill(INVOICE_DARK)
-        c.setFont("Helvetica-Bold", 8.5)
-        c.drawString(table_x, note_y - 16, "Document confidentiel — réservé à l'administration.")
 
         footer_y = 42
         set_stroke(INVOICE_BORDER)
