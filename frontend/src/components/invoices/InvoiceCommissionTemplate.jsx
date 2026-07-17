@@ -1,6 +1,8 @@
 import React from 'react';
 import { formatDate, calculateDueDate, formatCurrency, formatInvoiceNumber } from '@/utils/invoiceUtils';
 
+const INVOICE_PLACEHOLDER_VALUES = ['à compléter', 'a compléter', 'a completer', 'n/a', 'na', 'none', 'null'];
+
 /**
  * InvoiceCommissionTemplate
  *
@@ -38,12 +40,12 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
   const companyVatNumber = settings?.company_vat_number || settings?.company_tva_number || 'À compléter';
   const commissionRate = Math.round((booking.commission_rate || settings?.commission_rate || 0.1) * 100);
   const tvaCommRate = Math.round((booking.tva_commission_rate || settings?.tva_commission_rate || 0.2) * 100);
-  const footerCompanyName = companyName.replace(/econnect/gi, 'ECONNECT');
+  const footerCompanyName = companyName.replace(/\beconnect\b/gi, 'ECONNECT');
   const sanitizeInvoiceValue = (value, fallback = 'N/A') => {
     const text = String(value ?? '').trim();
     if (!text) return fallback;
     const normalized = text.toLowerCase();
-    if (['à compléter', 'a compléter', 'a completer', 'n/a', 'na', 'none', 'null'].includes(normalized)) {
+    if (INVOICE_PLACEHOLDER_VALUES.includes(normalized)) {
       return fallback;
     }
     return text;
