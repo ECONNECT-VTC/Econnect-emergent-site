@@ -1,6 +1,82 @@
 import fs from 'fs';
 import path from 'path';
 
+describe('ActivityStatementTemplate', () => {
+  const activityTemplatePath = path.join(__dirname, 'ActivityStatementTemplate.jsx');
+  let activityTemplate;
+
+  beforeAll(() => {
+    activityTemplate = fs.readFileSync(activityTemplatePath, 'utf-8');
+  });
+
+  it('exists as a file alongside the other invoice templates', () => {
+    expect(fs.existsSync(activityTemplatePath)).toBe(true);
+  });
+
+  it('uses the same light design as the commission template (white bg, black section headers)', () => {
+    expect(activityTemplate).toContain('bg-white');
+    expect(activityTemplate).toContain('bg-black/80');
+  });
+
+  it('has a header with logo and Relevé d\'activité label', () => {
+    expect(activityTemplate).toContain('/photo/logo-invoice-hd.png');
+    expect(activityTemplate).toContain("Relevé d'activité N°");
+  });
+
+  it('shows SOCIETE EMETRICE and SOCIETE PARTENAIRE sections', () => {
+    expect(activityTemplate).toContain('SOCIETE EMETRICE');
+    expect(activityTemplate).toContain('SOCIETE PARTENAIRE');
+  });
+
+  it('shows partner company fields (name, address, siret, vat, driver)', () => {
+    expect(activityTemplate).toContain('partnerCompanyName');
+    expect(activityTemplate).toContain('partnerCompanyAddress');
+    expect(activityTemplate).toContain('partnerCompanyVat');
+    expect(activityTemplate).toContain('Chauffeur : {partnerDriverName}');
+  });
+
+  it('has an activity table with correct column headers', () => {
+    expect(activityTemplate).toContain('Date');
+    expect(activityTemplate).toContain('Service / Réf.');
+    expect(activityTemplate).toContain('Course TTC');
+    expect(activityTemplate).toContain('Commission TTC');
+    expect(activityTemplate).toContain('Versé HT');
+  });
+
+  it('shows a totals block with gold total row', () => {
+    expect(activityTemplate).toContain('bg-[#D4AF37]');
+    expect(activityTemplate).toContain('Total activité HT');
+    expect(activityTemplate).toContain('driverEarning');
+  });
+
+  it('shows commission rate and a commission breakdown line', () => {
+    expect(activityTemplate).toContain('commissionRate');
+    expect(activityTemplate).toContain('Commission prélevée TTC');
+    expect(activityTemplate).toContain('commissionTtc');
+  });
+
+  it('has a footer with company details and VTC number', () => {
+    expect(activityTemplate).toContain('SIRET : {companySiret} - N° TVA : {companyVatNumber}');
+    expect(activityTemplate).toContain('N° VTC : {companyVtc}');
+    expect(activityTemplate).toContain('font-bold text-[#333333]');
+  });
+
+  it('uses shared invoiceUtils helpers', () => {
+    expect(activityTemplate).toContain('formatCurrency');
+    expect(activityTemplate).toContain('formatDate');
+    expect(activityTemplate).toContain('formatInvoiceNumber');
+    expect(activityTemplate).toContain('isDispositionTransfer');
+  });
+
+  it('does not import LogoDisplay (uses img tag like commission template)', () => {
+    expect(activityTemplate).not.toContain('LogoDisplay');
+  });
+
+  it('uses border border-[#CCCCCC] for the document number box', () => {
+    expect(activityTemplate).toContain('border border-[#CCCCCC]');
+  });
+});
+
 describe('Invoice templates legal TVA mentions', () => {
   it('removes legal TVA footer mentions while keeping accounting TVA rows', () => {
     const clientTemplatePath = path.join(__dirname, 'InvoiceClientTemplate.jsx');
