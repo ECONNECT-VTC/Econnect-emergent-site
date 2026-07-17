@@ -35,15 +35,17 @@ describe('ActivityStatementTemplate', () => {
     expect(activityTemplate).toContain('Chauffeur : {partnerDriverName}');
   });
 
-  it('has an activity table with correct column headers', () => {
-    expect(activityTemplate).toContain('Date');
-    expect(activityTemplate).toContain('Service / Réf.');
+  it('has an activity table with commission-style column headers', () => {
+    expect(activityTemplate).toContain('Description');
     expect(activityTemplate).toContain('Course TTC');
     expect(activityTemplate).toContain('Commission TTC');
     expect(activityTemplate).toContain('Versé HT');
   });
 
-  it('shows a totals block with gold total row', () => {
+  it('shows a commission-style metadata and totals layout', () => {
+    expect(activityTemplate).toContain('Date et heure');
+    expect(activityTemplate).toContain('periodLabel');
+    expect(activityTemplate).toContain('w-64 text-sm');
     expect(activityTemplate).toContain('bg-[#D4AF37]');
     expect(activityTemplate).toContain('Total activité HT');
     expect(activityTemplate).toContain('driverEarning');
