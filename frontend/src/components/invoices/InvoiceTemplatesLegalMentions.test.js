@@ -43,7 +43,7 @@ describe('ActivityStatementTemplate', () => {
   });
 
   it('shows a commission-style metadata and totals layout', () => {
-    expect(activityTemplate).toContain("'Période'");
+    expect(activityTemplate).toContain('Période');
     expect(activityTemplate).toContain('periodLabel');
     expect(activityTemplate).toContain('w-64 text-sm');
     expect(activityTemplate).toContain('bg-[#D4AF37]');

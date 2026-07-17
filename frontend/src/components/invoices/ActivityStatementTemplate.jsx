@@ -88,7 +88,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
   const periodLabel = booking.pickup_date
     ? `${booking.pickup_date}${booking.pickup_time ? ` à ${booking.pickup_time}` : ''}`
     : dateStr;
-  const rideDateTimeLabel = `Le ${booking.pickup_date || 'N/A'}${booking.pickup_time ? ` à ${booking.pickup_time}` : ''}`;
+  const rideDateTimeLabel = `Le ${periodLabel}`;
 
   const clientInvoiceRef = booking.client_invoice_number
     ? formatInvoiceNumber(booking.client_invoice_number)
