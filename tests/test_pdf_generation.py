@@ -519,6 +519,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self.assertIn("SOCIETE PARTENAIRE", captured_strings)
         # Document header
         self.assertIn("RELEVÉ D'ACTIVITÉ N° 000011B", captured_strings)
+        self.assertFalse(any(text == "RELEVÉ D'ACTIVITÉ N°000011B" for text in captured_strings))
         self.assertFalse(any(text == "RELEVÉ D'ACTIVITÉ N°" for text in captured_strings))
         self.assertFalse(any(text == "000011B" for text in captured_strings))
         # Company info

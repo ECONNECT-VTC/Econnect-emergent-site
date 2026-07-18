@@ -1782,16 +1782,19 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         act_box_w = 172
         act_box_top = act_header_top
         act_box_h = 112
+        act_header_title_offset = 18
+        act_header_type_offset = 44
+        act_header_date_offset = 58
         c.setStrokeColorRGB(*ACT_BORDER)
         c.setLineWidth(0.7)
         c.rect(act_box_x, act_box_top - act_box_h, act_box_w, act_box_h, fill=0, stroke=1)
         c.setFillColorRGB(*ACT_DARK)
         c.setFont("Helvetica-Bold", 9.5)
-        c.drawString(act_box_x + 14, act_box_top - 18, f"RELEVÉ D'ACTIVITÉ N° {document_number}")
+        c.drawString(act_box_x + 14, act_box_top - act_header_title_offset, f"RELEVÉ D'ACTIVITÉ N° {document_number}")
         c.setFillColorRGB(*ACT_MUTED)
         c.setFont("Helvetica", 9)
-        c.drawString(act_box_x + 14, act_box_top - 44, "Type : Activité")
-        c.drawString(act_box_x + 14, act_box_top - 58, f"Date : {now_str_act}")
+        c.drawString(act_box_x + 14, act_box_top - act_header_type_offset, "Type : Activité")
+        c.drawString(act_box_x + 14, act_box_top - act_header_date_offset, f"Date : {now_str_act}")
 
         # Party boxes: SOCIETE EMETTRICE / SOCIETE PARTENAIRE
         act_sections_top = act_box_top - act_box_h - 22
