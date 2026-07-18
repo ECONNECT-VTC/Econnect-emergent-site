@@ -14,6 +14,8 @@ import {
   normalizePaymentMethod,
 } from '@/utils/paymentUtils';
 
+const IBAN_PLACEHOLDER_VALUES = new Set(['', 'N/A', 'À compléter']);
+
 /**
  * InvoiceClientTemplate
  *
@@ -74,7 +76,7 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
   const paymentMethodSource = booking.payment_method || booking.notes;
   const paymentMethodLabel = formatPaymentMethodLabel(paymentMethodSource);
   const normalizedPaymentMethod = normalizePaymentMethod(paymentMethodSource);
-  const hasRealCompanyIban = !['', 'N/A', 'À compléter'].includes(String(companyIban || '').trim());
+  const hasRealCompanyIban = !IBAN_PLACEHOLDER_VALUES.has(String(companyIban || '').trim());
   const shouldShowIban = normalizedPaymentMethod === 'virement' && hasRealCompanyIban;
   const footerCompanyName = companyName.replace(/econnect/gi, 'ECONNECT');
   const sanitizeInvoiceValue = (value, fallback = 'N/A') => {
