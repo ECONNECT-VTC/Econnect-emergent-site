@@ -1656,6 +1656,258 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         buffer.close()
         return pdf_bytes
 
+    if document_type == "activity":
+        ACT_GOLD = (0.83, 0.69, 0.22)
+        ACT_DARK = (0.10, 0.10, 0.10)
+        ACT_BORDER = (0.82, 0.82, 0.82)
+        ACT_MUTED = (0.38, 0.38, 0.38)
+        ACT_LIGHT = (0.96, 0.96, 0.96)
+        ACT_HEADER_BG = (0.28, 0.28, 0.28)
+
+        def _act_draw_wrapped(x_pos: float, y_pos: float, text: str, max_width: float, line_height: float = 10.5) -> float:
+            safe_text = text or "N/A"
+            lines = simpleSplit(safe_text, "Helvetica", 9.2, max_width) or [safe_text]
+            for idx, line in enumerate(lines):
+                c.drawString(x_pos, y_pos - (idx * line_height), line)
+            return len(lines) * line_height
+
+        def _act_draw_party_box(x_pos: float, top_y: float, width_box: float, title_text: str, lines: list, height_box: float = 124) -> None:
+            bottom_y = top_y - height_box
+            c.setStrokeColorRGB(*ACT_BORDER)
+            c.setLineWidth(0.9)
+            c.rect(x_pos, bottom_y, width_box, height_box, fill=0, stroke=1)
+            c.setFillColorRGB(*ACT_HEADER_BG)
+            c.rect(x_pos, top_y - 22, width_box, 22, fill=1, stroke=0)
+            c.setFillColorRGB(1, 1, 1)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(x_pos + 12, top_y - 15, title_text)
+            cursor_y = top_y - 38
+            c.setFillColorRGB(*ACT_DARK)
+            for i, line in enumerate(lines):
+                c.setFont("Helvetica-Bold" if i == 0 else "Helvetica", 9.2)
+                consumed = _act_draw_wrapped(x_pos + 12, cursor_y, line, width_box - 24)
+                cursor_y -= consumed + 3
+
+        def _act_fmt(amount: Any) -> str:
+            try:
+                return f"{round_amount(float(amount or 0)):.2f} \u20ac"
+            except (TypeError, ValueError):
+                return "0.00 \u20ac"
+
+        now_str_act = datetime.now(timezone.utc).strftime("%d/%m/%Y")
+        act_company_vat = clean_pdf_value(settings.get("company_vat_number") or settings.get("company_tva_number"))
+        act_op_name = clean_pdf_value(settings.get("company_name"))
+        act_op_address = clean_pdf_value(settings.get("company_address"))
+        act_op_email = clean_pdf_value(settings.get("company_email"))
+        act_op_phone = clean_pdf_value(settings.get("company_phone"))
+        act_op_siret = clean_pdf_value(settings.get("company_siret"))
+        act_op_vtc = clean_pdf_value(settings.get("company_vtc_number"))
+        act_partner_name = clean_pdf_value(booking.get("document_driver_company") or issuer.get("name") or settings.get("company_name"))
+        act_partner_address = clean_pdf_value(booking.get("document_driver_address") or (None if is_admin_fulfillment else issuer.get("address")) or settings.get("company_address"))
+        act_partner_email = clean_pdf_value((None if is_admin_fulfillment else issuer.get("email")) or settings.get("company_email"))
+        act_partner_phone = clean_pdf_value(booking.get("document_driver_phone") or (None if is_admin_fulfillment else issuer.get("phone")) or settings.get("company_phone"))
+        act_partner_siret = clean_pdf_value(booking.get("document_driver_siret") or (None if is_admin_fulfillment else issuer.get("siret")) or settings.get("company_siret"))
+        act_partner_vat = clean_pdf_value(
+            booking.get("document_driver_company_vat_number")
+            or booking.get("document_driver_company_tva_number")
+            or (None if is_admin_fulfillment else issuer.get("vat_number"))
+            or settings.get("company_vat_number")
+            or settings.get("company_tva_number")
+        )
+        act_pickup_date = clean_pdf_value(booking.get("pickup_date"))
+        act_service_label = (
+            "Mise à disposition VTC"
+            if is_disposition_transfer(booking.get("transfer_type"))
+            else f"Course VTC – {clean_pdf_value(booking.get('transfer_type', 'VTC'))}"
+        )
+
+        def _act_build_lines(*values: str) -> list:
+            return [v for v in values if clean_pdf_value(v) != "N/A"]
+
+        act_operator_lines = _act_build_lines(
+            act_op_name,
+            act_op_address,
+            act_op_email,
+            f"Tél : {act_op_phone}",
+            f"SIRET : {act_op_siret}",
+            f"N° TVA : {act_company_vat}",
+        )
+        act_partner_lines = _act_build_lines(
+            act_partner_name,
+            act_partner_address,
+            act_partner_email,
+            f"Tél : {act_partner_phone}",
+            f"SIRET : {act_partner_siret}",
+            f"N° TVA : {act_partner_vat}",
+            f"Chauffeur : {clean_pdf_value(driver_display_name)}",
+        )
+
+        # White background
+        c.setFillColorRGB(1, 1, 1)
+        c.rect(0, 0, width, height, fill=1, stroke=0)
+
+        # Logo block (top-left, rounded light-grey bg)
+        act_header_top = height - 42
+        act_brand_x = 40
+        act_brand_y = act_header_top - 70
+        act_brand_w = 220
+        act_brand_h = 68
+        c.setFillColorRGB(*ACT_LIGHT)
+        c.roundRect(act_brand_x, act_brand_y, act_brand_w, act_brand_h, 6, fill=1, stroke=0)
+        act_logo_drawn = False
+        try:
+            act_img = ImageReader(str(INVOICE_LOGO_PATH))
+            act_img_w, act_img_h = act_img.getSize()
+            act_logo_h = 54
+            act_logo_w = act_logo_h * act_img_w / act_img_h
+            c.drawImage(
+                act_img,
+                act_brand_x + ((act_brand_w - act_logo_w) / 2),
+                act_brand_y + ((act_brand_h - act_logo_h) / 2),
+                width=act_logo_w,
+                height=act_logo_h,
+                mask="auto",
+                preserveAspectRatio=True,
+            )
+            act_logo_drawn = True
+        except Exception as exc:
+            logger.warning("Activity PDF logo could not be drawn (%s); using text fallback.", exc)
+
+        if not act_logo_drawn:
+            c.setFillColorRGB(*ACT_DARK)
+            c.setFont("Helvetica-Bold", 16)
+            c.drawCentredString(act_brand_x + (act_brand_w / 2), act_brand_y + 27, "ECONNECT VTC")
+
+        # Document info box (top-right)
+        act_box_x = width - 212
+        act_box_w = 172
+        act_box_top = act_header_top
+        act_box_h = 112
+        c.setStrokeColorRGB(*ACT_BORDER)
+        c.setLineWidth(0.7)
+        c.rect(act_box_x, act_box_top - act_box_h, act_box_w, act_box_h, fill=0, stroke=1)
+        c.setFillColorRGB(*ACT_DARK)
+        c.setFont("Helvetica-Bold", 9.5)
+        c.drawString(act_box_x + 14, act_box_top - 18, "RELEVÉ D'ACTIVITÉ N°")
+        c.drawString(act_box_x + 14, act_box_top - 32, document_number)
+        c.setFillColorRGB(*ACT_MUTED)
+        c.setFont("Helvetica", 9)
+        c.drawString(act_box_x + 14, act_box_top - 52, "Type : Activité")
+        c.drawString(act_box_x + 14, act_box_top - 66, f"Date : {now_str_act}")
+        c.drawString(act_box_x + 14, act_box_top - 80, f"Période : {act_pickup_date}")
+
+        # Party boxes: SOCIETE EMETTRICE / SOCIETE PARTENAIRE
+        act_sections_top = act_box_top - act_box_h - 22
+        act_box_width = (width - 80 - 16) / 2
+        _act_draw_party_box(40, act_sections_top, act_box_width, "SOCIETE EMETTRICE", act_operator_lines)
+        _act_draw_party_box(40 + act_box_width + 16, act_sections_top, act_box_width, "SOCIETE PARTENAIRE", act_partner_lines)
+
+        # Table
+        act_table_top = act_sections_top - 146
+        act_table_x = 40
+        act_table_w = width - 80
+        act_desc_w = 210
+        act_course_w = 95
+        act_comm_w = 105
+        act_verse_w = act_table_w - act_desc_w - act_course_w - act_comm_w
+        act_row_h = 82
+
+        # Table header (dark bg, white text)
+        c.setFillColorRGB(*ACT_HEADER_BG)
+        c.rect(act_table_x, act_table_top - 24, act_table_w, 24, fill=1, stroke=0)
+        c.setFillColorRGB(1, 1, 1)
+        c.setFont("Helvetica-Bold", 8.6)
+        c.drawString(act_table_x + 10, act_table_top - 16, "Description")
+        c.drawCentredString(act_table_x + act_desc_w + (act_course_w / 2), act_table_top - 16, "Course TTC")
+        c.drawCentredString(act_table_x + act_desc_w + act_course_w + (act_comm_w / 2), act_table_top - 16, "Commission TTC")
+        c.drawCentredString(act_table_x + act_desc_w + act_course_w + act_comm_w + (act_verse_w / 2), act_table_top - 16, "Versé HT")
+
+        # Table row border + vertical dividers
+        c.setStrokeColorRGB(*ACT_BORDER)
+        c.setLineWidth(0.8)
+        c.rect(act_table_x, act_table_top - 24 - act_row_h, act_table_w, act_row_h, fill=0, stroke=1)
+        for act_col_x in [
+            act_table_x + act_desc_w,
+            act_table_x + act_desc_w + act_course_w,
+            act_table_x + act_desc_w + act_course_w + act_comm_w,
+        ]:
+            c.line(act_col_x, act_table_top - 24, act_col_x, act_table_top - 24 - act_row_h)
+
+        # Table row: description + amounts
+        act_desc_lines = [
+            act_service_label,
+            f"Client : {clean_pdf_value(booking.get('client_name'))}",
+            f"Départ : {clean_pdf_value(booking.get('pickup_address'))}",
+            f"Arrivée : {clean_pdf_value(booking.get('dropoff_address'))}",
+            f"Date : {clean_pdf_value(booking.get('pickup_date'))} à {clean_pdf_value(booking.get('pickup_time'))}",
+        ]
+        act_text_y = act_table_top - 38
+        c.setFillColorRGB(*ACT_DARK)
+        c.setFont("Helvetica-Bold", 9.2)
+        c.drawString(act_table_x + 10, act_text_y, act_desc_lines[0])
+        c.setFillColorRGB(*ACT_MUTED)
+        c.setFont("Helvetica", 8.7)
+        for act_dline in act_desc_lines[1:]:
+            act_text_y -= 11
+            c.drawString(act_table_x + 10, act_text_y, act_dline)
+
+        act_amt_y = act_table_top - 58
+        c.setFillColorRGB(*ACT_DARK)
+        c.setFont("Helvetica", 9.2)
+        c.drawCentredString(act_table_x + act_desc_w + (act_course_w / 2), act_amt_y, _act_fmt(breakdown["price_ttc"]))
+        c.drawCentredString(act_table_x + act_desc_w + act_course_w + (act_comm_w / 2), act_amt_y, _act_fmt(breakdown["commission_ttc"]))
+        c.drawCentredString(act_table_x + act_desc_w + act_course_w + act_comm_w + (act_verse_w / 2), act_amt_y, _act_fmt(breakdown["driver_earning"]))
+
+        # Totals block (white bordered + gold bottom row)
+        act_totals_w = 214
+        act_totals_x = act_table_x + act_table_w - act_totals_w
+        act_totals_top = act_table_top - 24 - act_row_h - 18
+        act_line_gap = 18
+        c.setStrokeColorRGB(*ACT_BORDER)
+        c.setLineWidth(0.9)
+        c.rect(act_totals_x, act_totals_top - 58, act_totals_w, 58, fill=0, stroke=1)
+        c.setFillColorRGB(*ACT_MUTED)
+        c.setFont("Helvetica", 9)
+        c.drawString(act_totals_x + 14, act_totals_top - 16, "Montant course TTC")
+        c.drawRightString(act_totals_x + act_totals_w - 14, act_totals_top - 16, _act_fmt(breakdown["price_ttc"]))
+        _act_comm_label = f"Commission prélevée TTC ({round_amount(settings['commission_rate'] * 100):.0f}%)"
+        c.drawString(act_totals_x + 14, act_totals_top - 16 - act_line_gap, _act_comm_label)
+        c.drawRightString(act_totals_x + act_totals_w - 14, act_totals_top - 16 - act_line_gap, f"- {_act_fmt(breakdown['commission_ttc'])}")
+        # Gold row: TOTAL ACTIVITÉ HT
+        c.setFillColorRGB(*ACT_GOLD)
+        c.rect(act_totals_x, act_totals_top - 84, act_totals_w, 22, fill=1, stroke=0)
+        c.setFillColorRGB(*ACT_DARK)
+        c.setFont("Helvetica-Bold", 9.5)
+        c.drawString(act_totals_x + 14, act_totals_top - 76, "TOTAL ACTIVITÉ HT")
+        c.drawRightString(act_totals_x + act_totals_w - 14, act_totals_top - 76, _act_fmt(breakdown["driver_earning"]))
+
+        # Footer (commission-style: horizontal rule + centred company info)
+        act_footer_y = 42
+        c.setStrokeColorRGB(*ACT_BORDER)
+        c.line(40, act_footer_y + 22, width - 40, act_footer_y + 22)
+        act_footer_name = re.sub(r"\beconnect\b", "ECONNECT", act_op_name, flags=re.IGNORECASE)
+        act_footer_rest = f" - SIRET : {act_op_siret} - N° TVA : {act_company_vat}"
+        act_name_w = c.stringWidth(act_footer_name, "Helvetica-Bold", 8)
+        act_rest_w = c.stringWidth(act_footer_rest, "Helvetica", 8)
+        act_footer_start_x = (width - act_name_w - act_rest_w) / 2
+        c.setFillColorRGB(*ACT_DARK)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(act_footer_start_x, act_footer_y + 8, act_footer_name)
+        c.setFillColorRGB(*ACT_MUTED)
+        c.setFont("Helvetica", 8)
+        c.drawString(act_footer_start_x + act_name_w, act_footer_y + 8, act_footer_rest)
+        c.drawCentredString(
+            width / 2,
+            act_footer_y - 4,
+            f"{act_op_address} - Tél : {act_op_phone} - {act_op_email} - N° VTC : {act_op_vtc}",
+        )
+
+        c.showPage()
+        c.save()
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        return pdf_bytes
+
     if is_order_document:
         ORDER_GOLD = (0.79, 0.64, 0.20)
         ORDER_DARK = (0.18, 0.18, 0.18)
