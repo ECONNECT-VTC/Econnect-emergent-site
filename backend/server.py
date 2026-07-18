@@ -1714,11 +1714,10 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             or settings.get("company_vat_number")
             or settings.get("company_tva_number")
         )
-        act_pickup_date = clean_pdf_value(booking.get("pickup_date"))
         act_service_label = (
             "Mise à disposition VTC"
             if is_disposition_transfer(booking.get("transfer_type"))
-            else f"Course VTC – {clean_pdf_value(booking.get('transfer_type', 'VTC'))}"
+            else "Course(s) réalisée(s) :"
         )
 
         def _act_build_lines(*values: str) -> list:
@@ -1794,7 +1793,6 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.setFont("Helvetica", 9)
         c.drawString(act_box_x + 14, act_box_top - 52, "Type : Activité")
         c.drawString(act_box_x + 14, act_box_top - 66, f"Date : {now_str_act}")
-        c.drawString(act_box_x + 14, act_box_top - 80, f"Période : {act_pickup_date}")
 
         # Party boxes: SOCIETE EMETTRICE / SOCIETE PARTENAIRE
         act_sections_top = act_box_top - act_box_h - 22
