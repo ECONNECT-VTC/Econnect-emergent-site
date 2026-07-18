@@ -1153,7 +1153,10 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
         due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%d/%m/%Y")
         company_iban = clean_pdf_value(settings.get("company_iban"))
-        has_real_company_iban = company_iban not in {"N/A", "À compléter", "a completer", "None", ""}
+        normalized_company_iban = ''.join(
+            char for char in unicodedata.normalize("NFD", company_iban.strip().lower()) if unicodedata.category(char) != "Mn"
+        )
+        has_real_company_iban = normalized_company_iban not in {"", "n/a", "na", "none", "null", "a completer"}
         should_show_iban = payment_method == "virement" and has_real_company_iban
         # Support legacy `company_tva_number` while `company_vat_number` is the canonical VAT key.
         company_vat_number = clean_pdf_value(settings.get("company_vat_number") or settings.get("company_tva_number"))
