@@ -115,6 +115,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
 
         self._assert_valid_pdf(pdf, "commission (redesign)")
         self.assertIn("SOCIETE EMETTRICE", captured_strings)
+        self.assertNotIn("SOCIETE EMETRICE", captured_strings)
         self.assertIn("SOCIETE PARTENAIRE", captured_strings)
         self.assertIn("ECONNECT VTC SARL", captured_strings)
         self.assertIn("Karim Transport SAS", captured_strings)
@@ -514,6 +515,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self._assert_valid_pdf(pdf, "activity (redesign)")
         # Commission-style party boxes
         self.assertIn("SOCIETE EMETTRICE", captured_strings)
+        self.assertNotIn("SOCIETE EMETRICE", captured_strings)
         self.assertIn("SOCIETE PARTENAIRE", captured_strings)
         # Document header
         self.assertTrue(any("RELEVÉ D'ACTIVITÉ" in text for text in captured_strings))
@@ -529,6 +531,9 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self.assertTrue(any("Course TTC" in text for text in captured_strings))
         self.assertTrue(any("Commission TTC" in text for text in captured_strings))
         self.assertTrue(any("Versé HT" in text or "Versé" in text for text in captured_strings))
+        self.assertTrue(any("Course(s) réalisée(s) :" == text for text in captured_strings))
+        self.assertFalse(any("Course VTC" in text for text in captured_strings))
+        self.assertFalse(any("Période :" in text for text in captured_strings))
         # Old labels must not appear
         self.assertFalse(any("ÉMETTEUR" in text for text in captured_strings))
         self.assertFalse(any(text == "CHAUFFEUR" for text in captured_strings))

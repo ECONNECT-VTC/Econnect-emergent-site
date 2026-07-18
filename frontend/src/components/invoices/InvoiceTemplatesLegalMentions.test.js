@@ -25,6 +25,7 @@ describe('ActivityStatementTemplate', () => {
 
   it('shows SOCIETE EMETTRICE and SOCIETE PARTENAIRE sections', () => {
     expect(activityTemplate).toContain('SOCIETE EMETTRICE');
+    expect(activityTemplate).not.toContain('SOCIETE EMETRICE');
     expect(activityTemplate).toContain('SOCIETE PARTENAIRE');
   });
 
@@ -41,6 +42,12 @@ describe('ActivityStatementTemplate', () => {
     expect(activityTemplate).toContain('Course TTC');
     expect(activityTemplate).toContain('Commission TTC');
     expect(activityTemplate).toContain('Versé HT');
+  });
+
+  it('uses updated activity wording and removes period line in document block', () => {
+    expect(activityTemplate).toContain("Course(s) réalisée(s) :");
+    expect(activityTemplate).not.toContain('Course VTC');
+    expect(activityTemplate).not.toContain('Période :');
   });
 
   it('shows a totals block with gold total row', () => {
@@ -224,6 +231,7 @@ describe('Invoice templates legal TVA mentions', () => {
     expect(commissionTemplate).not.toContain('Destinataire');
     expect(commissionTemplate).not.toContain('EUR');
     expect(commissionTemplate).toContain('SOCIETE EMETTRICE');
+    expect(commissionTemplate).not.toContain('SOCIETE EMETRICE');
     expect(commissionTemplate).toContain('SOCIETE PARTENAIRE');
     expect(commissionTemplate).toContain('Commission sur course');
     expect(commissionTemplate).toContain('commission mise à disposition');

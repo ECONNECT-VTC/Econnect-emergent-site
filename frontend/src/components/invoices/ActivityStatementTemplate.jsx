@@ -38,9 +38,6 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
 
   const activityDate = booking.created_at ? new Date(booking.created_at) : new Date();
   const dateStr = formatDate(activityDate);
-  const periodStr = booking.pickup_date
-    ? `${booking.pickup_date}${booking.pickup_time ? ` à ${booking.pickup_time}` : ''}`
-    : dateStr;
 
   const companyName = settings?.company_name || 'ECONNECT VTC';
   const companyAddress = settings?.company_address || 'Paris, France';
@@ -52,7 +49,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
   const commissionRate = Math.round((booking.commission_rate || settings?.commission_rate || 0.1) * 100);
   const serviceLabel = isDispositionTransfer(booking.transfer_type)
     ? 'Mise à disposition VTC'
-    : 'Course VTC';
+    : 'Course(s) réalisée(s) :';
 
   const priceTtc = Number(booking.price_ttc || 0);
   const commissionTtc = Number(booking.commission_ttc || 0);
@@ -123,10 +120,6 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
             <div className="flex justify-between gap-4">
               <span>Date :</span>
               <span className="font-semibold text-[#111111]">{dateStr}</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span>Période :</span>
-              <span className="font-semibold text-[#111111]">{periodStr}</span>
             </div>
           </div>
         </div>
