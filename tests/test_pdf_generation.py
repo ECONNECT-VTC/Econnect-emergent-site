@@ -114,7 +114,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "commission", "000014")
 
         self._assert_valid_pdf(pdf, "commission (redesign)")
-        self.assertIn("SOCIETE EMETRICE", captured_strings)
+        self.assertIn("SOCIETE EMETTRICE", captured_strings)
         self.assertIn("SOCIETE PARTENAIRE", captured_strings)
         self.assertIn("ECONNECT VTC SARL", captured_strings)
         self.assertIn("Karim Transport SAS", captured_strings)

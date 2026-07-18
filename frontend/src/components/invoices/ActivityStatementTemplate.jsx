@@ -12,8 +12,7 @@ const PLACEHOLDER_VALUES = ['a completer', 'n/a', 'na', 'none', 'null'];
  * ActivityStatementTemplate
  *
  * Display-only React component for a Relevé d'Activité (driver activity statement).
- * Premium design: gold accents, watermark, ivory gradients, serif title.
- * Émetteur block and footer reproduced exactly from InvoiceClientTemplate.
+ * Design matches InvoiceCommissionTemplate (white bg, black section headers, gold accents).
  * Use window.print() to export as PDF.
  *
  * Props:
@@ -40,11 +39,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
   const companyEmail = settings?.company_email || 'contact@econnect-vtc.fr';
   const companyPhone = settings?.company_phone || 'À compléter';
   const companyVatNumber = settings?.company_vat_number || settings?.company_tva_number || 'À compléter';
-  const footerCompanyName = companyName.replace(/econnect/gi, 'ECONNECT');
-
   const commissionRate = Math.round((booking.commission_rate || settings?.commission_rate || 0.1) * 100);
-
-  const isDriverIssued = Boolean(booking.driver_id) && !booking.fulfilled_by_admin;
 
   const sanitize = (value, fallback = 'N/A') => {
     const text = String(value ?? '').trim();
@@ -83,9 +78,6 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
   const partnerDriverName = sanitize(
     booking?.document_driver_name || booking?.issuer?.driver_name || booking?.driver_name
   );
-  const partnerPhoneNumber = sanitize(
-    booking?.issuer?.phone || booking?.document_driver_phone || booking?.driver_phone
-  );
 
   const serviceLabel = isDispositionTransfer(booking.transfer_type)
     ? 'Mise à disposition VTC'
@@ -108,23 +100,9 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
   const driverEarning = Number(booking.driver_earning || 0);
 
   return (
-    <div className="relative bg-white border border-[#D0D0D0] shadow-lg max-w-3xl mx-auto text-[#111111] print:shadow-none print:border-0 overflow-hidden">
-
-      {/* ── Watermark ──────────────────────────────────────────── */}
-      <div
-        className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
-        aria-hidden="true"
-      >
-        <span className="text-[160px] font-extrabold text-[#D4AF37] opacity-[0.04] -rotate-[20deg] whitespace-nowrap print:opacity-[0.05]">
-          ECONNECT VTC
-        </span>
-      </div>
-
-      {/* ── Gold top strip ─────────────────────────────────────── */}
-      <div className="h-1 bg-[#D4AF37]" aria-hidden="true" />
-
+    <div className="bg-white border border-[#D0D0D0] shadow-lg max-w-3xl mx-auto text-[#111111] print:shadow-none print:border-0">
       {/* ── Header ─────────────────────────────────────────────── */}
-      <div className="bg-gradient-to-r from-white to-[#FAF7EF] px-8 py-5 flex justify-between items-start gap-6 border-b border-[#D0D0D0]">
+      <div className="px-8 py-5 flex justify-between items-start gap-6 border-b border-[#D0D0D0]">
         <div className="flex-1 min-w-0">
           <div className="inline-flex bg-[#F3F3F3] rounded-md px-4 py-2">
             <img
@@ -138,17 +116,12 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
               }}
             />
           </div>
-          <p className="mt-3 text-xl font-['Cormorant_Garamond',serif] italic text-[#555555] tracking-wide">
-            Relevé d'activité
-          </p>
         </div>
 
-        {/* Document number box — gold border, DOCUMENT OFFICIEL tag */}
         <div className="border border-[#D4AF37] rounded-md px-6 py-4 text-right min-w-[220px] flex-shrink-0">
-          <p className="text-[9px] uppercase tracking-[0.18em] text-[#D4AF37]/70 font-semibold mb-1">DOCUMENT OFFICIEL</p>
-          <p className="text-xs uppercase tracking-widest text-[#D4AF37] font-semibold">Relevé d'activité N°</p>
-          <p className="text-2xl font-bold font-mono text-[#111111] mt-1 pb-1 border-b border-[#D4AF37]/50">{activityNumber}</p>
-          <div className="mt-2 space-y-1 text-xs text-[#555555]">
+          <p className="text-xs uppercase tracking-widest text-[#555555] font-semibold">Relevé d'activité N°</p>
+          <p className="text-2xl font-bold font-mono text-[#111111] mt-1">{activityNumber}</p>
+          <div className="mt-3 border-t border-[#DDDDDD] pt-2 space-y-1 text-xs text-[#555555]">
             <div className="flex justify-between gap-4">
               <span>Date :</span>
               <span className="font-semibold text-[#111111]">{dateStr}</span>
@@ -161,35 +134,23 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
         </div>
       </div>
 
-      {/* ── Émetteur / Société partenaire ──────────────────────── */}
+      {/* ── Sociétés ───────────────────────────────────────────── */}
       <div className="grid grid-cols-2 border-b border-[#D0D0D0]">
-        {/* Émetteur — reprend exactement le bloc de InvoiceClientTemplate */}
         <div className="border-r border-[#D0D0D0]">
-          <div className="bg-black/80 px-6 py-2 border-b-2 border-[#D4AF37]">
-            <p className="text-white text-xs uppercase tracking-widest font-semibold">Émetteur</p>
+          <div className="bg-black/80 px-6 py-2">
+            <p className="text-white text-xs uppercase tracking-widest font-semibold">SOCIETE EMETTRICE</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
             <p className="font-bold text-base">{companyName}</p>
             <p className="text-[#555555]">{companyAddress}</p>
             <p className="text-[#555555]">{companyEmail}</p>
-            {companyPhone && companyPhone !== 'À compléter' && (
-              <p className="text-[#555555]">{companyPhone}</p>
-            )}
-            {isDriverIssued && (
-              <div className="pt-2 mt-2 border-t border-[#E5E5E5] space-y-1">
-                <p className="text-[#333333] font-semibold">Facture émise par ECONNECT VTC pour :</p>
-                <p className="font-bold text-[#333333]">{partnerCompanyName}</p>
-                <p className="text-[#555555]">Chauffeur : {partnerDriverName}</p>
-                <p className="text-[#555555]">Numéro de Téléphone : {partnerPhoneNumber}</p>
-                <p className="text-[#555555]">Numéro de TVA : {partnerCompanyVat}</p>
-              </div>
-            )}
+            <p className="text-[#555555]">Tél : {companyPhone}</p>
+            <p className="text-[#555555]">SIRET : {companySiret}</p>
+            <p className="text-[#555555]">N° TVA : {companyVatNumber}</p>
           </div>
         </div>
-
-        {/* Société partenaire */}
         <div>
-          <div className="bg-black/80 px-6 py-2 border-b-2 border-[#D4AF37]">
+          <div className="bg-black/80 px-6 py-2">
             <p className="text-white text-xs uppercase tracking-widest font-semibold">SOCIETE PARTENAIRE</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
@@ -207,7 +168,6 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
       </div>
 
       <div className="px-8 py-6 space-y-6">
-
         {/* ── Gradient separator ───────────────────────────────── */}
         <div className="h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
 
@@ -227,17 +187,15 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
 
         {/* ── Invoice references ───────────────────────────────── */}
         {(clientInvoiceRef || driverInvoiceRef) && (
-          <div className="bg-[#FAF7EF] rounded-lg px-4 py-3 text-sm space-y-1.5 border border-[#D4AF37]/40">
+          <div className="bg-[#F7F7F7] rounded-lg px-4 py-3 text-sm space-y-1 border border-[#E5E5E5]">
             {clientInvoiceRef && (
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-[#D4AF37] font-bold leading-none">•</span>
+              <div>
                 <span className="text-[#555555]">Réf. facture client : </span>
                 <span className="text-[#111111] font-mono font-semibold">{clientInvoiceRef}</span>
               </div>
             )}
             {driverInvoiceRef && (
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-[#D4AF37] font-bold leading-none">•</span>
+              <div>
                 <span className="text-[#555555]">Réf. facture chauffeur : </span>
                 <span className="text-[#111111] font-mono font-semibold">{driverInvoiceRef}</span>
               </div>
@@ -245,30 +203,11 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
           </div>
         )}
 
-        {/* ── Gradient separator ───────────────────────────────── */}
-        <div className="h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
-
-        {/* ── Trajet concerné ──────────────────────────────────── */}
-        <div className="border border-[#D0D0D0] rounded-md overflow-hidden">
-          <div className="bg-black/80 px-6 py-2 border-b-2 border-[#D4AF37]">
-            <p className="text-white text-xs uppercase tracking-widest font-semibold">Trajet concerné</p>
-          </div>
-          <div className="px-6 py-4 space-y-1 text-sm">
-            <p className="font-medium">{serviceLabel}</p>
-            <p className="text-[#555555]">Client : {booking.client_name || 'N/A'}</p>
-            <p className="text-[#555555]">Départ : {booking.pickup_address || 'N/A'}</p>
-            <p className="text-[#555555]">Arrivée : {booking.dropoff_address || 'N/A'}</p>
-            <p className="text-[#555555]">
-              Le {booking.pickup_date || 'N/A'}{booking.pickup_time ? ` à ${booking.pickup_time}` : ''}
-            </p>
-          </div>
-        </div>
-
         {/* ── Activity table ───────────────────────────────────── */}
         <div className="pb-6 border-b border-[#D0D0D0]">
           <table className="w-full text-sm border-collapse table-fixed">
             <thead>
-              <tr className="bg-black/80 text-white border-b-2 border-[#D4AF37]">
+              <tr className="bg-black/80 text-white">
                 <th className="text-left px-3 py-2 text-xs uppercase tracking-widest font-semibold rounded-tl w-[22%]">Date</th>
                 <th className="text-left px-3 py-2 text-xs uppercase tracking-widest font-semibold w-[26%]">Service / Réf.</th>
                 <th className="text-center px-3 py-2 text-xs uppercase tracking-widest font-semibold w-[18%]">Course TTC</th>
@@ -277,7 +216,7 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
               </tr>
             </thead>
             <tbody>
-              <tr className="even:bg-[#FAFAFA] border-b border-[#E0E0E0]">
+              <tr className="border-b border-[#E0E0E0]">
                 <td className="px-3 py-3 text-xs text-[#555555]">
                   {booking.pickup_date || 'N/A'}
                   {booking.pickup_time ? <><br />{booking.pickup_time}</> : null}
@@ -287,28 +226,27 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
                   <p className="text-[#555555] text-xs mt-0.5">{activityNumber}</p>
                 </td>
                 <td className="text-center px-3 py-3 font-mono tabular-nums">{formatCurrency(priceTtc)}</td>
-                <td className="text-center px-3 py-3 font-mono tabular-nums text-[#D4AF37]">
+                <td className="text-center px-3 py-3 font-mono tabular-nums">
                   − {formatCurrency(commissionTtc)}
                 </td>
-                <td className="text-center px-3 py-3 font-mono tabular-nums font-semibold bg-[#FAF7EF]">{formatCurrency(driverEarning)}</td>
+                <td className="text-center px-3 py-3 font-mono tabular-nums font-semibold">{formatCurrency(driverEarning)}</td>
               </tr>
             </tbody>
           </table>
         </div>
 
         {/* ── Totals ───────────────────────────────────────────── */}
-        <div className="flex flex-col items-end gap-3">
-          <p className="text-[10px] uppercase tracking-widest text-[#555555] italic">Récapitulatif de l'activité</p>
-          <div className="w-64 text-sm shadow-md rounded-md overflow-hidden border border-[#111111]/10">
-            <div className="flex justify-between py-2 border-b border-[#E0E0E0] px-3">
+        <div className="flex flex-col items-end gap-6">
+          <div className="w-64 text-sm">
+            <div className="flex justify-between py-2 border-b border-[#E0E0E0]">
               <span className="text-[#555555]">Montant course TTC</span>
               <span className="font-mono font-semibold">{formatCurrency(priceTtc)}</span>
             </div>
-            <div className="flex justify-between py-2 border-b border-[#E0E0E0] px-3">
+            <div className="flex justify-between py-2 border-b border-[#E0E0E0]">
               <span className="text-[#555555]">Commission prélevée TTC ({commissionRate}&nbsp;%)</span>
-              <span className="font-mono font-semibold text-[#D4AF37]">− {formatCurrency(commissionTtc)}</span>
+              <span className="font-mono font-semibold">− {formatCurrency(commissionTtc)}</span>
             </div>
-            <div className="flex justify-between items-center px-3 py-3 bg-[#D4AF37]">
+            <div className="flex justify-between items-center mt-1 px-3 py-3 bg-[#D4AF37] rounded-md">
               <span className="font-bold uppercase tracking-wide text-[#111111] text-xs">Total activité HT</span>
               <span className="font-mono font-bold text-[#111111] text-lg">{formatCurrency(driverEarning)}</span>
             </div>
@@ -323,10 +261,10 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
           Relevé d'activité généré automatiquement — À conserver pour vos archives.
         </p>
 
-        {/* ── Footer — exact reproduction of InvoiceClientTemplate footer ── */}
+        {/* ── Footer ───────────────────────────────────────────── */}
         <div className="pt-4 border-t border-[#D0D0D0] text-xs text-[#777777] space-y-1 text-center">
           <p className="mt-1">
-            <span className="font-bold text-[#333333]">{footerCompanyName}</span>
+            <span className="font-bold text-[#333333]">{companyName}</span>
             {' '}- SIRET : {companySiret} - N° TVA : {companyVatNumber}
           </p>
           <p className="mt-1">
