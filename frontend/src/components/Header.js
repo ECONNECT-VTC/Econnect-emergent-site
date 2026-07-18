@@ -12,8 +12,8 @@ const Header = () => (
         <li className="dropdown">
           <span>Gamme ▼</span>
           <div className="dropdown-content">
-            <a href="#">Comfort Classique</a>
-            <a href="#">Comfort Premium</a>
+            <a href="#">Confort Classique</a>
+            <a href="#">Confort Premium</a>
             <a href="#">Prestige</a>
             <a href="#">Van</a>
           </div>

@@ -111,8 +111,8 @@ const translations = {
     connexion: 'Accedi',
     sinscrire: 'Registrati',
     // Gamme items
-    comfortClassique: 'Comfort Classico',
-    comfortPremium: 'Comfort Premium',
+    comfortClassique: 'Confort Classico',
+    comfortPremium: 'Confort Premium',
     prestige: 'Prestige',
     van: 'Van',
     // Hero
@@ -182,7 +182,7 @@ const translations = {
     securiteDesc: 'Autisti verificati e veicoli controllati regolarmente.',
     excellence: 'Eccellenza',
     excellenceDesc: 'Servizio premium con attenzione ad ogni dettaglio.',
-    confort: 'Comfort',
+    confort: 'Confort',
     confortDesc: 'Veicoli di alta gamma, climatizzati e perfettamente curati.',
     // Testimonials
     temoignagesLabel: 'Testimonianze',
@@ -313,8 +313,8 @@ const translations = {
     connexion: 'Inloggen',
     sinscrire: 'Registreren',
     // Gamme items
-    comfortClassique: 'Klassiek Comfort',
-    comfortPremium: 'Premium Comfort',
+    comfortClassique: 'Klassiek Confort',
+    comfortPremium: 'Premium Confort',
     prestige: 'Prestige',
     van: 'Van',
     // Hero
@@ -352,7 +352,7 @@ const translations = {
     fleetTitle1: 'Uitzonderlijke',
     fleetTitle2: 'voertuigen',
     // Gamme descriptions
-    comfortClassiqueDesc: 'Comfortabele sedan voor uw dagelijkse ritten',
+    comfortClassiqueDesc: 'Confortabele sedan voor uw dagelijkse ritten',
     comfortPremiumDesc: 'High-end voertuigen voor superieur comfort',
     prestigeDesc: 'Luxe voertuigen voor een uitzonderlijke ervaring',
     vanDesc: 'Ruime voertuigen voor groepen en families',
@@ -384,7 +384,7 @@ const translations = {
     securiteDesc: 'Geverifieerde chauffeurs en regelmatig geïnspecteerde voertuigen.',
     excellence: 'Uitmuntendheid',
     excellenceDesc: 'Premium service met aandacht voor elk detail.',
-    confort: 'Comfort',
+    confort: 'Confort',
     confortDesc: 'High-end, geklimatiseerde en perfect onderhouden voertuigen.',
     // Testimonials
     temoignagesLabel: 'Getuigenissen',
@@ -1020,8 +1020,8 @@ const translations = {
     connexion: 'Connexion',
     sinscrire: "S'inscrire",
     // Gamme items
-    comfortClassique: 'Comfort Classique',
-    comfortPremium: 'Comfort Premium',
+    comfortClassique: 'Confort Classique',
+    comfortPremium: 'Confort Premium',
     prestige: 'Prestige',
     van: 'Van',
     // Hero
@@ -1131,8 +1131,8 @@ const translations = {
     connexion: 'Login',
     sinscrire: 'Sign up',
     // Gamme items
-    comfortClassique: 'Classic Comfort',
-    comfortPremium: 'Premium Comfort',
+    comfortClassique: 'Classic Confort',
+    comfortPremium: 'Premium Confort',
     prestige: 'Prestige',
     van: 'Van',
     // Hero
@@ -1170,7 +1170,7 @@ const translations = {
     fleetTitle1: 'Exceptional',
     fleetTitle2: 'vehicles',
     // Gamme descriptions
-    comfortClassiqueDesc: 'Comfortable saloon for your daily rides',
+    comfortClassiqueDesc: 'Confortable saloon for your daily rides',
     comfortPremiumDesc: 'High-end vehicles for superior comfort',
     prestigeDesc: 'Luxury vehicles for an exceptional experience',
     vanDesc: 'Spacious vehicles for groups and families',
@@ -1202,7 +1202,7 @@ const translations = {
     securiteDesc: 'Verified drivers and regularly inspected vehicles.',
     excellence: 'Excellence',
     excellenceDesc: 'Premium service with attention to every detail.',
-    confort: 'Comfort',
+    confort: 'Confort',
     confortDesc:
       'High-end, air-conditioned and perfectly maintained vehicles.',
     // Testimonials
@@ -1241,8 +1241,8 @@ const translations = {
     connexion: 'Iniciar sesión',
     sinscrire: 'Registrarse',
     // Gamme items
-    comfortClassique: 'Comfort Clásico',
-    comfortPremium: 'Comfort Premium',
+    comfortClassique: 'Confort Clásico',
+    comfortPremium: 'Confort Premium',
     prestige: 'Prestigio',
     van: 'Van',
     // Hero

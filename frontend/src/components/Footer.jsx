@@ -53,7 +53,7 @@ const Footer = () => {
 
           {/* Quick Links */}
           <div>
-            <h3 className="text-lg font-semibold mb-6">{t('navigation')}</h3>
+            <h3 className="text-lg font-semibold mb-6 text-[#D4AF37]">{t('navigation')}</h3>
             <ul className="space-y-3">
               {navLinks.map((link) => (
                 <li key={link.key}>
@@ -70,7 +70,7 @@ const Footer = () => {
 
           {/* Contact Info */}
           <div>
-            <h3 className="text-lg font-semibold mb-6">{t('contact')}</h3>
+            <h3 className="text-lg font-semibold mb-6 text-[#D4AF37]">{t('contact')}</h3>
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <Phone size={20} className="text-[#D4AF37] mt-1" />

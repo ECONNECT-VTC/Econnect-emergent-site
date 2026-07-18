@@ -114,7 +114,7 @@ const FleetSection = () => {
 
               {/* Card content */}
               <div className="p-6">
-                <h3 className="text-lg font-bold font-['Cormorant_Garamond'] mb-2">
+                <h3 className="text-lg font-bold font-['Cormorant_Garamond'] mb-2 text-[#D4AF37]">
                   {t(gamme.nameKey)}
                 </h3>
                 <p className="text-[#A1A1AA] text-sm leading-relaxed mb-4">
