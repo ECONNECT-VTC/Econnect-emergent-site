@@ -224,6 +224,50 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self._assert_valid_pdf(pdf, "invoice (statut à payer)")
         self.assertTrue(any("Statut : À payer" == text for text in captured_strings))
 
+    def test_invoice_card_payment_does_not_render_iban_line(self):
+        booking = {
+            **SAMPLE_BOOKING,
+            "payment_method": "cb",
+        }
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "invoice", "000009B4")
+
+        self._assert_valid_pdf(pdf, "invoice (card payment)")
+        self.assertTrue(any("Mode de paiement : Carte bancaire" == text for text in captured_strings))
+        self.assertFalse(any(text.startswith("IBAN :") for text in captured_strings))
+
+    def test_invoice_virement_with_placeholder_iban_does_not_render_iban_line(self):
+        booking = {
+            **SAMPLE_BOOKING,
+            "payment_method": "virement",
+        }
+        settings_with_placeholder_iban = {
+            **SAMPLE_SETTINGS,
+            "company_iban": "À compléter",
+        }
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
+            pdf = generate_financial_pdf(booking, settings_with_placeholder_iban, "invoice", "000009B5")
+
+        self._assert_valid_pdf(pdf, "invoice (virement placeholder iban)")
+        self.assertTrue(any("Mode de paiement : Virement bancaire" == text for text in captured_strings))
+        self.assertFalse(any("IBAN : N/A" == text for text in captured_strings))
+        self.assertFalse(any("IBAN : À compléter" == text for text in captured_strings))
+        self.assertFalse(any(text.startswith("IBAN :") for text in captured_strings))
+
     def test_invoice_service_description_uses_courses_effectuees_wording(self):
         captured_strings = []
         original_draw_string = server.canvas.Canvas.drawString
