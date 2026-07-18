@@ -122,6 +122,8 @@ describe('Invoice templates legal TVA mentions', () => {
     expect(clientTemplate).toContain('normalizePaymentMethod');
     expect(clientTemplate).toContain("normalizedPaymentMethod === 'virement'");
     expect(clientTemplate).toContain('shouldShowIban');
+    expect(clientTemplate).toContain('IBAN_PLACEHOLDER_VALUES');
+    expect(clientTemplate).toContain("IBAN_PLACEHOLDER_VALUES.has(String(companyIban || '').trim())");
     // IBAN must be fully bold (label + value together) when displayed
     expect(clientTemplate).toContain('font-bold font-mono');
     // Never hardcode placeholder IBAN values
