@@ -84,7 +84,7 @@ const WhyChooseUs = () => {
               <div className="w-16 h-16 rounded-2xl bg-[#D4AF37]/10 flex items-center justify-center mb-6 group-hover:bg-[#D4AF37]/20 transition-colors duration-300">
                 <feature.icon size={32} weight="light" className="text-[#D4AF37]" />
               </div>
-              <h3 className="text-xl font-bold font-['Cormorant_Garamond'] mb-3">
+              <h3 className="text-xl font-bold font-['Cormorant_Garamond'] mb-3 text-[#D4AF37]">
                 {t(feature.titleKey)}
               </h3>
               <p className="text-[#A1A1AA] text-sm leading-relaxed">

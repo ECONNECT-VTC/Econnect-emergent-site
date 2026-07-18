@@ -68,7 +68,9 @@ const Navbar = () => {
             <a
               key={link.key}
               href={link.href}
-              className="text-[#CFCFCF] hover:text-[#D4AF37] transition-colors duration-300 text-sm tracking-[0.2em] uppercase"
+              className={`${
+                link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#CFCFCF]'
+              } hover:text-[#D4AF37] transition-colors duration-300 text-sm tracking-[0.2em] uppercase`}
               data-testid={`nav-link-${link.key}`}
             >
               {t(link.key)}
@@ -101,8 +103,7 @@ const Navbar = () => {
                     <a
                       key={item.key}
                       href={item.href}
-                      className="block px-4 py-3 text-sm transition-colors duration-200 hover:bg-[#1A1A1A]"
-                      style={{ color: '#C7B588' }}
+                      className="block px-4 py-3 text-sm transition-colors duration-200 hover:bg-[#1A1A1A] text-[#D4AF37]"
                       onClick={() => setIsGammeOpen(false)}
                     >
                       {t(item.key)}
@@ -178,7 +179,9 @@ const Navbar = () => {
                 <a
                   key={link.key}
                   href={link.href}
-                  className="text-[#A1A1AA] hover:text-[#D4AF37] transition-colors py-2 text-lg"
+                  className={`${
+                    link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#A1A1AA]'
+                  } hover:text-[#D4AF37] transition-colors py-2 text-lg`}
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   {t(link.key)}
@@ -193,8 +196,7 @@ const Navbar = () => {
                     <a
                       key={item.key}
                       href={item.href}
-                      className="py-1 text-base transition-colors duration-200"
-                      style={{ color: '#C7B588' }}
+                      className="py-1 text-base transition-colors duration-200 text-[#D4AF37]"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       {t(item.key)}
