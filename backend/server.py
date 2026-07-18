@@ -1153,6 +1153,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         now_str = datetime.now(timezone.utc).strftime("%d/%m/%Y")
         due_date = (datetime.now(timezone.utc) + timedelta(days=30)).strftime("%d/%m/%Y")
         company_iban = clean_pdf_value(settings.get("company_iban"))
+        has_real_company_iban = company_iban != "N/A"
+        should_show_iban = payment_method == "virement" and has_real_company_iban
         # Support legacy `company_tva_number` while `company_vat_number` is the canonical VAT key.
         company_vat_number = clean_pdf_value(settings.get("company_vat_number") or settings.get("company_tva_number"))
         service_description = "Mise à disposition VTC" if is_disposition_transfer(booking.get("transfer_type")) else "Courses effectuées"
@@ -1339,10 +1341,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         set_fill(INVOICE_GOLD)
         c.setFont("Helvetica-Bold", 9)
         c.drawString(table_x + 12, status_y, status_line)
-        # IBAN fully bold (label + value)
-        set_fill(DARK)
-        c.setFont("Helvetica-Bold", 9)
-        c.drawString(table_x + 12, payment_top - 66, f"IBAN : {company_iban}")
+        if should_show_iban:
+            # IBAN fully bold (label + value)
+            set_fill(DARK)
+            c.setFont("Helvetica-Bold", 9)
+            c.drawString(table_x + 12, payment_top - 66, f"IBAN : {company_iban}")
 
         totals_w = 214
         totals_x = table_x + table_w - totals_w
