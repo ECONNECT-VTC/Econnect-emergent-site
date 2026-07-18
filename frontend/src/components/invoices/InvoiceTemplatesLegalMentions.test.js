@@ -99,8 +99,10 @@ describe('Invoice templates legal TVA mentions', () => {
     const clientTemplatePath = path.join(__dirname, 'InvoiceClientTemplate.jsx');
     const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
 
-    expect(clientTemplate).toContain('Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif');
-    expect(clientTemplate).toContain('Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux');
+    expect(clientTemplate).toContain('Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif.');
+    expect(clientTemplate).toContain('Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux ECONNECT.');
+    expect(clientTemplate).not.toContain('<ul');
+    expect(clientTemplate).not.toContain('<li');
     // Legal notices must appear in the body before the footer section marker
     const footerStart = clientTemplate.lastIndexOf('── Footer ─');
     const penaltiesIndex = clientTemplate.lastIndexOf('Article L441-10 du Code de commerce');
@@ -110,17 +112,22 @@ describe('Invoice templates legal TVA mentions', () => {
     expect(penaltiesIndex).toBeLessThan(footerStart);
   });
 
-  it('client template renders payment status in bold yellow and IBAN in full bold', () => {
+  it('client template renders payment status in bold yellow and IBAN only for bank transfer with real value', () => {
     const clientTemplatePath = path.join(__dirname, 'InvoiceClientTemplate.jsx');
     const clientTemplate = fs.readFileSync(clientTemplatePath, 'utf-8');
 
     // Payment status must use bold gold text without yellow background
     expect(clientTemplate).toContain('font-bold text-[#D4AF37]');
     expect(clientTemplate).not.toContain('bg-[#D4AF37] px-2 py-0.5 rounded-sm');
-    // IBAN must be fully bold (label + value together)
+    expect(clientTemplate).toContain('normalizePaymentMethod');
+    expect(clientTemplate).toContain("normalizedPaymentMethod === 'virement'");
+    expect(clientTemplate).toContain('shouldShowIban');
+    // IBAN must be fully bold (label + value together) when displayed
     expect(clientTemplate).toContain('font-bold font-mono');
-    // IBAN label and value must be in the same element (no separate label span)
-    expect(clientTemplate).toContain('IBAN : {companyIban}');
+    // Never hardcode placeholder IBAN values
+    expect(clientTemplate).not.toContain('IBAN : N/A');
+    expect(clientTemplate).not.toContain('IBAN : À compléter');
+    expect(clientTemplate).not.toContain("includes('virement') || companyIban !== 'À compléter'");
   });
 
   it('client template shows disposition hours for mise à disposition bookings', () => {

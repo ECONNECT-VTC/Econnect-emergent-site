@@ -8,7 +8,11 @@ import {
   computeHtFromTtc,
   isDispositionTransfer,
 } from '@/utils/invoiceUtils';
-import { formatPaymentMethodLabel, formatPaymentStatusLabel } from '@/utils/paymentUtils';
+import {
+  formatPaymentMethodLabel,
+  formatPaymentStatusLabel,
+  normalizePaymentMethod,
+} from '@/utils/paymentUtils';
 
 /**
  * InvoiceClientTemplate
@@ -67,6 +71,11 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
     : 'Courses effectuées';
   const paymentStatusLabel = formatPaymentStatusLabel(booking.payment_status);
   const paymentStatusText = `Statut : ${paymentStatusLabel}`;
+  const paymentMethodSource = booking.payment_method || booking.notes;
+  const paymentMethodLabel = formatPaymentMethodLabel(paymentMethodSource);
+  const normalizedPaymentMethod = normalizePaymentMethod(paymentMethodSource);
+  const hasRealCompanyIban = !['', 'N/A', 'À compléter'].includes(String(companyIban || '').trim());
+  const shouldShowIban = normalizedPaymentMethod === 'virement' && hasRealCompanyIban;
   const footerCompanyName = companyName.replace(/econnect/gi, 'ECONNECT');
   const sanitizeInvoiceValue = (value, fallback = 'N/A') => {
     const text = String(value ?? '').trim();
@@ -242,20 +251,20 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         <p className="text-[#555555] text-xs uppercase tracking-widest font-semibold mb-2">Informations de paiement</p>
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-[#555555]">Mode de paiement :</span>
-          <span className="font-medium">{formatPaymentMethodLabel(booking.payment_method || booking.notes)}</span>
+          <span className="font-medium">{paymentMethodLabel}</span>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <span className="font-bold text-[#D4AF37]">{paymentStatusText}</span>
         </div>
-        {(String(booking.payment_method || booking.notes || '').toLowerCase().includes('virement') || companyIban !== 'À compléter') && (
+        {shouldShowIban && (
           <div className="flex items-center gap-3">
             <span className="font-bold font-mono">IBAN : {companyIban}</span>
           </div>
         )}
       </div>
       <div className="px-8 pb-5 border-b border-[#D0D0D0] text-xs text-[#777777]">
-        <p className="pt-4">Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif</p>
-        <p className="mt-1">Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux</p>
+        <p className="pt-4">Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif.</p>
+        <p className="mt-1">Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux ECONNECT.</p>
       </div>
 
       {/* ── Footer ─────────────────────────────────────────────── */}
