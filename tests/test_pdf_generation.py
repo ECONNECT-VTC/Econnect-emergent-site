@@ -463,7 +463,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
             "Réservation préalable conforme à l’article R3120-2 du Code des transports et à l’Arrêté du 6 août 2025.",
         )
 
-    def test_activity_total_label_is_ttc_and_legal_box_is_removed(self):
+    def test_activity_total_label_is_ht_and_legal_box_is_removed(self):
         captured_strings = []
         original_draw_string = server.canvas.Canvas.drawString
 
@@ -474,9 +474,65 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string):
             pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "activity", "000011")
 
-        self._assert_valid_pdf(pdf, "activity (ttc total)")
-        self.assertIn("TOTAL ACTIVITÉ TTC", captured_strings)
+        self._assert_valid_pdf(pdf, "activity (ht total)")
+        self.assertIn("TOTAL ACTIVITÉ HT", captured_strings)
         self.assertNotIn("Mentions légales", captured_strings)
+
+    def test_activity_redesign_uses_commission_style(self):
+        """Activity PDF must use commission-style design: SOCIETE EMETTRICE / PARTENAIRE, € symbol."""
+        booking = {
+            **SAMPLE_BOOKING,
+            "document_driver_name": "Karim Chauffeur",
+            "document_driver_company": "Karim Transport SAS",
+            "document_driver_address": "12 avenue Victor Hugo, 75016 Paris",
+            "document_driver_phone": "0611223344",
+            "document_driver_siret": "55224466800011",
+            "document_driver_company_vat_number": "FR66552244668",
+        }
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+        original_draw_right_string = server.canvas.Canvas.drawRightString
+        original_draw_centred_string = server.canvas.Canvas.drawCentredString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        def spy_draw_right_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_right_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        def spy_draw_centred_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_centred_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string), \
+             patch.object(server.canvas.Canvas, "drawRightString", new=spy_draw_right_string), \
+             patch.object(server.canvas.Canvas, "drawCentredString", new=spy_draw_centred_string):
+            pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, "activity", "000011B")
+
+        self._assert_valid_pdf(pdf, "activity (redesign)")
+        # Commission-style party boxes
+        self.assertIn("SOCIETE EMETTRICE", captured_strings)
+        self.assertIn("SOCIETE PARTENAIRE", captured_strings)
+        # Document header
+        self.assertTrue(any("RELEVÉ D'ACTIVITÉ" in text for text in captured_strings))
+        # Company info
+        self.assertIn("ECONNECT VTC SARL", captured_strings)
+        self.assertIn("Karim Transport SAS", captured_strings)
+        # € symbol, no bare EUR
+        self.assertTrue(any("€" in text for text in captured_strings))
+        self.assertFalse(any(" EUR" in text for text in captured_strings))
+        # Gold total row
+        self.assertIn("TOTAL ACTIVITÉ HT", captured_strings)
+        # Activity content labels
+        self.assertTrue(any("Course TTC" in text for text in captured_strings))
+        self.assertTrue(any("Commission TTC" in text for text in captured_strings))
+        self.assertTrue(any("Versé HT" in text or "Versé" in text for text in captured_strings))
+        # Old labels must not appear
+        self.assertFalse(any("ÉMETTEUR" in text for text in captured_strings))
+        self.assertFalse(any(text == "CHAUFFEUR" for text in captured_strings))
+        self.assertFalse(any("DÉTAILS DU TRAJET" in text for text in captured_strings))
 
     def test_order_removes_designation_table_header(self):
         captured_strings = []
