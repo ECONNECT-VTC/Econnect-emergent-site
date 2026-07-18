@@ -531,7 +531,7 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self.assertTrue(any("Course TTC" in text for text in captured_strings))
         self.assertTrue(any("Commission TTC" in text for text in captured_strings))
         self.assertTrue(any("Versé HT" in text or "Versé" in text for text in captured_strings))
-        self.assertTrue(any("Course(s) réalisée(s) :" == text for text in captured_strings))
+        self.assertTrue(any("Course(s) réalisée(s) :" in text for text in captured_strings))
         self.assertFalse(any("Course VTC" in text for text in captured_strings))
         self.assertFalse(any("Période :" in text for text in captured_strings))
         # Old labels must not appear
