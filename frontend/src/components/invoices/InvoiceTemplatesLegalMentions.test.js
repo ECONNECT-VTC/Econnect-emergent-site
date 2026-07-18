@@ -23,8 +23,8 @@ describe('ActivityStatementTemplate', () => {
     expect(activityTemplate).toContain("Relevé d'activité N°");
   });
 
-  it('shows Émetteur and SOCIETE PARTENAIRE sections', () => {
-    expect(activityTemplate).toContain('Émetteur');
+  it('shows SOCIETE EMETTRICE and SOCIETE PARTENAIRE sections', () => {
+    expect(activityTemplate).toContain('SOCIETE EMETTRICE');
     expect(activityTemplate).toContain('SOCIETE PARTENAIRE');
   });
 
@@ -223,7 +223,7 @@ describe('Invoice templates legal TVA mentions', () => {
     expect(commissionTemplate).not.toContain('Émetteur');
     expect(commissionTemplate).not.toContain('Destinataire');
     expect(commissionTemplate).not.toContain('EUR');
-    expect(commissionTemplate).toContain('SOCIETE EMETRICE');
+    expect(commissionTemplate).toContain('SOCIETE EMETTRICE');
     expect(commissionTemplate).toContain('SOCIETE PARTENAIRE');
     expect(commissionTemplate).toContain('Commission sur course');
     expect(commissionTemplate).toContain('commission mise à disposition');

@@ -127,7 +127,7 @@ const InvoiceCommissionTemplate = ({ booking, settings }) => {
       <div className="grid grid-cols-2 border-b border-[#D0D0D0]">
         <div className="border-r border-[#D0D0D0]">
           <div className="bg-black/80 px-6 py-2">
-            <p className="text-white text-xs uppercase tracking-widest font-semibold">SOCIETE EMETRICE</p>
+            <p className="text-white text-xs uppercase tracking-widest font-semibold">SOCIETE EMETTRICE</p>
           </div>
           <div className="px-6 py-4 space-y-1 text-sm">
             <p className="font-bold text-base">{companyName}</p>
