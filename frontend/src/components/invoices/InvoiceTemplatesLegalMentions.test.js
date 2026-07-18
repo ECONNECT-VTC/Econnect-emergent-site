@@ -20,7 +20,7 @@ describe('ActivityStatementTemplate', () => {
 
   it('has a header with logo and Relevé d\'activité label', () => {
     expect(activityTemplate).toContain('/photo/logo-invoice-hd.png');
-    expect(activityTemplate).toContain("Relevé d'activité N°");
+    expect(activityTemplate).toContain("Relevé d'activité N° <span");
   });
 
   it('shows SOCIETE EMETTRICE and SOCIETE PARTENAIRE sections', () => {

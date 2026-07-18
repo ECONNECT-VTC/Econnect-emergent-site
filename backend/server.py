@@ -1364,8 +1364,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(totals_x + 14, totals_top - 76, "TOTAL TTC")
         c.drawRightString(totals_x + totals_w - 14, totals_top - 76, f"{breakdown['price_ttc']:.2f} EUR")
 
-        legal_note_1 = "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif"
-        legal_note_2 = "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux"
+        legal_note_1 = "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif."
+        legal_note_2 = "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux ECONNECT."
         legal_notes_y = payment_top - payment_h - 18
         set_fill(INVOICE_MUTED)
         c.setFont("Helvetica", 8)
@@ -1787,12 +1787,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.rect(act_box_x, act_box_top - act_box_h, act_box_w, act_box_h, fill=0, stroke=1)
         c.setFillColorRGB(*ACT_DARK)
         c.setFont("Helvetica-Bold", 9.5)
-        c.drawString(act_box_x + 14, act_box_top - 18, "RELEVÉ D'ACTIVITÉ N°")
-        c.drawString(act_box_x + 14, act_box_top - 32, document_number)
+        c.drawString(act_box_x + 14, act_box_top - 18, f"RELEVÉ D'ACTIVITÉ N° {document_number}")
         c.setFillColorRGB(*ACT_MUTED)
         c.setFont("Helvetica", 9)
-        c.drawString(act_box_x + 14, act_box_top - 52, "Type : Activité")
-        c.drawString(act_box_x + 14, act_box_top - 66, f"Date : {now_str_act}")
+        c.drawString(act_box_x + 14, act_box_top - 44, "Type : Activité")
+        c.drawString(act_box_x + 14, act_box_top - 58, f"Date : {now_str_act}")
 
         # Party boxes: SOCIETE EMETTRICE / SOCIETE PARTENAIRE
         act_sections_top = act_box_top - act_box_h - 22

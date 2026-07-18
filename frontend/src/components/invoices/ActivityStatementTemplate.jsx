@@ -114,8 +114,9 @@ const ActivityStatementTemplate = ({ booking, settings }) => {
         </div>
 
         <div className="border border-[#CCCCCC] rounded-md px-6 py-4 text-right min-w-[220px] flex-shrink-0">
-          <p className="text-xs uppercase tracking-widest text-[#555555] font-semibold">Relevé d'activité N°</p>
-          <p className="text-2xl font-bold font-mono text-[#111111] mt-1">{activityNumber}</p>
+          <p className="text-xs uppercase tracking-widest text-[#555555] font-semibold whitespace-nowrap">
+            Relevé d'activité N° <span className="text-base font-bold font-mono text-[#111111]">{activityNumber}</span>
+          </p>
           <div className="mt-3 border-t border-[#DDDDDD] pt-2 space-y-1 text-xs text-[#555555]">
             <div className="flex justify-between gap-4">
               <span>Date :</span>

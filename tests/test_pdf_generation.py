@@ -403,14 +403,14 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self._assert_valid_pdf(pdf, "invoice (penalties note)")
         self.assertTrue(
             any(
-                "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif" in text
+                "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif." in text
                 for text in captured_strings
             ),
             "Expected article L441-10 legal notice to appear in the invoice",
         )
         self.assertTrue(
             any(
-                "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux" in text
+                "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux ECONNECT." in text
                 for text in captured_strings
             ),
             "Expected payment-delay legal notice to appear in the invoice",
@@ -518,7 +518,9 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self.assertNotIn("SOCIETE EMETRICE", captured_strings)
         self.assertIn("SOCIETE PARTENAIRE", captured_strings)
         # Document header
-        self.assertTrue(any("RELEVÉ D'ACTIVITÉ" in text for text in captured_strings))
+        self.assertIn("RELEVÉ D'ACTIVITÉ N° 000011B", captured_strings)
+        self.assertNotIn("RELEVÉ D'ACTIVITÉ N°", captured_strings)
+        self.assertNotIn("000011B", captured_strings)
         # Company info
         self.assertIn("ECONNECT VTC SARL", captured_strings)
         self.assertIn("Karim Transport SAS", captured_strings)
