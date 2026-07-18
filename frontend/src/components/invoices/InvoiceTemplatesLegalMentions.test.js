@@ -37,7 +37,7 @@ describe('ActivityStatementTemplate', () => {
 
   it('has an activity table with correct column headers', () => {
     expect(activityTemplate).toContain('Date');
-    expect(activityTemplate).toContain('Service / Réf.');
+    expect(activityTemplate).toContain('Description');
     expect(activityTemplate).toContain('Course TTC');
     expect(activityTemplate).toContain('Commission TTC');
     expect(activityTemplate).toContain('Versé HT');
@@ -72,8 +72,8 @@ describe('ActivityStatementTemplate', () => {
     expect(activityTemplate).not.toContain('LogoDisplay');
   });
 
-  it('uses a gold border for the document number box', () => {
-    expect(activityTemplate).toContain('border border-[#D4AF37]');
+  it('uses a light border for the document number box (matching commission template)', () => {
+    expect(activityTemplate).toContain('border border-[#CCCCCC]');
   });
 });
 
