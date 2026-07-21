@@ -14,6 +14,7 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [unverifiedEmail, setUnverifiedEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setUnverifiedEmail('');
     setLoading(true);
 
     try {
@@ -46,8 +48,14 @@ const LoginPage = () => {
         navigate(dashboards[user.role] || `/${lang}`, { replace: true });
       }
     } catch (err) {
+      const status = err.response?.status;
       const detail = err.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : t('loginError') || 'Erreur de connexion');
+      if (status === 403) {
+        setUnverifiedEmail(email);
+        setError(typeof detail === 'string' ? detail : 'Adresse email non vérifiée.');
+      } else {
+        setError(typeof detail === 'string' ? detail : t('loginError') || 'Erreur de connexion');
+      }
     } finally {
       setLoading(false);
     }
@@ -82,6 +90,18 @@ const LoginPage = () => {
           {error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6" data-testid="login-error">
               {error}
+              {unverifiedEmail && (
+                <div className="mt-2">
+                  <Link
+                    to={`/${lang}/verify-email`}
+                    state={{ email: unverifiedEmail }}
+                    className="text-[#D4AF37] hover:text-[#F0C74A] text-sm underline"
+                    data-testid="login-resend-link"
+                  >
+                    Renvoyer le lien d'activation
+                  </Link>
+                </div>
+              )}
             </div>
           )}
 

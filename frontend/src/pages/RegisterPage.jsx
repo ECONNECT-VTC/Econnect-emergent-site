@@ -26,6 +26,14 @@ const RegisterPage = () => {
   );
   const isBookingCheckoutResume = resumeState?.from?.hash === '#reserver';
 
+  const validatePassword = (pwd) => {
+    if (pwd.length < 10) return 'Le mot de passe doit contenir au moins 10 caractères';
+    if (!/[A-Z]/.test(pwd)) return 'Le mot de passe doit contenir au moins une lettre majuscule';
+    if (!/[a-z]/.test(pwd)) return 'Le mot de passe doit contenir au moins une lettre minuscule';
+    if (!/[^A-Za-z0-9]/.test(pwd)) return 'Le mot de passe doit contenir au moins un caractère spécial';
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -35,8 +43,9 @@ const RegisterPage = () => {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Le mot de passe doit contenir au moins 6 caractères');
+    const pwdError = validatePassword(password);
+    if (pwdError) {
+      setError(pwdError);
       return;
     }
 
@@ -44,12 +53,7 @@ const RegisterPage = () => {
 
     try {
       await register(email, password, name, phone);
-      const from = resumeState?.from;
-      if (from?.pathname) {
-        navigate(`${from.pathname}${from.search || ''}${from.hash || ''}`, { replace: true });
-      } else {
-        navigate(`/${lang}/client`, { replace: true });
-      }
+      navigate(`/${lang}/verify-email`, { replace: true, state: { email } });
     } catch (err) {
       const detail = err.response?.data?.detail;
       setError(typeof detail === 'string' ? detail : "Erreur lors de l'inscription");
@@ -160,6 +164,9 @@ const RegisterPage = () => {
                   data-testid="register-password"
                 />
               </div>
+              <p className="text-xs text-[#A1A1AA]" data-testid="register-password-hint">
+                Au moins 10 caractères, une majuscule, une minuscule et un caractère spécial
+              </p>
             </div>
 
             <div className="space-y-2">
