@@ -75,6 +75,29 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "invoice", "000001")
         self._assert_valid_pdf(pdf, "invoice")
 
+    def test_quote_document_uses_client_invoice_style_with_quote_wording(self):
+        captured_strings = []
+        original_draw_string = server.canvas.Canvas.drawString
+        original_draw_right_string = server.canvas.Canvas.drawRightString
+
+        def spy_draw_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        def spy_draw_right_string(canvas_obj, x, y, text, *args, **kwargs):
+            captured_strings.append(str(text))
+            return original_draw_right_string(canvas_obj, x, y, text, *args, **kwargs)
+
+        with patch.object(server.canvas.Canvas, "drawString", new=spy_draw_string), \
+             patch.object(server.canvas.Canvas, "drawRightString", new=spy_draw_right_string):
+            pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "quote", "000001Q")
+
+        self._assert_valid_pdf(pdf, "quote")
+        self.assertIn("DEVIS N° 000001Q", captured_strings)
+        self.assertIn("INFORMATIONS DE VALIDATION", captured_strings)
+        self.assertIn("Statut : Devis envoyé", captured_strings)
+        self.assertNotIn("FACTURE N° 000001Q", captured_strings)
+
     def test_order_document(self):
         pdf = generate_financial_pdf(SAMPLE_BOOKING, SAMPLE_SETTINGS, "order", "000002")
         self._assert_valid_pdf(pdf, "order")

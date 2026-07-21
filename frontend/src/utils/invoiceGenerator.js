@@ -3,6 +3,8 @@
  * Triggers the browser print/save-as-PDF workflow for invoice templates.
  */
 
+import { isStatusAtOrAfter } from './courseWorkflow';
+
 /**
  * Print or save the current page as PDF.
  * Opens the browser print dialog so the user can save to PDF.
@@ -15,10 +17,11 @@ export const printInvoice = () => {
  * Open the backend-generated PDF for a given booking in a new tab.
  * @param {string} apiUrl  - Base API URL (e.g. from config.js)
  * @param {string} bookingId
- * @param {'invoice'|'driver'|'commission'|'order'|'activity'} type
+ * @param {'quote'|'invoice'|'driver'|'commission'|'order'|'activity'} type
  */
 export const downloadInvoicePdf = (apiUrl, bookingId, type = 'invoice') => {
   const pathMap = {
+    quote: `/api/admin/quotes/${bookingId}/pdf`,
     invoice: `/api/admin/invoices/${bookingId}/pdf`,
     driver: `/api/admin/invoices/${bookingId}/driver-pdf`,
     commission: `/api/admin/invoices/${bookingId}/commission-pdf`,
@@ -53,7 +56,13 @@ export const downloadDriverDocPdf = (apiUrl, bookingId, type) => {
  * Download the client's own invoice PDF for a completed booking.
  * @param {string} apiUrl
  * @param {string} bookingId
+ * @param {string} bookingStatus
  */
-export const downloadClientInvoicePdf = (apiUrl, bookingId) => {
+export const downloadClientInvoicePdf = (apiUrl, bookingId, bookingStatus) => {
+  if (!isStatusAtOrAfter(bookingStatus, 'COMPLETED')) {
+    return false;
+  }
+
   window.open(`${apiUrl}/api/client/invoices/${bookingId}/pdf`, '_blank');
+  return true;
 };

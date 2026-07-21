@@ -9,7 +9,7 @@ import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
 import { downloadClientInvoicePdf } from '@/utils/invoiceGenerator';
 import { getClientFacingDriverName } from '../../utils/driverDisplay';
-import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
+import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, isStatusAtOrAfter, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -154,78 +154,77 @@ const ClientBookings = () => {
         <div className="space-y-4">
           {filteredBookings.map((booking) => (
             <div key={booking.id} className="glass rounded-xl p-6">
-              <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
-                <div className="flex items-center gap-3">
-                  <CalendarCheck size={24} className="text-[#D4AF37]" />
-                  <div>
-                    <p className="font-medium">{booking.pickup_date}</p>
-                    <p className="text-sm text-[#A1A1AA]">{booking.pickup_time}</p>
+                <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <CalendarCheck size={24} className="text-[#D4AF37]" />
+                    <div>
+                      <p className="font-medium">{booking.pickup_date}</p>
+                      <p className="text-sm text-[#A1A1AA]">{booking.pickup_time}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(booking.status)}
+                    {getPaymentBadge(booking.payment_status)}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {getStatusBadge(booking.status)}
-                  {getPaymentBadge(booking.payment_status)}
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="flex items-start gap-3">
-                  <MapPin size={20} className="text-green-400 mt-1" />
-                  <div>
-                    <p className="text-xs text-[#A1A1AA] uppercase">Depart</p>
-                    <p className="text-sm">{booking.pickup_address}</p>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="flex items-start gap-3">
+                    <MapPin size={20} className="text-green-400 mt-1" />
+                    <div>
+                      <p className="text-xs text-[#A1A1AA] uppercase">Depart</p>
+                      <p className="text-sm">{booking.pickup_address}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <MapPin size={20} className="text-red-400 mt-1" />
+                    <div>
+                      <p className="text-xs text-[#A1A1AA] uppercase">Arrivee</p>
+                      <p className="text-sm">{booking.dropoff_address}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <MapPin size={20} className="text-red-400 mt-1" />
-                  <div>
-                    <p className="text-xs text-[#A1A1AA] uppercase">Arrivee</p>
-                    <p className="text-sm">{booking.dropoff_address}</p>
-                  </div>
+                <div className="mt-4 pt-4 border-t border-white/10">
+                  <p className="text-sm"><span className="text-[#A1A1AA]">Chauffeur:</span> <span className="text-[#D4AF37]">{getClientFacingDriverName(booking)}</span></p>
                 </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-white/10">
-                <p className="text-sm"><span className="text-[#A1A1AA]">Chauffeur:</span> <span className="text-[#D4AF37]">{getClientFacingDriverName(booking)}</span></p>
-              </div>
 
-              {(statusEquals(booking.status, 'DRAFT') || statusEquals(booking.status, 'ASSIGNED')) && (
-                <Button
-                  onClick={() => { setSelectedBooking(booking); setCancellationReason(booking.cancellation_reason || ''); setDialogOpen(true); }}
-                  className="mt-4 w-full bg-red-600 hover:bg-red-700"
-                >
-                  Demander annulation
-                </Button>
-              )}
+                {(statusEquals(booking.status, 'DRAFT') || statusEquals(booking.status, 'ASSIGNED')) && (
+                  <Button
+                    onClick={() => { setSelectedBooking(booking); setCancellationReason(booking.cancellation_reason || ''); setDialogOpen(true); }}
+                    className="mt-4 w-full bg-red-600 hover:bg-red-700"
+                  >
+                    Demander annulation
+                  </Button>
+                )}
 
-              {(statusEquals(booking.status, 'DRAFT') || statusEquals(booking.status, 'QUOTE_SENT')) && (
-                <Button
-                  onClick={() => openEditDialog(booking)}
-                  variant="outline"
-                  className="mt-2 w-full border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10"
-                >
-                  ✏️ Modifier
-                </Button>
-              )}
+                {(statusEquals(booking.status, 'DRAFT') || statusEquals(booking.status, 'QUOTE_SENT')) && (
+                  <Button
+                    onClick={() => openEditDialog(booking)}
+                    variant="outline"
+                    className="mt-2 w-full border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10"
+                  >
+                    ✏️ Modifier
+                  </Button>
+                )}
 
-              {(statusEquals(booking.status, 'COMPLETED') || statusEquals(booking.status, 'INVOICED') || statusEquals(booking.status, 'PAID')) && (
-                <Button
-                  onClick={() => downloadClientInvoicePdf(API_URL, booking.id)}
-                  variant="outline"
-                  className="mt-3 w-full border-green-500/50 text-green-400 hover:bg-green-500/10"
-                >
-                  <DownloadSimple size={16} className="mr-2" />Télécharger ma facture
-                </Button>
-              )}
+                {isStatusAtOrAfter(booking.status, 'COMPLETED') && (
+                  <Button
+                    onClick={() => downloadClientInvoicePdf(API_URL, booking.id, booking.status)}
+                    variant="outline"
+                    className="mt-3 w-full border-green-500/50 text-green-400 hover:bg-green-500/10"
+                  >
+                    <DownloadSimple size={16} className="mr-2" />Télécharger ma facture
+                  </Button>
+                )}
 
-              <div className="mt-3">
-                <Link
-                  to={`/${lang}/client/bookings/${booking.id}`}
-                  className="inline-flex items-center text-xs px-3 py-1.5 rounded border border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors"
-                >
-                  🔍 Voir détail
-                </Link>
-              </div>
-
-              <BookingComments bookingId={booking.id} />
+                <div className="mt-3">
+                  <Link
+                    to={`/${lang}/client/bookings/${booking.id}`}
+                    className="inline-flex items-center text-xs px-3 py-1.5 rounded border border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10 transition-colors"
+                  >
+                    🔍 Voir détail
+                  </Link>
+                </div>
+                <BookingComments bookingId={booking.id} />
             </div>
           ))}
         </div>
