@@ -8,6 +8,8 @@ import LandingPage from '@/pages/LandingPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import ResetPassword from '@/pages/ResetPassword';
+import VerifyEmailPending from '@/pages/VerifyEmailPending';
+import ActivateEmail from '@/pages/ActivateEmail';
 import AdminBookings from '@/pages/admin/AdminBookings';
 import AdminClients from '@/pages/admin/AdminClients';
 import AdminCommissions from '@/pages/admin/AdminCommissions';
@@ -47,6 +49,8 @@ function AppRoutes() {
       <Route path="register" element={<RegisterPage />} />
       <Route path="forgot-password" element={<ForgotPassword />} />
       <Route path="reset-password" element={<ResetPassword />} />
+      <Route path="verify-email" element={<VerifyEmailPending />} />
+      <Route path="activate-email" element={<ActivateEmail />} />
       <Route path="booking/confirmation" element={<BookingPaymentSuccess />} />
       <Route path="booking/cancel" element={<BookingPaymentCancel />} />
 

@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }) => {
       { email, password, name, phone },
       { withCredentials: true }
     );
-    setUser(response.data);
+    // Registration no longer auto-logs in — user must verify email first.
     return response.data;
   };
 

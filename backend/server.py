@@ -661,6 +661,24 @@ def hash_password(password: str) -> str:
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
+# Password policy: ≥10 chars, at least one uppercase, one lowercase, one special character.
+_PASSWORD_MIN_LENGTH = 10
+_RE_UPPERCASE = re.compile(r'[A-Z]')
+_RE_LOWERCASE = re.compile(r'[a-z]')
+_RE_SPECIAL   = re.compile(r'[^A-Za-z0-9]')
+
+def validate_password_strength(password: str) -> Optional[str]:
+    """Return a French error message if *password* does not meet the policy, else None."""
+    if len(password) < _PASSWORD_MIN_LENGTH:
+        return f"Le mot de passe doit contenir au moins {_PASSWORD_MIN_LENGTH} caractères"
+    if not _RE_UPPERCASE.search(password):
+        return "Le mot de passe doit contenir au moins une lettre majuscule"
+    if not _RE_LOWERCASE.search(password):
+        return "Le mot de passe doit contenir au moins une lettre minuscule"
+    if not _RE_SPECIAL.search(password):
+        return "Le mot de passe doit contenir au moins un caractère spécial"
+    return None
+
 def create_access_token(user_id: str, email: str, role: str) -> str:
     payload = {
         "sub": user_id,
@@ -3174,8 +3192,13 @@ async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
 
 # ==================== AUTH ROUTES ====================
 
-@api_router.post("/auth/register")
-async def register(user_data: UserCreate, response: Response):
+@api_router.post("/auth/register", status_code=201)
+async def register(user_data: UserCreate):
+    # Validate password strength
+    pwd_error = validate_password_strength(user_data.password)
+    if pwd_error:
+        raise HTTPException(status_code=400, detail=pwd_error)
+
     # Check if email exists
     existing = await db.users.find_one({"email": user_data.email.lower()})
     if existing:
@@ -3189,23 +3212,16 @@ async def register(user_data: UserCreate, response: Response):
         "phone": user_data.phone,
         "password_hash": hash_password(user_data.password),
         "role": "client",  # Default role for registration
-        "created_at": datetime.now(timezone.utc)
+        "email_verified": False,
+        "created_at": datetime.now(timezone.utc),
     }
 
     await db.users.insert_one(user_doc)
-
-    access_token = create_access_token(user_id, user_doc["email"], user_doc["role"])
-    refresh_token = create_refresh_token(user_id)
-
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    await _create_and_send_activation_token(user_id, user_doc["email"], user_doc["name"])
 
     return {
-        "id": user_id,
+        "message": "Compte créé. Veuillez consulter votre email pour activer votre compte.",
         "email": user_doc["email"],
-        "name": user_doc["name"],
-        "phone": user_doc["phone"],
-        "role": user_doc["role"]
     }
 
 @api_router.post("/auth/login")
@@ -3216,6 +3232,16 @@ async def login(credentials: UserLogin, response: Response):
 
     if not verify_password(credentials.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+
+    # Block login for accounts with unverified email (admins and drivers seeded by admin are exempt)
+    if user.get("role") == "client" and not user.get("email_verified", False):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Votre adresse email n'a pas encore été vérifiée. "
+                "Veuillez consulter votre boîte de réception et cliquer sur le lien d'activation."
+            ),
+        )
 
     access_token = create_access_token(user["id"], user["email"], user["role"])
     refresh_token = create_refresh_token(user["id"])
@@ -3322,8 +3348,9 @@ async def verify_reset_token(token: str):
 @api_router.post("/auth/reset-password")
 async def reset_password(data: PasswordResetConfirm):
     """Reset the user password using a valid token."""
-    if len(data.new_password) < 8:
-        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 8 caractères")
+    pwd_error = validate_password_strength(data.new_password)
+    if pwd_error:
+        raise HTTPException(status_code=400, detail=pwd_error)
 
     record = await _find_reset_token_record(data.token)
     if record is None:
@@ -3340,6 +3367,141 @@ async def reset_password(data: PasswordResetConfirm):
     )
     logger.info(f"Password reset successful for user {record['user_id']}")
     return {"message": "Mot de passe réinitialisé avec succès"}
+
+# ==================== EMAIL VERIFICATION HELPERS ====================
+
+_ACTIVATION_TOKEN_TTL_HOURS = 24
+_RESEND_COOLDOWN_MINUTES = 5
+
+def _hash_verification_token(token: str) -> str:
+    """Return the SHA-256 hex digest of a raw activation token."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+async def _find_verification_token_record(token: str) -> Optional[dict]:
+    """Return the unexpired, unused activation token document or None."""
+    lookup_hash = _hash_verification_token(token)
+    record = await db.email_verification_tokens.find_one(
+        {"token_hash": lookup_hash, "used": False}
+    )
+    if record is None:
+        return None
+    expires_at = record["expires_at"]
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if datetime.now(timezone.utc) >= expires_at:
+        return None
+    return record
+
+async def _create_and_send_activation_token(user_id: str, user_email: str, user_name: str) -> None:
+    """Generate an activation token, store its hash, and send the activation email."""
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = _hash_verification_token(raw_token)
+    now = datetime.now(timezone.utc)
+    await db.email_verification_tokens.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "token_hash": token_hash,
+        "expires_at": now + timedelta(hours=_ACTIVATION_TOKEN_TTL_HOURS),
+        "used": False,
+        "created_at": now,
+    })
+
+    activation_link = f"{FRONTEND_URL}/activate-email?token={raw_token}"
+    body_html = f"""
+<p style="margin: 0 0 16px 0;">Bonjour {html_escape(user_name)},</p>
+<p style="margin: 0 0 16px 0;">Merci de vous être inscrit(e) sur Econnect VTC.</p>
+<p style="margin: 0 0 24px 0;">Cliquez sur le bouton ci-dessous pour activer votre compte :</p>
+<p style="margin: 24px 0 8px 0; color: #A1A1AA; font-size: 13px;">
+  Ce lien est valide pendant <strong style="color: #FAFAFA;">{_ACTIVATION_TOKEN_TTL_HOURS} heures</strong>.
+</p>
+<p style="margin: 0; color: #A1A1AA; font-size: 13px;">
+  Si vous n'avez pas créé de compte, ignorez cet email.
+</p>
+"""
+    html_content = build_email_html(
+        title="Activez votre compte Econnect VTC",
+        body_html=body_html,
+        cta_label="Activer mon compte",
+        cta_url=activation_link,
+    )
+    sent = await send_notification_email(
+        user_email,
+        "Activez votre compte Econnect VTC",
+        html_content,
+    )
+    if not sent:
+        logger.warning(f"Activation email not sent for user {user_id} (email service not configured)")
+
+# ==================== EMAIL VERIFICATION ROUTES ====================
+
+class ResendActivationRequest(BaseModel):
+    email: EmailStr
+
+@api_router.get("/auth/activate-email")
+async def activate_email(token: str, response: Response):
+    """Activate a user account via the email activation token."""
+    record = await _find_verification_token_record(token)
+    if record is None:
+        raise HTTPException(status_code=400, detail="Lien d'activation invalide ou expiré")
+
+    user = await db.users.find_one({"id": record["user_id"]})
+    if user is None:
+        raise HTTPException(status_code=400, detail="Lien d'activation invalide ou expiré")
+
+    # Mark email as verified and invalidate the token
+    await db.users.update_one(
+        {"id": user["id"]},
+        {"$set": {"email_verified": True}}
+    )
+    await db.email_verification_tokens.update_one(
+        {"id": record["id"]},
+        {"$set": {"used": True}}
+    )
+    logger.info(f"Email verified for user {user['id']}")
+
+    access_token = create_access_token(user["id"], user["email"], user["role"])
+    refresh_token = create_refresh_token(user["id"])
+    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=86400, path="/")
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+
+    return {
+        "id": user["id"],
+        "email": user["email"],
+        "name": user["name"],
+        "phone": user.get("phone"),
+        "role": user["role"],
+    }
+
+@api_router.post("/auth/resend-activation")
+async def resend_activation(data: ResendActivationRequest):
+    """Resend the activation email. Always returns a generic response to avoid email enumeration."""
+    generic_response = {"message": "Si cet email existe et n'est pas encore vérifié, un nouveau lien a été envoyé."}
+
+    user = await db.users.find_one({"email": data.email.lower()})
+    if not user:
+        return generic_response
+
+    if user.get("email_verified", False):
+        return generic_response
+
+    # Rate-limiting: refuse if a token was already created within the cooldown window
+    now = datetime.now(timezone.utc)
+    cooldown_cutoff = now - timedelta(minutes=_RESEND_COOLDOWN_MINUTES)
+    recent = await db.email_verification_tokens.find_one(
+        {"user_id": user["id"], "used": False, "created_at": {"$gte": cooldown_cutoff}},
+        sort=[("created_at", -1)],
+    )
+    if recent:
+        return generic_response
+
+    # Invalidate existing unused tokens before creating a new one
+    await db.email_verification_tokens.update_many(
+        {"user_id": user["id"], "used": False},
+        {"$set": {"used": True}},
+    )
+    await _create_and_send_activation_token(user["id"], user["email"], user.get("name", ""))
+    logger.info(f"Activation email resent for user {user['id']}")
+    return generic_response
 
 # ==================== CLIENT ROUTES ====================
 
@@ -4513,6 +4675,7 @@ async def create_driver(driver_data: DriverCreate, request: Request):
         "vehicle_model": driver_data.vehicle_model,
         "vehicle_plate": driver_data.vehicle_plate,
         "is_available": True,
+        "email_verified": True,
         "created_at": datetime.now(timezone.utc)
     }
 
@@ -5196,6 +5359,8 @@ async def startup_event():
     await db.course_documents.create_index([("course_id", 1), ("type", 1)], unique=True)
     await db.booking_status_history.create_index("id", unique=True)
     await db.booking_status_history.create_index("course_id")
+    await db.email_verification_tokens.create_index("token_hash", unique=True)
+    await db.email_verification_tokens.create_index("user_id")
 
     # Seed admin user
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@econnect-vtc.com")
@@ -5210,6 +5375,7 @@ async def startup_event():
             "phone": None,
             "password_hash": hash_password(admin_password),
             "role": "admin",
+            "email_verified": True,
             "created_at": datetime.now(timezone.utc)
         }
         await db.users.insert_one(admin_doc)
