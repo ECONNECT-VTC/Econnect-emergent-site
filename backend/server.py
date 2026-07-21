@@ -3406,7 +3406,7 @@ async def _create_and_send_activation_token(user_id: str, user_email: str, user_
         "created_at": now,
     })
 
-    activation_link = f"{FRONTEND_URL}/activate-email?token={raw_token}"
+    activation_link = f"{FRONTEND_URL}/fr/activate-email?token={raw_token}"
     body_html = f"""
 <p style="margin: 0 0 16px 0;">Bonjour {html_escape(user_name)},</p>
 <p style="margin: 0 0 16px 0;">Merci de vous être inscrit(e) sur Econnect VTC.</p>
