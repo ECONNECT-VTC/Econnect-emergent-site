@@ -6,6 +6,7 @@ import API_URL from '@/config';
 import LogoDisplay from '@/components/LogoDisplay';
 
 const ADMIN_DOCS = [
+  { type: 'quote', label: 'Devis client', icon: '📄', color: 'text-sky-300' },
   { type: 'order', label: 'Bon de réservation', icon: '📋', color: 'text-purple-300' },
   { type: 'commission', label: 'Facture commission', icon: '💼', color: 'text-yellow-300' },
   { type: 'activity', label: 'Relevé d’activité', icon: '📊', color: 'text-blue-300' },

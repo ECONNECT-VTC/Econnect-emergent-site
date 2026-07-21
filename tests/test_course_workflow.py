@@ -78,16 +78,19 @@ class TestCourseWorkflow(unittest.IsolatedAsyncioTestCase):
             server.validate_booking_status_transition("DRAFT", "COMPLETED")
 
     async def test_create_course_quote_sets_quote_sent_and_creates_document(self):
-        booking = {"id": "course_1", "status": "DRAFT"}
+        booking = {"id": "course_1", "status": "DRAFT", "estimated_price": 120.0}
         await self.bookings.insert_one(booking)
 
         with patch.object(server, "db", self.fake_db), patch.object(
             server, "require_admin", AsyncMock(return_value={"id": "admin_1"})
+        ), patch.object(server, "get_commission_settings", AsyncMock(return_value={})), patch.object(
+            server, "generate_and_store_document", AsyncMock(return_value=(b"pdf", {}))
         ):
             doc = await server.create_course_quote("course_1", request=object())
 
         self.assertEqual(doc.type, "quote")
         self.assertEqual(doc.status, "sent")
+        self.assertEqual(doc.url, "/api/admin/quotes/course_1/pdf")
         updated = await self.bookings.find_one({"id": "course_1"})
         self.assertEqual(updated["status"], "QUOTE_SENT")
 
@@ -130,6 +133,63 @@ class TestCourseWorkflow(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(response.status, "QUOTE_ACCEPTED")
+
+    async def test_admin_can_validate_quote_without_client_account(self):
+        booking = {"id": "course_5", "status": "QUOTE_SENT"}
+        await self.bookings.insert_one(booking)
+
+        with patch.object(server, "db", self.fake_db), patch.object(
+            server, "get_current_user", AsyncMock(return_value={"id": "admin_1", "role": "admin"})
+        ):
+            response = await server.update_course_status(
+                "course_5",
+                server.BookingStatusUpdate(status="QUOTE_ACCEPTED"),
+                request=object(),
+            )
+
+        self.assertEqual(response.status, "QUOTE_ACCEPTED")
+        updated = await self.bookings.find_one({"id": "course_5"})
+        self.assertEqual(updated["status"], "QUOTE_ACCEPTED")
+
+    async def test_client_invoice_download_is_blocked_before_completed(self):
+        booking = {"id": "course_6", "status": "QUOTE_ACCEPTED", "client_id": "client_1"}
+        await self.bookings.insert_one(booking)
+
+        with patch.object(server, "db", self.fake_db), patch.object(
+            server, "get_current_user", AsyncMock(return_value={"id": "client_1", "role": "client"})
+        ):
+            with self.assertRaises(server.HTTPException) as context:
+                await server.download_client_invoice_pdf("course_6", request=object())
+
+        self.assertEqual(context.exception.status_code, 400)
+        self.assertEqual(context.exception.detail, "La facture n'est disponible qu'après une course terminée")
+
+    async def test_client_invoice_download_is_available_after_completed(self):
+        booking = {"id": "course_7", "status": "COMPLETED", "client_id": "client_1"}
+        await self.bookings.insert_one(booking)
+
+        with patch.object(server, "db", self.fake_db), patch.object(
+            server, "get_current_user", AsyncMock(return_value={"id": "client_1", "role": "client"})
+        ), patch.object(server, "get_commission_settings", AsyncMock(return_value={})), patch.object(
+            server, "generate_and_store_document", AsyncMock(return_value=(b"pdf", {}))
+        ):
+            response = await server.download_client_invoice_pdf("course_7", request=object())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.media_type, "application/pdf")
+
+    async def test_admin_invoice_download_is_blocked_before_completed(self):
+        booking = {"id": "course_8", "status": "ASSIGNED"}
+        await self.bookings.insert_one(booking)
+
+        with patch.object(server, "db", self.fake_db), patch.object(
+            server, "require_admin", AsyncMock(return_value={"id": "admin_1"})
+        ):
+            with self.assertRaises(server.HTTPException) as context:
+                await server.download_admin_invoice_pdf("course_8", request=object())
+
+        self.assertEqual(context.exception.status_code, 400)
+        self.assertEqual(context.exception.detail, "La facture n'est disponible qu'après une course terminée")
 
 
 if __name__ == "__main__":

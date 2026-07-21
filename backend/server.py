@@ -508,6 +508,12 @@ def status_at_or_after(status: Optional[str], reference_status: str) -> bool:
     return BOOKING_STATUS_FLOW.index(normalized) >= BOOKING_STATUS_FLOW.index(reference_status)
 
 
+def ensure_client_invoice_available(booking: dict) -> None:
+    current_status = normalize_booking_status(booking.get("status"))
+    if not status_at_or_after(current_status, "COMPLETED"):
+        raise HTTPException(status_code=400, detail="La facture n'est disponible qu'après une course terminée")
+
+
 async def create_course_document(
     booking: dict,
     document_type: str,
@@ -642,7 +648,7 @@ class InvoiceMetadata(BaseModel):
     amount_ht: float
     tva_amount: float
     tva_rate: float
-    type: str  # "invoice" or "order"
+    type: str  # "quote", "invoice", "order", "driver", "commission", "activity"
     created_at: datetime
 
 # ==================== AUTH HELPERS ====================
@@ -935,6 +941,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     )
 
     title_map = {
+        "quote": "DEVIS CLIENT",
         "invoice": "FACTURE CLIENT",
         "order": "BON DE COMMANDE",
         "driver": "FACTURE CHAUFFEUR",
@@ -943,7 +950,8 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     }
     title = title_map.get(document_type, "DOCUMENT")
     is_order_document = document_type == "order"
-    is_invoice_document = document_type == "invoice"
+    is_quote_document = document_type == "quote"
+    is_invoice_document = document_type in {"invoice", "quote"}
     is_commission_document = document_type == "commission"
     is_driver_statement = document_type in ("driver", "activity")
     if is_order_document:
@@ -1157,11 +1165,16 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
             char for char in unicodedata.normalize("NFD", company_iban.strip().lower()) if unicodedata.category(char) != "Mn"
         )
         has_real_company_iban = normalized_company_iban not in {"", "n/a", "na", "none", "null", "a completer"}
-        should_show_iban = payment_method == "virement" and has_real_company_iban
+        should_show_iban = not is_quote_document and payment_method == "virement" and has_real_company_iban
         # Support legacy `company_tva_number` while `company_vat_number` is the canonical VAT key.
         company_vat_number = clean_pdf_value(settings.get("company_vat_number") or settings.get("company_tva_number"))
         service_description = "Mise à disposition VTC" if is_disposition_transfer(booking.get("transfer_type")) else "Courses effectuées"
         invoice_qty = "1"
+        document_label = "DEVIS" if is_quote_document else "FACTURE"
+        secondary_date_label = "Validité" if is_quote_document else "Échéance"
+        info_box_title = "INFORMATIONS DE VALIDATION" if is_quote_document else "INFORMATIONS DE PAIEMENT"
+        payment_method_prefix = "Mode de paiement prévu" if is_quote_document else "Mode de paiement"
+        status_value = "Devis envoyé" if is_quote_document else payment_status_label
         client_lines = [
             clean_pdf_value(booking.get("client_name")),
             clean_pdf_value(booking.get("client_email")),
@@ -1242,11 +1255,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.rect(box_x, box_top - box_h, box_w, box_h, fill=0, stroke=1)
         set_fill(INVOICE_DARK)
         c.setFont("Helvetica-Bold", 10)
-        c.drawString(box_x + 14, box_top - 18, f"FACTURE N° {document_number}")
+        c.drawString(box_x + 14, box_top - 18, f"{document_label} N° {document_number}")
         set_fill(INVOICE_MUTED)
         c.setFont("Helvetica", 9)
         c.drawString(box_x + 14, box_top - 36, f"Date : {now_str}")
-        c.drawString(box_x + 14, box_top - 50, f"Échéance : {due_date}")
+        c.drawString(box_x + 14, box_top - 50, f"{secondary_date_label} : {due_date}")
 
         sections_top = box_top - box_h - 22
         box_width = (width - 80 - 16) / 2
@@ -1335,11 +1348,11 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.rect(table_x, payment_top - 22, payment_w, 22, fill=1, stroke=0)
         set_fill(WHITE)
         c.setFont("Helvetica-Bold", 9)
-        c.drawString(table_x + 12, payment_top - 15, "INFORMATIONS DE PAIEMENT")
+        c.drawString(table_x + 12, payment_top - 15, info_box_title)
         set_fill(DARK)
         c.setFont("Helvetica", 9)
-        c.drawString(table_x + 12, payment_top - 38, f"Mode de paiement : {payment_method_label}")
-        status_line = f"Statut : {payment_status_label}"
+        c.drawString(table_x + 12, payment_top - 38, f"{payment_method_prefix} : {payment_method_label}")
+        status_line = f"Statut : {status_value}"
         status_y = payment_top - 52
         set_fill(INVOICE_GOLD)
         c.setFont("Helvetica-Bold", 9)
@@ -1370,8 +1383,12 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(totals_x + 14, totals_top - 76, "TOTAL TTC")
         c.drawRightString(totals_x + totals_w - 14, totals_top - 76, f"{breakdown['price_ttc']:.2f} EUR")
 
-        legal_note_1 = "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif."
-        legal_note_2 = "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux ECONNECT."
+        if is_quote_document:
+            legal_note_1 = "Ce devis doit être validé avant l'émission du bon de commande."
+            legal_note_2 = "Le montant estimatif pourra être ajusté en cas de modification de la course."
+        else:
+            legal_note_1 = "Article L441-10 du Code de commerce : des pénalités de retard sont applicables en cas de paiement tardif."
+            legal_note_2 = "Paiement sous 30 jours. Tout retard entraîne des pénalités égales à 3 fois le taux ECONNECT."
         legal_notes_y = payment_top - payment_h - 18
         set_fill(INVOICE_MUTED)
         c.setFont("Helvetica", 8)
@@ -3706,12 +3723,14 @@ async def create_course_quote(course_id: str, request: Request):
     if current_status not in {"DRAFT", "QUOTE_SENT"}:
         raise HTTPException(status_code=400, detail="Le devis ne peut être généré que tant qu'il n'est pas accepté")
 
+    settings = await get_commission_settings()
+    await generate_and_store_document(booking, settings, "quote")
     document = await create_course_document(
         booking,
         "quote",
         "sent",
         created_by=admin.get("id"),
-        url=f"/api/courses/{course_id}/quote",
+        url=f"/api/admin/quotes/{course_id}/pdf",
     )
     await db.bookings.update_one({"id": course_id}, {"$set": {"status": "QUOTE_SENT"}})
     await log_booking_status_transition(course_id, current_status, "QUOTE_SENT", admin.get("id"))
@@ -3753,8 +3772,7 @@ async def create_course_invoice(course_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Course non trouvée")
 
     current_status = normalize_booking_status(booking.get("status"))
-    if not status_at_or_after(current_status, "COMPLETED"):
-        raise HTTPException(status_code=400, detail="La facture ne peut être générée qu'après une course terminée")
+    ensure_client_invoice_available(booking)
 
     settings = await get_commission_settings()
     await generate_and_store_document(booking, settings, "invoice")
@@ -4907,6 +4925,22 @@ async def get_driver_earnings(request: Request):
 
     return earnings
 
+@api_router.get("/admin/quotes/{booking_id}/pdf")
+async def download_admin_quote_pdf(booking_id: str, request: Request):
+    await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+    settings = await get_commission_settings()
+    pdf_bytes, _ = await generate_and_store_document(booking, settings, "quote")
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=devis-client-{booking_id}.pdf"}
+    )
+
 @api_router.get("/admin/invoices/{booking_id}/pdf")
 async def download_admin_invoice_pdf(booking_id: str, request: Request):
     await require_admin(request)
@@ -4914,6 +4948,7 @@ async def download_admin_invoice_pdf(booking_id: str, request: Request):
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
 
+    ensure_client_invoice_available(booking)
     settings = await get_commission_settings()
     pdf_bytes, _ = await generate_and_store_document(booking, settings, "invoice")
 
@@ -5111,6 +5146,7 @@ async def download_client_invoice_pdf(booking_id: str, request: Request):
     if booking.get("client_id") != user["id"]:
         raise HTTPException(status_code=403, detail="Accès refusé à cette facture")
 
+    ensure_client_invoice_available(booking)
     settings = await get_commission_settings()
     pdf_bytes, _ = await generate_and_store_document(booking, settings, "invoice")
 

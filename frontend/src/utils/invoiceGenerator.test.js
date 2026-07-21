@@ -1,4 +1,5 @@
 import {
+  downloadClientInvoicePdf,
   downloadDriverDocPdf,
   downloadDriverInvoicePdf,
   downloadInvoicePdf,
@@ -20,6 +21,15 @@ describe('invoiceGenerator', () => {
 
     expect(openSpy).toHaveBeenCalledWith(
       'https://api.example.com/api/admin/invoices/booking-1/activity-pdf',
+      '_blank'
+    );
+  });
+
+  it('opens the admin quote route', () => {
+    downloadInvoicePdf('https://api.example.com', 'booking-1', 'quote');
+
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://api.example.com/api/admin/quotes/booking-1/pdf',
       '_blank'
     );
   });
@@ -47,6 +57,20 @@ describe('invoiceGenerator', () => {
 
     expect(openSpy).toHaveBeenCalledWith(
       'https://api.example.com/api/driver/invoices/booking-3/pdf',
+      '_blank'
+    );
+  });
+
+  it('blocks client invoice downloads before the booking is completed', () => {
+    expect(downloadClientInvoicePdf('https://api.example.com', 'booking-4', 'QUOTE_SENT')).toBe(false);
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it('opens the client invoice route after completion', () => {
+    expect(downloadClientInvoicePdf('https://api.example.com', 'booking-5', 'COMPLETED')).toBe(true);
+
+    expect(openSpy).toHaveBeenCalledWith(
+      'https://api.example.com/api/client/invoices/booking-5/pdf',
       '_blank'
     );
   });

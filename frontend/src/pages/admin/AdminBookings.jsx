@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CalendarCheck, CarSimple, CheckCircle, MapPin, User, DownloadSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
-import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
+import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, isStatusAtOrAfter, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
@@ -96,6 +96,7 @@ const AdminBookings = () => {
   const [assignSelfDriverName, setAssignSelfDriverName] = useState('');
   const [assigningSelf, setAssigningSelf] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState('');
+  const [documentActionId, setDocumentActionId] = useState('');
   const [googleMapsReady, setGoogleMapsReady] = useState(Boolean(window.google?.maps?.places));
   const pickupRef = useRef(null);
   const dropoffRef = useRef(null);
@@ -306,13 +307,34 @@ const AdminBookings = () => {
     }
   };
 
-  const receiveBooking = async (bookingId) => {
+  const sendQuote = async (bookingId) => {
+    setDocumentActionId(bookingId);
     setError('');
     try {
-      await axios.put(`${API_URL}/api/admin/bookings/${bookingId}/receive`, {}, { withCredentials: true });
+      await axios.post(`${API_URL}/api/courses/${bookingId}/quote`, {}, { withCredentials: true });
+      downloadInvoicePdf(API_URL, bookingId, 'quote');
       fetchData();
     } catch (err) {
       setError(parseError(err));
+    } finally {
+      setDocumentActionId('');
+    }
+  };
+
+  const validateQuote = async (bookingId) => {
+    setDocumentActionId(bookingId);
+    setError('');
+    try {
+      await axios.patch(
+        `${API_URL}/api/courses/${bookingId}/status`,
+        { status: 'QUOTE_ACCEPTED' },
+        { withCredentials: true }
+      );
+      fetchData();
+    } catch (err) {
+      setError(parseError(err));
+    } finally {
+      setDocumentActionId('');
     }
   };
 
@@ -381,7 +403,7 @@ const AdminBookings = () => {
         return;
       }
       if (!statusEquals(freshBooking.status, 'QUOTE_ACCEPTED') && !statusEquals(freshBooking.status, 'ORDER_ISSUED')) {
-        setError(`Impossible d'assigner : la course est en statut "${freshBooking.status}". Elle doit être réceptionnée avant d'être assignée. La liste a été actualisée.`);
+        setError(`Impossible d'assigner : la course est en statut "${freshBooking.status}". Le devis doit être validé avant l'affectation. La liste a été actualisée.`);
         return;
       }
       setSelectedBooking(freshBooking);
@@ -588,8 +610,10 @@ const AdminBookings = () => {
         <div className="space-y-4" data-testid="admin-bookings">
           {filteredBookings.map((booking) => {
             const paymentPending = booking.payment_status === 'pending';
-            const canReceive = statusEquals(booking.status, 'DRAFT') && !paymentPending;
+            const canSendQuote = statusEquals(booking.status, 'DRAFT') && !paymentPending;
+            const canValidateQuote = statusEquals(booking.status, 'QUOTE_SENT') && !paymentPending;
             const canSelfAssign = (statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED')) && !paymentPending;
+            const canDownloadQuote = isStatusAtOrAfter(booking.status, 'QUOTE_SENT');
             const bookingDriverName = booking.driver_display_name || booking.driver_name;
 
             return (
@@ -610,9 +634,26 @@ const AdminBookings = () => {
                     <span className="px-2 py-0.5 text-xs rounded-full bg-purple-500/20 text-purple-300">Admin</span>
                   )}
 
-                  {canReceive && (
-                    <Button size="sm" className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => receiveBooking(booking.id)}>
-                      <CheckCircle size={16} className="mr-1" />Réceptionner
+                  {canSendQuote && (
+                    <Button
+                      size="sm"
+                      className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]"
+                      onClick={() => sendQuote(booking.id)}
+                      disabled={documentActionId === booking.id}
+                    >
+                      <CheckCircle size={16} className="mr-1" />Envoyer le devis
+                    </Button>
+                  )}
+
+                  {canValidateQuote && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-sky-500/50 text-sky-300 hover:bg-sky-500/10"
+                      onClick={() => validateQuote(booking.id)}
+                      disabled={documentActionId === booking.id}
+                    >
+                      <CheckCircle size={16} className="mr-1" />Valider le devis
                     </Button>
                   )}
 
@@ -762,6 +803,16 @@ const AdminBookings = () => {
                 >
                   ✏️ Modifier
                 </Button>
+                {canDownloadQuote && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-sky-500/50 text-sky-300 hover:bg-sky-500/10"
+                    onClick={() => downloadInvoicePdf(API_URL, booking.id, 'quote')}
+                  >
+                    <DownloadSimple size={14} className="mr-1" />Devis client
+                  </Button>
+                )}
                 {(statusEquals(booking.status, 'ASSIGNED') || statusEquals(booking.status, 'ORDER_ISSUED')) && (
                   <Button
                     size="sm"
