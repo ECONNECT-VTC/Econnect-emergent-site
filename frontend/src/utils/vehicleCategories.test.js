@@ -42,19 +42,19 @@ describe('vehicleCategories utils', () => {
     expect(getVehicleCategoryPresentation('Berline')).toMatchObject({
       displayName: 'Confort Classique',
       passengers: 4,
-      luggage: 2,
+      luggage: 4,
       hasWifi: true,
     });
     expect(getVehicleCategoryPresentation('Luxe')).toMatchObject({
       displayName: 'Prestige',
       image: '/photo/Range_rover.png',
       passengers: 4,
-      luggage: 3,
+      luggage: 4,
       hasWifi: true,
     });
     expect(getVehicleCategoryPresentation('Van')).toMatchObject({
       passengers: 7,
-      luggage: 5,
+      luggage: 9,
       hasWifi: true,
     });
     expect(getVehicleCategoryPresentation('Confort Premium')).toMatchObject({
