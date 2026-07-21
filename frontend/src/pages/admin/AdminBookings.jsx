@@ -610,9 +610,10 @@ const AdminBookings = () => {
         <div className="space-y-4" data-testid="admin-bookings">
           {filteredBookings.map((booking) => {
             const paymentPending = booking.payment_status === 'pending';
+            const isBankTransferPending = paymentPending && normalizePaymentMethod(booking.payment_method) === 'virement';
             const canSendQuote = statusEquals(booking.status, 'DRAFT') && !paymentPending;
             const canValidateQuote = statusEquals(booking.status, 'QUOTE_SENT') && !paymentPending;
-            const canSelfAssign = (statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED')) && !paymentPending;
+            const canSelfAssign = statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED');
             const canDownloadQuote = isStatusAtOrAfter(booking.status, 'QUOTE_SENT');
             const bookingDriverName = booking.driver_display_name || booking.driver_name;
 
@@ -685,7 +686,7 @@ const AdminBookings = () => {
                     </Button>
                   )}
 
-                  {(statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED')) && !paymentPending && (
+                  {(statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED')) && (
                     <Button size="sm" className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => openAssignDialog(booking)} data-testid={`assign-btn-${booking.id}`}>
                       <CarSimple size={16} className="mr-1" />Assigner à un chauffeur
                     </Button>
@@ -718,6 +719,11 @@ const AdminBookings = () => {
               {paymentPending && statusEquals(booking.status, 'DRAFT') && (
                 <p className="mb-4 rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-200">
                   Paiement Stripe en attente de confirmation : cette réservation reste visible pour diagnostic mais ne peut pas encore être affectée.
+                </p>
+              )}
+              {isBankTransferPending && (statusEquals(booking.status, 'ASSIGNED') || statusEquals(booking.status, 'IN_PROGRESS') || statusEquals(booking.status, 'COMPLETED') || statusEquals(booking.status, 'INVOICED')) && (
+                <p className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  Course affectée avec virement bancaire : paiement toujours en attente.
                 </p>
               )}
 
