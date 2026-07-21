@@ -108,4 +108,19 @@ describe('ClientBookings invoice visibility', () => {
 
     expect(mockDownloadClientInvoicePdf).toHaveBeenCalledWith('http://api.test', 'booking-2', 'COMPLETED');
   });
+
+  it('shows an "En attente de paiement" status badge for unpaid validated bookings', async () => {
+    await renderWithBookings([{
+      id: 'booking-3',
+      pickup_date: '22/07/2026',
+      pickup_time: '14:00',
+      pickup_address: 'Paris',
+      dropoff_address: 'Orly',
+      status: 'ASSIGNED',
+      payment_status: 'pending',
+      driver_name: 'Chauffeur Test',
+    }]);
+
+    expect(container.textContent).toContain('En attente de paiement');
+  });
 });

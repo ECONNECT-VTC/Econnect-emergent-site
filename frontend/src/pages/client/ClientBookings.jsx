@@ -97,13 +97,24 @@ const ClientBookings = () => {
     }
   };
 
-  const filteredBookings = filter === 'all' ? bookings : bookings.filter((b) => normalizeCourseStatus(b.status) === filter);
+  const isAwaitingPaymentBooking = (booking) => (
+    booking?.payment_status === 'pending'
+    && !statusEquals(booking?.status, 'DRAFT')
+    && !statusEquals(booking?.status, 'QUOTE_SENT')
+    && !statusEquals(booking?.status, 'cancelled')
+  );
 
-  const getStatusBadge = (status) => {
-    if (status === 'awaiting_payment') {
+  const filteredBookings = filter === 'all'
+    ? bookings
+    : filter === 'awaiting_payment'
+      ? bookings.filter((b) => isAwaitingPaymentBooking(b))
+      : bookings.filter((b) => normalizeCourseStatus(b.status) === filter);
+
+  const getStatusBadge = (booking) => {
+    if (isAwaitingPaymentBooking(booking)) {
       return <span className="px-3 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300">En attente de paiement</span>;
     }
-    const normalized = normalizeCourseStatus(status);
+    const normalized = normalizeCourseStatus(booking?.status);
     return <span className={`px-3 py-1 rounded-full text-xs font-medium ${COURSE_STATUS_STYLES[normalized] || 'bg-zinc-500/20 text-zinc-300'}`}>{COURSE_STATUS_LABELS[normalized] || normalized}</span>;
   };
 
@@ -163,7 +174,7 @@ const ClientBookings = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {getStatusBadge(booking.status)}
+                    {getStatusBadge(booking)}
                     {getPaymentBadge(booking.payment_status)}
                   </div>
                 </div>
