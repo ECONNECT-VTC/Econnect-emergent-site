@@ -1,3 +1,4 @@
+from fastapi.middleware.cors import CORSMiddleware
 # Standard library
 import asyncio
 import hashlib
@@ -64,6 +65,20 @@ if STRIPE_SECRET_KEY:
 
 # Create the main app
 app = FastAPI(title="Econnect VTC API")
+origins = [
+    "https://econnect-vtc.com",
+    "https://www.econnect-vtc.com",
+    "http://localhost:3000",
+    "http://localhost:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
