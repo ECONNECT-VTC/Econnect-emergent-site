@@ -35,13 +35,30 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (email, password, name, phone) => {
-    const response = await axios.post(`${API_URL}/api/auth/register`,
+  try {
+    const response = await axios.post(
+      `${API_URL}/api/auth/register`,
       { email, password, name, phone },
       { withCredentials: true }
     );
-    // Registration no longer auto-logs in — user must verify email first.
     return response.data;
-  };
+  } catch (err) {
+    const data = err.response?.data;
+    const detail = data?.detail;
+
+    let message = "Erreur lors de l'inscription";
+
+    if (typeof detail === 'string') {
+      message = detail;
+    } else if (Array.isArray(detail)) {
+      message = detail.map((e) => e.msg).join(' ');
+    } else if (typeof data?.message === 'string') {
+      message = data.message;
+    }
+
+    throw new Error(message);
+  }
+};
 
   const logout = async () => {
     try {
