@@ -43,9 +43,14 @@ if not INVOICE_LOGO_PATH.exists():
     INVOICE_LOGO_PATH = LOGO_PATH
 
 # MongoDB connection
-mongo_url = os.environ['MONGO_URL']
+mongo_url = os.getenv("MONGO_URL")
+db_name = os.getenv("DB_NAME")
+
+if not mongo_url or not db_name:
+    raise RuntimeError("MONGO_URL ou DB_NAME manquant")
+
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+db = client[db_name]
 
 # JWT Configuration
 JWT_SECRET = os.environ.get('JWT_SECRET', secrets.token_hex(32))
