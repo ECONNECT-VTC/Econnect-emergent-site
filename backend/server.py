@@ -2988,12 +2988,22 @@ async def send_notification_email(
         return False
 
     try:
-        message = Mail(
-            from_email=sender_email,
-            to_emails=to_email,
-            subject=subject,
-            html_content=html_content
-        )
+    message = Mail(
+        from_email=sender_email,
+        to_emails=to_email,
+        subject=subject,
+        html_content=html_content
+    )
+
+    sg = SendGridAPIClient(SENDGRID_API_KEY)
+    response = sg.send(message)
+
+    print("SendGrid status:", response.status_code)
+    print("SendGrid body:", response.body)
+
+except Exception as e:
+    print("SendGrid error:", str(e))
+    raise
         if attachment_bytes:
             filename = attachment_filename or "document.pdf"
             encoded_file = b64encode(attachment_bytes).decode()
