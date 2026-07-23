@@ -51,7 +51,7 @@ const RegisterPage = () => {
     setLoading(true);
     setError("");
 
-    await register(fullName, email, phone, password);
+    await register(name, email, phone, password);
 
     navigate("/verify-email");
   } catch (error) {
