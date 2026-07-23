@@ -3214,54 +3214,38 @@ async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
 
 from fastapi import HTTPException
 # Validate password strength
-@app.post("/auth/register")
+@api_router.post("/auth/register")
 async def register(user: UserCreate):
-    try:
-        email = user.email.strip().lower()
+    VALID_ROLES = {"client", "chauffeur"}
+    if user.role not in VALID_ROLES:
+        raise HTTPException(
+            status_code=400,
+            detail="Le rôle doit être 'client' ou 'chauffeur'"
+        )
 
-        if len(user.password) < 10:
-            raise HTTPException(
-                status_code=400,
-                detail="Le mot de passe doit contenir au moins 10 caractères"
-            )
+    if len(user.password) < 10:
+        raise HTTPException(
+            status_code=400,
+            detail="Le mot de passe doit contenir au moins 10 caractères"
+        )
 
-        existing_user = await users_collection.find_one({"email": email})
-        if existing_user:
-            raise HTTPException(status_code=400, detail="Email déjà utilisé")
+    email = user.email.strip().lower()
 
-        user_data = {
-            "id": str(uuid.uuid4()),
-            "name": user.name.strip(),
-            "email": email,
-            "phone": user.phone.strip(),
-            "password": hash_password(user.password),
-            "is_active": False,
-            "created_at": datetime.utcnow(),
-        }
-
-        await users_collection.insert_one(user_data)
-
-        return {"message": "Compte créé avec succès"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print("REGISTER ERROR:", str(e))
-        raise HTTPException(status_code=500, detail=str(e))
-
-    # Check if email exists
-    existing = await db.users.find_one({"email": user_data.email.lower()})
+    existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
+
+    # Map "chauffeur" to internal role "driver"
+    stored_role = "driver" if user.role == "chauffeur" else "client"
 
     user_id = str(uuid.uuid4())
     user_doc = {
         "id": user_id,
-        "email": user_data.email.lower(),
-        "name": user_data.name,
-        "phone": user_data.phone,
-        "password_hash": hash_password(user_data.password),
-        "role": "client",  # Default role for registration
+        "email": email,
+        "name": user.name.strip(),
+        "phone": user.phone.strip() if user.phone else None,
+        "password_hash": hash_password(user.password),
+        "role": stored_role,
         "email_verified": False,
         "created_at": datetime.now(timezone.utc),
     }
