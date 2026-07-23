@@ -75,13 +75,13 @@ const Footer = () => {
               <li className="flex items-start gap-3">
                 <Phone size={20} className="text-[#D4AF37] mt-1" />
                 <a href="tel:+33753418833" className="text-[#A1A1AA] hover:text-[#D4AF37] transition-colors" data-testid="contact-phone">
-                  +33 659
+                  +33 753 41 88 33
                 </a>
               </li>
               <li className="flex items-start gap-3">
                 <Envelope size={20} className="text-[#D4AF37] mt-1" />
                 <a href="mail:reservation@econnect-vtc.com" className="text-[#A1A1AA] hover:text-[#D4AF37] transition-colors" data-testid="contact-email">
-                  contact@econnect-vtc.com
+                  reservation@econnect-vtc.com
                 </a>
               </li>
               <li className="flex items-start gap-3">
