@@ -3212,12 +3212,42 @@ async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
 
 # ==================== AUTH ROUTES ====================
 
-@api_router.post("/auth/register", status_code=201)
-async def register(user_data: UserCreate):
-    # Validate password strength
-    pwd_error = validate_password_strength(user_data.password)
-    if pwd_error:
-        raise HTTPException(status_code=400, detail=pwd_error)
+from fastapi import HTTPException
+# Validate password strength
+@app.post("/auth/register")
+async def register(user: UserCreate):
+    try:
+        email = user.email.strip().lower()
+
+        if len(user.password) < 10:
+            raise HTTPException(
+                status_code=400,
+                detail="Le mot de passe doit contenir au moins 10 caractères"
+            )
+
+        existing_user = await users_collection.find_one({"email": email})
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email déjà utilisé")
+
+        user_data = {
+            "id": str(uuid.uuid4()),
+            "full_name": user.full_name.strip(),
+            "email": email,
+            "phone": user.phone.strip(),
+            "password": hash_password(user.password),
+            "is_active": False,
+            "created_at": datetime.utcnow(),
+        }
+
+        await users_collection.insert_one(user_data)
+
+        return {"message": "Compte créé avec succès"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print("REGISTER ERROR:", str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
     # Check if email exists
     existing = await db.users.find_one({"email": user_data.email.lower()})
