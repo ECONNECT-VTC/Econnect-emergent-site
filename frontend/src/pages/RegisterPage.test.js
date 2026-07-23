@@ -111,19 +111,11 @@ describe('RegisterPage – role selection', () => {
     expect(errorEl.textContent).toContain('type de compte');
   });
 
-  it('calls register with role=client when Client is selected', async () => {
+  it('calls register with role=client when Client is selected and form is submitted', async () => {
     mockRegister.mockResolvedValue({});
 
     await act(async () => {
       root.render(<RegisterPage />);
-    });
-
-    // Fill in form fields
-    await act(async () => {
-      container.querySelector('[data-testid="register-name"]').value = 'Jean Dupont';
-      container.querySelector('[data-testid="register-name"]').dispatchEvent(new Event('input', { bubbles: true }));
-      container.querySelector('[data-testid="register-email"]').value = 'jean@example.com';
-      container.querySelector('[data-testid="register-email"]').dispatchEvent(new Event('input', { bubbles: true }));
     });
 
     await act(async () => {

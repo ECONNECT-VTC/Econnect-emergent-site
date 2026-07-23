@@ -3235,8 +3235,9 @@ async def register(user: UserCreate):
     if existing:
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
 
-    # Map "chauffeur" to internal role "driver"
-    stored_role = "driver" if user.role == "chauffeur" else "client"
+    # Map registration roles to internal stored roles
+    ROLE_MAP = {"client": "client", "chauffeur": "driver"}
+    stored_role = ROLE_MAP[user.role]
 
     user_id = str(uuid.uuid4())
     user_doc = {
