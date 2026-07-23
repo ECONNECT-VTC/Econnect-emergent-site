@@ -34,32 +34,36 @@ const RegisterPage = () => {
     return null;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
+ const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    if (password !== confirmPassword) {
-      setError('Les mots de passe ne correspondent pas');
-      return;
-    }
+  if (password !== confirmPassword) {
+    setError("Les mots de passe ne correspondent pas");
+    return;
+  }
 
-    const pwdError = validatePassword(password);
-    if (pwdError) {
-      setError(pwdError);
-      return;
-    }
+  if (password.length < 10) {
+    setError("Le mot de passe doit contenir au moins 10 caractères");
+    return;
+  }
 
+  try {
     setLoading(true);
+    setError("");
 
-    try {
-      await register(email, password, name, phone);
-      navigate(`/${lang}/verify-email`, { replace: true, state: { email } });
-    } catch (err) {
-      const detail = err.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : "Erreur lors de l'inscription");
-    } finally {
-      setLoading(false);
-    }
+    await register(fullName, email, phone, password);
+
+    navigate("/verify-email");
+  } catch (error) {
+    setError(
+      error.response?.data?.detail ||
+      error.message ||
+      "Erreur lors de l'inscription"
+    );
+  } finally {
+    setLoading(false);
+  }
+};
   };
 
   return (
