@@ -156,6 +156,64 @@ class TestRegisterEndpoint(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cm.exception.status_code, 400)
 
 
+
+    async def test_register_client_role_stored(self):
+        user_data = server.UserCreate(
+            email="client@example.com",
+            password="ValidPass!1",
+            name="Client User",
+            role="client",
+        )
+        mock_users_coll = MagicMock()
+        mock_users_coll.find_one = AsyncMock(return_value=None)
+        mock_users_coll.insert_one = AsyncMock()
+
+        mock_tokens_coll = MagicMock()
+        mock_tokens_coll.insert_one = AsyncMock()
+
+        with patch.object(server.db, "users", mock_users_coll), \
+             patch.object(server.db, "email_verification_tokens", mock_tokens_coll), \
+             patch.object(server, "send_notification_email", new=AsyncMock(return_value=True)):
+            await server.register(user_data)
+
+        inserted_doc = mock_users_coll.insert_one.call_args[0][0]
+        self.assertEqual(inserted_doc["role"], "client")
+
+    async def test_register_chauffeur_role_stored_as_driver(self):
+        user_data = server.UserCreate(
+            email="chauffeur@example.com",
+            password="ValidPass!1",
+            name="Chauffeur User",
+            role="chauffeur",
+        )
+        mock_users_coll = MagicMock()
+        mock_users_coll.find_one = AsyncMock(return_value=None)
+        mock_users_coll.insert_one = AsyncMock()
+
+        mock_tokens_coll = MagicMock()
+        mock_tokens_coll.insert_one = AsyncMock()
+
+        with patch.object(server.db, "users", mock_users_coll), \
+             patch.object(server.db, "email_verification_tokens", mock_tokens_coll), \
+             patch.object(server, "send_notification_email", new=AsyncMock(return_value=True)):
+            await server.register(user_data)
+
+        inserted_doc = mock_users_coll.insert_one.call_args[0][0]
+        self.assertEqual(inserted_doc["role"], "driver")
+
+    async def test_register_invalid_role_rejected(self):
+        user_data = server.UserCreate(
+            email="admin@example.com",
+            password="ValidPass!1",
+            name="Admin Wannabe",
+            role="admin",
+        )
+        from fastapi import HTTPException
+        with self.assertRaises(HTTPException) as cm:
+            await server.register(user_data)
+        self.assertEqual(cm.exception.status_code, 400)
+        self.assertIn("rôle", cm.exception.detail)
+
 # ---------------------------------------------------------------------------
 # Login tests
 # ---------------------------------------------------------------------------

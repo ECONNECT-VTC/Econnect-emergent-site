@@ -34,11 +34,11 @@ export const AuthProvider = ({ children }) => {
     return response.data;
   };
 
-  const register = async (email, password, name, phone) => {
+  const register = async (email, password, name, phone, role) => {
   try {
     const response = await axios.post(
       `${API_URL}/api/auth/register`,
-      { email, password, name, phone },
+      { email, password, name, phone, role },
       { withCredentials: true }
     );
     return response.data;

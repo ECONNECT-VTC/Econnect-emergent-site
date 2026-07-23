@@ -14,6 +14,7 @@ const RegisterPage = () => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
@@ -37,6 +38,11 @@ const RegisterPage = () => {
  const handleSubmit = async (e) => {
   e.preventDefault();
 
+  if (!role) {
+    setError("Veuillez sélectionner un type de compte");
+    return;
+  }
+
   if (password !== confirmPassword) {
     setError("Les mots de passe ne correspondent pas");
     return;
@@ -51,7 +57,7 @@ const RegisterPage = () => {
     setLoading(true);
     setError("");
 
-    await register(name, email, phone, password);
+    await register(email, password, name, phone, role);
 
     navigate("/verify-email");
   } catch (error) {
@@ -86,7 +92,7 @@ const RegisterPage = () => {
             <h1 className="text-3xl font-bold font-['Cormorant_Garamond'] gold-text mb-2">
               Inscription
             </h1>
-            <p className="text-[#A1A1AA]">Créez votre compte client</p>
+            <p className="text-[#A1A1AA]">Créez votre compte</p>
           </div>
 
           {/* Error */}
@@ -104,6 +110,37 @@ const RegisterPage = () => {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Role selection */}
+            <div className="space-y-2">
+              <Label className="text-[#A1A1AA]">Type de compte</Label>
+              <div className="flex gap-4" data-testid="register-role">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="client"
+                    checked={role === 'client'}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="accent-[#D4AF37]"
+                    data-testid="register-role-client"
+                  />
+                  <span className="text-[#A1A1AA]">Client</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="chauffeur"
+                    checked={role === 'chauffeur'}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="accent-[#D4AF37]"
+                    data-testid="register-role-chauffeur"
+                  />
+                  <span className="text-[#A1A1AA]">Chauffeur</span>
+                </label>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="name" className="text-[#A1A1AA]">Nom complet</Label>
               <div className="relative">
