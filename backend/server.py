@@ -3231,7 +3231,7 @@ async def register(user: UserCreate):
 
         user_data = {
             "id": str(uuid.uuid4()),
-            "full_name": user.full_name.strip(),
+            "name": user.name.strip(),
             "email": email,
             "phone": user.phone.strip(),
             "password": hash_password(user.password),
