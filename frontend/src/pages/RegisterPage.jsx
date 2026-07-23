@@ -63,9 +63,8 @@ const RegisterPage = () => {
   } finally {
     setLoading(false);
   }
-};
-  };
-
+  }; 
+  
   return (
     <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-6 py-12" data-testid="register-page">
       <motion.div
