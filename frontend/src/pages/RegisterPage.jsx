@@ -55,12 +55,14 @@ const RegisterPage = () => {
 
     navigate("/verify-email");
   } catch (error) {
-    setError(
-      error.response?.data?.detail ||
-      error.message ||
-      "Erreur lors de l'inscription"
-    );
-  } finally {
+  console.error("REGISTER ERROR:", error.response?.data || error.message);
+  setError(
+    error.response?.data?.detail ||
+    error.response?.data?.message ||
+    error.message ||
+    "Erreur lors de l'inscription"
+  );
+} finally {
     setLoading(false);
   }
   }; 
