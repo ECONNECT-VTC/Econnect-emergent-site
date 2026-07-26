@@ -68,6 +68,8 @@ app = FastAPI(title="Econnect VTC API")
 origins = [
     "https://econnect-vtc.com",
     "https://www.econnect-vtc.com",
+    "https://econnect-emergent-site.hostingersite.com",
+    "https://www.econnect-emergent-site.hostingersite.com",
     "http://localhost:3000",
     "http://localhost:5173",
 ]
