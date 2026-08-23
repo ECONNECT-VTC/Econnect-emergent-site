@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -28,8 +28,9 @@ const AdminFinancialDashboard = () => {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [commissionOverride, setCommissionOverride] = useState('');
   const [saving, setSaving] = useState(false);
+  const hasLoadedInitialData = useRef(false);
 
-  const fetchData = async (driverId = selectedDriver) => {
+  const fetchData = useCallback(async (driverId = 'all') => {
     try {
       const statsUrl = driverId !== 'all'
         ? `${API_URL}/api/admin/financial/stats?driver_id=${driverId}`
@@ -54,15 +55,18 @@ const AdminFinancialDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchData('all');
   }, []);
 
   useEffect(() => {
-    if (!loading) fetchData(selectedDriver);
-  }, [selectedDriver]);
+    fetchData('all').finally(() => {
+      hasLoadedInitialData.current = true;
+    });
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (!hasLoadedInitialData.current) return;
+    fetchData(selectedDriver);
+  }, [fetchData, selectedDriver]);
 
   const openAdjustModal = (booking) => {
     setSelectedBooking(booking);

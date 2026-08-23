@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import axios from 'axios';
 import API_URL from '@/config';
 
@@ -11,16 +11,16 @@ const BookingComments = ({ bookingId }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     try {
       const res = await axios.get(`${API_URL}/api/bookings/${bookingId}/comments`, { withCredentials: true });
       setComments(res.data);
     } catch (e) {
       console.error('Failed to fetch comments:', e);
     }
-  };
+  }, [bookingId]);
 
-  useEffect(() => { fetchComments(); }, [bookingId]);
+  useEffect(() => { fetchComments(); }, [fetchComments]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +30,7 @@ const BookingComments = ({ bookingId }) => {
     try {
       await axios.post(`${API_URL}/api/bookings/${bookingId}/comments`, { comment: newComment }, { withCredentials: true });
       setNewComment('');
-      fetchComments();
+      await fetchComments();
     } catch (err) {
       setError("Impossible d'envoyer le commentaire");
     } finally {
