@@ -106,17 +106,29 @@ class TestAdminBootstrapSourceCode(unittest.TestCase):
 
     def test_env_var_guard_present(self):
         """Bootstrap must be gated on both ADMIN_EMAIL and ADMIN_PASSWORD being set."""
-        # We look for an 'if admin_email and admin_password' guard (or equivalent)
         tree = ast.parse(self.source)
         found_guard = False
-        for node in ast.walk(tree):
-            if isinstance(node, ast.AsyncFunctionDef) and node.name == "startup_event":
-                func_src = ast.unparse(node)
-                # The guard should check both variables are truthy
-                if ("admin_email and admin_password" in func_src or
-                        "admin_password and admin_email" in func_src):
+        for func_node in ast.walk(tree):
+            if not (isinstance(func_node, ast.AsyncFunctionDef) and
+                    func_node.name == "startup_event"):
+                continue
+            # Walk the function body looking for:
+            #   if admin_email and admin_password:  (or reverse order)
+            for node in ast.walk(func_node):
+                if not isinstance(node, ast.If):
+                    continue
+                test = node.test
+                if not (isinstance(test, ast.BoolOp) and isinstance(test.op, ast.And)):
+                    continue
+                names = {
+                    n.id
+                    for n in ast.walk(test)
+                    if isinstance(n, ast.Name)
+                }
+                if {"admin_email", "admin_password"}.issubset(names):
                     found_guard = True
                     break
+            break
         self.assertTrue(
             found_guard,
             "No 'if admin_email and admin_password' guard found in startup_event",
