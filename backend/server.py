@@ -8,7 +8,6 @@ import re
 import secrets
 import unicodedata
 import uuid
-from base64 import b64encode
 from datetime import datetime, timedelta, timezone
 from html import escape as html_escape
 from io import BytesIO
@@ -27,9 +26,18 @@ from pydantic import BaseModel, ConfigDict, EmailStr
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfgen import canvas
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Attachment, Disposition, FileContent, FileName, FileType, Mail
 from starlette.middleware.cors import CORSMiddleware
+from email_service import (
+    TEMPLATE_KEY_ACCOUNT_ACTIVATION,
+    TEMPLATE_KEY_ADMIN_MESSAGE,
+    TEMPLATE_KEY_BOOKING_CREATED,
+    TEMPLATE_KEY_CANCELLATION,
+    TEMPLATE_KEY_DRIVER_ASSIGNED,
+    TEMPLATE_KEY_INVOICE,
+    TEMPLATE_KEY_PASSWORD_RESET,
+    TEMPLATE_KEY_PAYMENT_CONFIRMED,
+    send_brevo_transactional_email,
+)
 
 # Load environment variables before accessing os.environ
 ROOT_DIR = Path(__file__).parent
@@ -2980,38 +2988,21 @@ async def send_notification_email(
     html_content: str,
     attachment_bytes: Optional[bytes] = None,
     attachment_filename: Optional[str] = None,
+    template_key: Optional[str] = None,
+    template_id: Optional[int] = None,
+    template_params: Optional[dict] = None,
 ):
-    """Send email notification via SendGrid"""
-    sendgrid_key = os.environ.get('SENDGRID_API_KEY')
-    sender_email = os.environ.get('SENDER_EMAIL', 'noreply@econnect-vtc.com')
-
-    if not sendgrid_key:
-        logger.warning("SendGrid API key not configured, skipping email")
-        return False
-
-    try:
-        message = Mail(
-            from_email=sender_email,
-            to_emails=to_email,
-            subject=subject,
-            html_content=html_content
-        )
-
-        if attachment_bytes:
-            filename = attachment_filename or "document.pdf"
-            encoded_file = b64encode(attachment_bytes).decode()
-            message.attachment = Attachment(
-                FileContent(encoded_file),
-                FileName(filename),
-                FileType("application/pdf"),
-                Disposition("attachment"),
-            )
-        sg = SendGridAPIClient(sendgrid_key)
-        response = sg.send(message)
-        return response.status_code == 202
-    except Exception as e:
-        logger.error(f"Failed to send email: {e}")
-        return False
+    """Send transactional email via Brevo with HTML fallback."""
+    return await send_brevo_transactional_email(
+        to_email,
+        subject,
+        html_content,
+        attachment_bytes=attachment_bytes,
+        attachment_filename=attachment_filename,
+        template_key=template_key,
+        template_id=template_id,
+        template_params=template_params,
+    )
 
 
 async def send_booking_notification_to_driver(driver: dict, booking: dict, client: dict, order_download_url: Optional[str] = None):
@@ -3079,7 +3070,25 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
         cta_label=cta_label,
         cta_url=order_download_url,
     )
-    await send_notification_email(driver['email'], subject, html_content)
+    await send_notification_email(
+        driver["email"],
+        subject,
+        html_content,
+        template_key=TEMPLATE_KEY_DRIVER_ASSIGNED,
+        template_params={
+            "CLIENT_NAME": client.get("name", "N/A"),
+            "CLIENT_PHONE": client.get("phone", "N/A"),
+            "CLIENT_EMAIL": client.get("email", "N/A"),
+            "BOOKING_ID": booking.get("id"),
+            "PICKUP_DATE": booking.get("pickup_date"),
+            "PICKUP_TIME": booking.get("pickup_time"),
+            "PICKUP_ADDRESS": booking.get("pickup_address"),
+            "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+            "TRANSFER_TYPE": booking.get("transfer_type"),
+            "NOTES": booking.get("notes", ""),
+            "ORDER_DOWNLOAD_URL": order_download_url,
+        },
+    )
 
 
 async def send_booking_confirmation_to_client(booking: dict):
@@ -3106,7 +3115,23 @@ async def send_booking_confirmation_to_client(booking: dict):
         cta_label="Voir mes réservations",
         cta_url=f"{FRONTEND_URL}/fr/client/bookings"
     )
-    await send_notification_email(booking["client_email"], subject, html_content)
+    await send_notification_email(
+        booking["client_email"],
+        subject,
+        html_content,
+        template_key=TEMPLATE_KEY_PAYMENT_CONFIRMED,
+        template_params={
+            "CLIENT_NAME": booking.get("client_name", "Client"),
+            "BOOKING_ID": booking.get("id"),
+            "PICKUP_DATE": booking.get("pickup_date"),
+            "PICKUP_TIME": booking.get("pickup_time"),
+            "PICKUP_ADDRESS": booking.get("pickup_address"),
+            "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+            "AMOUNT": amount_label,
+            "CURRENCY": currency,
+            "BOOKING_URL": f"{FRONTEND_URL}/fr/client/bookings",
+        },
+    )
 
 
 async def send_invoice_to_client(booking: dict):
@@ -3163,6 +3188,17 @@ async def send_invoice_to_client(booking: dict):
             html_content,
             attachment_bytes=pdf_bytes,
             attachment_filename=f"facture-{str(booking_id)[:8].upper()}.pdf",
+            template_key=TEMPLATE_KEY_INVOICE,
+            template_params={
+                "CLIENT_NAME": booking.get("client_name", "Client"),
+                "BOOKING_ID": booking.get("id"),
+                "PICKUP_DATE": booking.get("pickup_date"),
+                "PICKUP_TIME": booking.get("pickup_time"),
+                "PICKUP_ADDRESS": booking.get("pickup_address"),
+                "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+                "AMOUNT": f"{amount_ttc:.2f} €",
+                "BOOKING_URL": f"{FRONTEND_URL}/fr/client/bookings",
+            },
         )
         if sent:
             await db.bookings.update_one(
@@ -3211,7 +3247,25 @@ async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
         cta_label="Voir mes réservations",
         cta_url=f"{FRONTEND_URL}/fr/client/bookings"
     )
-    await send_notification_email(booking["client_email"], subject, html_content)
+    await send_notification_email(
+        booking["client_email"],
+        subject,
+        html_content,
+        template_key=TEMPLATE_KEY_CANCELLATION,
+        template_params={
+            "CLIENT_NAME": booking.get("client_name", "Client"),
+            "BOOKING_ID": booking.get("id"),
+            "PICKUP_DATE": booking.get("pickup_date"),
+            "PICKUP_TIME": booking.get("pickup_time"),
+            "PICKUP_ADDRESS": booking.get("pickup_address"),
+            "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+            "AMOUNT": amount_label,
+            "REFUND_STATUS": refund_trace.get("refund_status") or "pending",
+            "REFUND_CURRENCY": refund_currency,
+            "STRIPE_REFUND_ID": refund_trace.get("stripe_refund_id"),
+            "BOOKING_URL": f"{FRONTEND_URL}/fr/client/bookings",
+        },
+    )
 
 # ==================== AUTH ROUTES ====================
 
@@ -3351,7 +3405,17 @@ async def forgot_password(data: PasswordResetRequest):
             cta_label="Réinitialiser mon mot de passe",
             cta_url=reset_link,
         )
-        await send_notification_email(user["email"], "Réinitialisation de votre mot de passe - Econnect VTC", html_content)
+        await send_notification_email(
+            user["email"],
+            "Réinitialisation de votre mot de passe - Econnect VTC",
+            html_content,
+            template_key=TEMPLATE_KEY_PASSWORD_RESET,
+            template_params={
+                "CLIENT_NAME": user.get("name", "Client"),
+                "RESET_URL": reset_link,
+                "RESET_EXPIRY_HOURS": 24,
+            },
+        )
         logger.info(f"Password reset token generated for user {user['id']}")
 
     return {"message": "Si cet email existe, un lien de réinitialisation a été envoyé."}
@@ -3466,6 +3530,12 @@ async def _create_and_send_activation_token(user_id: str, user_email: str, user_
         user_email,
         "Activez votre compte Econnect VTC",
         html_content,
+        template_key=TEMPLATE_KEY_ACCOUNT_ACTIVATION,
+        template_params={
+            "CLIENT_NAME": user_name,
+            "ACTIVATION_URL": activation_link,
+            "ACTIVATION_EXPIRY_HOURS": _ACTIVATION_TOKEN_TTL_HOURS,
+        },
     )
     if not sent:
         logger.warning(f"Activation email not sent for user {user_id} (email service not configured)")
@@ -4310,7 +4380,24 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
                 cta_label="Créer mon compte Econnect VTC",
                 cta_url=register_url,
             )
-            await send_notification_email(client_email, subject, html_content)
+            await send_notification_email(
+                client_email,
+                subject,
+                html_content,
+                template_key=TEMPLATE_KEY_ADMIN_MESSAGE,
+                template_params={
+                    "CLIENT_NAME": client_name,
+                    "CLIENT_EMAIL": client_email,
+                    "BOOKING_ID": booking.get("id"),
+                    "PICKUP_DATE": booking.get("pickup_date"),
+                    "PICKUP_TIME": booking.get("pickup_time"),
+                    "PICKUP_ADDRESS": booking.get("pickup_address"),
+                    "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+                    "DISTANCE_KM": distance_label,
+                    "AMOUNT": price_label,
+                    "REGISTER_URL": register_url,
+                },
+            )
         else:
             pickup_date = html_escape(str(booking.get('pickup_date', '')))
             pickup_time = html_escape(str(booking.get('pickup_time', '')))
@@ -4334,7 +4421,24 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
                 cta_label="Voir mes réservations",
                 cta_url=f"{FRONTEND_URL}/fr/client/bookings",
             )
-            await send_notification_email(client_email, subject, html_content)
+            await send_notification_email(
+                client_email,
+                subject,
+                html_content,
+                template_key=TEMPLATE_KEY_BOOKING_CREATED,
+                template_params={
+                    "CLIENT_NAME": client_name,
+                    "BOOKING_ID": booking.get("id"),
+                    "PICKUP_DATE": booking.get("pickup_date"),
+                    "PICKUP_TIME": booking.get("pickup_time"),
+                    "PICKUP_ADDRESS": booking.get("pickup_address"),
+                    "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+                    "DISTANCE_KM": distance_label,
+                    "AMOUNT": price_label,
+                    "PAYMENT_MODE": payment_mode,
+                    "BOOKING_URL": f"{FRONTEND_URL}/fr/client/bookings",
+                },
+            )
     except Exception as exc:
         logger.error("_send_admin_booking_notification failed: %s", exc)
 

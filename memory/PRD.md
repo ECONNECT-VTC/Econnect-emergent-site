@@ -19,7 +19,7 @@ Améliorer le site VTC econnect-vtc.com avec:
 - **Booking System**: CRUD, workflow status, prix estimé
 - **Vehicle Categories**: 4 gammes par défaut, CRUD admin
 - **Price Estimation**: Calcul automatique avec tarif minimum
-- **Email Service**: SendGrid prêt pour notifications
+- **Email Service**: Brevo transactionnel avec templates configurables + fallback HTML
 
 ### Frontend (React + Tailwind)
 - **Landing Page**: Hero, Services, Booking, Testimonials, Footer, WhatsApp
@@ -62,7 +62,7 @@ Améliorer le site VTC econnect-vtc.com avec:
 
 ### P1 (Important)
 - [ ] Intégration Google Maps API pour calcul distance auto
-- [ ] Notifications email SendGrid
+- [ ] Finaliser les templates email Brevo en production
 - [ ] Numéro WhatsApp réel
 
 ### P2 (Nice to have)
@@ -72,6 +72,6 @@ Améliorer le site VTC econnect-vtc.com avec:
 - [ ] Export factures PDF
 
 ## Tech Stack
-- Backend: FastAPI, Motor (MongoDB), PyJWT, bcrypt, SendGrid
+- Backend: FastAPI, Motor (MongoDB), PyJWT, bcrypt, Brevo Transactional API
 - Frontend: React 19, Tailwind CSS, Framer Motion, Phosphor Icons
 - Database: MongoDB
