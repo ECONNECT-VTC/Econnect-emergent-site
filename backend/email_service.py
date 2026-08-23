@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 try:
     import sib_api_v3_sdk
     from sib_api_v3_sdk.rest import ApiException
-except Exception:  # pragma: no cover - handled gracefully at runtime
+except ImportError:  # pragma: no cover - handled gracefully at runtime
     sib_api_v3_sdk = None
 
     class ApiException(Exception):
