@@ -28,8 +28,8 @@ const DriverInvoiceSection = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
-      <div className="bg-[#141414] border border-[#D4AF37]/30 rounded-xl p-5 mb-6">
-        <LogoDisplay className="h-[150px]" priority />
+      <div className="mb-6 rounded-xl border border-[#D4AF37]/30 bg-[#141414] p-5">
+        <LogoDisplay className="h-[76px] w-auto sm:h-[96px]" priority />
         <p className="text-[#A1A1AA] text-sm mt-2">Section Chauffeur — Gestion de vos documents de course</p>
       </div>
 
@@ -40,7 +40,7 @@ const DriverInvoiceSection = () => {
       )}
 
       {/* Summary cards */}
-      <div className="grid md:grid-cols-3 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="bg-[#141414] rounded-xl border border-[#D4AF37]/20 p-5">
           <p className="text-[#A1A1AA] text-sm">Total cumulé</p>
           <p className="text-2xl font-bold text-[#D4AF37] mt-2">{formatCurrency(totalEarned)}</p>
@@ -62,12 +62,51 @@ const DriverInvoiceSection = () => {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Rechercher par client, adresse…"
-          className="bg-[#141414] border border-white/10 rounded px-3 py-2 text-sm text-white placeholder-[#A1A1AA] w-72"
+          className="w-full rounded border border-white/10 bg-[#141414] px-3 py-2 text-sm text-white placeholder-[#A1A1AA] sm:w-72"
         />
       </div>
 
+      <div className="space-y-4 md:hidden">
+        {!loading && filtered.map((inv) => (
+          <div key={inv.booking_id} className="rounded-xl border border-white/10 bg-[#141414] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-mono text-xs text-[#D4AF37]">{inv.booking_id ? `${inv.booking_id.slice(0, 8)}…` : '—'}</p>
+                <p className="mt-1 text-sm font-semibold">{inv.client_name}</p>
+              </div>
+              <p className="text-sm text-[#A1A1AA]">{inv.pickup_date} {inv.pickup_time}</p>
+            </div>
+            <div className="mt-4 space-y-2 text-sm">
+              <p className="break-words text-[#A1A1AA]">{inv.pickup_address}</p>
+              <p className="break-words">→ {inv.dropoff_address}</p>
+              <p><span className="text-[#A1A1AA]">Montant TTC :</span> <span className="font-mono">{formatCurrency(inv.price_ttc)}</span></p>
+              <p><span className="text-[#A1A1AA]">Mon gain :</span> <span className="font-mono font-semibold text-green-400">{formatCurrency(inv.driver_earning)}</span></p>
+            </div>
+            <div className="mt-4 flex flex-col gap-2">
+              {DRIVER_DOCS.map((doc) => (
+                <button
+                  key={doc.type}
+                  onClick={() => downloadDriverDocPdf(API_URL, inv.booking_id, doc.type)}
+                  className={`flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left text-sm hover:bg-white/5 ${doc.color}`}
+                >
+                  <span>{doc.icon}</span>
+                  <span>{doc.label}</span>
+                  <span className="ml-auto text-[#A1A1AA]">📥</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+        {!loading && filtered.length === 0 && (
+          <div className="rounded-xl border border-white/10 bg-[#141414] px-4 py-8 text-center text-[#A1A1AA]">Aucune course disponible</div>
+        )}
+        {loading && (
+          <div className="rounded-xl border border-white/10 bg-[#141414] px-4 py-8 text-center text-[#A1A1AA]">Chargement…</div>
+        )}
+      </div>
+
       {/* Table */}
-      <div className="bg-[#141414] rounded-xl border border-white/10 p-5 overflow-x-auto">
+      <div className="hidden overflow-x-auto rounded-xl border border-white/10 bg-[#141414] p-5 md:block">
         <table className="w-full min-w-[800px] text-sm">
           <thead>
             <tr className="text-left text-[#A1A1AA] border-b border-white/10">

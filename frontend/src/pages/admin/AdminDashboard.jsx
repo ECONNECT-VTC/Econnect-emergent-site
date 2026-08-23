@@ -35,23 +35,23 @@ const AdminDashboard = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" data-testid="admin-stats">
-        <Link to={`/${lang}/admin/bookings`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4" data-testid="admin-stats">
+        <Link to={`/${lang}/admin/bookings`} className="glass block rounded-xl p-5 transition-all cursor-pointer hover:border-[#D4AF37]/50 sm:p-6">
           <CalendarCheck size={32} className="text-[#D4AF37] mb-3" />
           <p className="text-3xl font-bold">{stats?.total_bookings || 0}</p>
           <p className="text-[#A1A1AA] text-sm">Total courses</p>
         </Link>
-        <Link to={`/${lang}/admin/bookings?status=pending`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+        <Link to={`/${lang}/admin/bookings?status=pending`} className="glass block rounded-xl p-5 transition-all cursor-pointer hover:border-[#D4AF37]/50 sm:p-6">
           <Clock size={32} className="text-yellow-400 mb-3" />
           <p className="text-3xl font-bold">{stats?.pending_bookings || 0}</p>
           <p className="text-[#A1A1AA] text-sm">En attente</p>
         </Link>
-        <Link to={`/${lang}/admin/drivers`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+        <Link to={`/${lang}/admin/drivers`} className="glass block rounded-xl p-5 transition-all cursor-pointer hover:border-[#D4AF37]/50 sm:p-6">
           <CarSimple size={32} className="text-blue-400 mb-3" />
           <p className="text-3xl font-bold">{stats?.total_drivers || 0}</p>
           <p className="text-[#A1A1AA] text-sm">Chauffeurs</p>
         </Link>
-        <Link to={`/${lang}/admin/clients`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+        <Link to={`/${lang}/admin/clients`} className="glass block rounded-xl p-5 transition-all cursor-pointer hover:border-[#D4AF37]/50 sm:p-6">
           <Users size={32} className="text-green-400 mb-3" />
           <p className="text-3xl font-bold">{stats?.total_clients || 0}</p>
           <p className="text-[#A1A1AA] text-sm">Clients</p>

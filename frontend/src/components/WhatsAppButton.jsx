@@ -13,11 +13,11 @@ const WhatsAppButton = () => {
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ delay: 1, type: 'spring', stiffness: 200 }}
-      className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-[#25D366] flex items-center justify-center shadow-lg hover:scale-110 transition-transform duration-300 pulse-gold"
+      className="pulse-gold fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] shadow-lg transition-transform duration-300 hover:scale-110 sm:bottom-[calc(1.5rem+env(safe-area-inset-bottom))] sm:right-6 sm:h-14 sm:w-14"
       data-testid="whatsapp-button"
       aria-label="Contacter via WhatsApp"
     >
-      <WhatsappLogo size={28} weight="fill" className="text-white" />
+      <WhatsappLogo size={24} weight="fill" className="text-white sm:h-7 sm:w-7" />
     </motion.a>
   );
 };

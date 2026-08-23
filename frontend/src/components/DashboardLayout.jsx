@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
@@ -55,10 +55,17 @@ const DashboardLayout = ({ children, title }) => {
 
   const navLinks = getNavLinks();
 
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [sidebarOpen]);
+
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex" data-testid="dashboard-layout">
+    <div className="flex min-h-screen bg-[#0A0A0A]" data-testid="dashboard-layout">
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#141414] border-r border-white/10 transform transition-transform duration-300 overflow-y-auto lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-[min(18rem,calc(100vw-1rem))] overflow-y-auto border-r border-white/10 bg-[#141414] transform transition-transform duration-300 lg:w-64 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="p-6 border-b border-white/10">
@@ -123,19 +130,20 @@ const DashboardLayout = ({ children, title }) => {
       )}
 
       {/* Main content */}
-      <div className="flex-1 lg:ml-64">
+      <div className="min-w-0 flex-1 lg:ml-64">
         {/* Top bar */}
         <header className="sticky top-0 z-30 bg-[#0A0A0A]/80 backdrop-blur-lg border-b border-white/10">
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+            <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden text-white hover:text-[#D4AF37]"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 text-white transition-colors hover:text-[#D4AF37] lg:hidden"
                 data-testid="mobile-menu-btn"
+                aria-label={sidebarOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
               >
                 {sidebarOpen ? <X size={24} /> : <List size={24} />}
               </button>
-              <h1 className="text-xl md:text-2xl font-bold font-['Cormorant_Garamond']">{title}</h1>
+              <h1 className="min-w-0 break-words text-lg font-bold font-['Cormorant_Garamond'] sm:text-xl md:text-2xl">{title}</h1>
             </div>
             <div className="flex items-center gap-3">
               <Button
@@ -152,7 +160,7 @@ const DashboardLayout = ({ children, title }) => {
         </header>
 
         {/* Page content */}
-        <main className="p-6">
+        <main className="min-w-0 px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

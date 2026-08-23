@@ -74,13 +74,13 @@ const RegisterPage = () => {
   }; 
   
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-6 py-12" data-testid="register-page">
+    <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A] px-4 py-12 sm:px-6" data-testid="register-page">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <div className="glass rounded-2xl p-8">
+        <div className="glass rounded-2xl p-5 sm:p-8">
           {/* Back link */}
           <Link to={`/${lang}`} className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
             <ArrowLeft size={20} className="mr-2" />
@@ -113,8 +113,8 @@ const RegisterPage = () => {
             {/* Role selection */}
             <div className="space-y-2">
               <Label className="text-[#A1A1AA]">Type de compte</Label>
-              <div className="flex gap-4" data-testid="register-role">
-                <label className="flex items-center gap-2 cursor-pointer">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4" data-testid="register-role">
+                <label className="flex min-h-11 items-center gap-2 cursor-pointer rounded-lg border border-white/10 px-3 py-2">
                   <input
                     type="radio"
                     name="role"
@@ -126,7 +126,7 @@ const RegisterPage = () => {
                   />
                   <span className="text-[#A1A1AA]">Client</span>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label className="flex min-h-11 items-center gap-2 cursor-pointer rounded-lg border border-white/10 px-3 py-2">
                   <input
                     type="radio"
                     name="role"

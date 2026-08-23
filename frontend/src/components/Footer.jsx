@@ -16,12 +16,12 @@ const Footer = () => {
 
   return (
     <footer id="contact" className="py-24 bg-[#0A0A0A] border-t border-white/5" data-testid="footer">
-      <div className="max-w-7xl mx-auto px-6 md:px-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
+        <div className="mb-16 grid grid-cols-1 gap-10 md:grid-cols-4 md:gap-12">
           {/* Brand */}
           <div className="md:col-span-2">
             <div className="mb-4 inline-flex rounded-2xl border border-[#D4AF37]/15 bg-[#101010] px-4 py-3">
-              <LogoDisplay className="h-[50px] w-[190px]" priority />
+              <LogoDisplay className="h-[42px] w-[160px] sm:h-[50px] sm:w-[190px]" priority />
             </div>
             <p className="text-[#A1A1AA] max-w-md leading-relaxed mb-6">
               {t('footerBrandDesc')}
@@ -95,11 +95,11 @@ const Footer = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-[#A1A1AA] text-sm">
+        <div className="flex flex-col items-start justify-between gap-4 border-t border-white/5 pt-8 text-left md:flex-row md:items-center">
+        <p className="text-sm text-[#A1A1AA]">
             {t('copyright')}
           </p>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-4 sm:gap-6">
             <a href="#" className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
               {t('mentionsLegales')}
             </a>

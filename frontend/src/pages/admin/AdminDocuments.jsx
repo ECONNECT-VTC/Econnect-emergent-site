@@ -61,7 +61,7 @@ const AdminDocuments = () => {
       )}
 
       {/* Statistics */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((c) => (
           <div key={c.label} className="bg-[#141414] rounded-xl border border-white/10 p-5">
             <p className="text-[#A1A1AA] text-sm">{c.label}</p>
@@ -71,31 +71,70 @@ const AdminDocuments = () => {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-4 items-center">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Rechercher…"
-          className="bg-[#141414] border border-white/10 rounded px-3 py-2 text-sm text-white placeholder-[#A1A1AA] w-48"
+          className="w-full rounded border border-white/10 bg-[#141414] px-3 py-2 text-sm text-white placeholder-[#A1A1AA] sm:w-48"
         />
         <input
           type="date"
           value={dateFrom}
           onChange={(e) => setDateFrom(e.target.value)}
-          className="bg-[#141414] border border-white/10 rounded px-3 py-2 text-sm text-white w-36"
+          className="w-full rounded border border-white/10 bg-[#141414] px-3 py-2 text-sm text-white sm:w-40"
         />
-        <span className="text-[#A1A1AA] text-sm">→</span>
+        <span className="hidden text-sm text-[#A1A1AA] sm:inline">→</span>
         <input
           type="date"
           value={dateTo}
           onChange={(e) => setDateTo(e.target.value)}
-          className="bg-[#141414] border border-white/10 rounded px-3 py-2 text-sm text-white w-36"
+          className="w-full rounded border border-white/10 bg-[#141414] px-3 py-2 text-sm text-white sm:w-40"
         />
       </div>
 
+      <div className="space-y-4 md:hidden">
+        {!loading && rows.map((row) => (
+          <div key={row.id} className="rounded-xl border border-white/10 bg-[#141414] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-mono text-xs text-[#D4AF37]">{row.id ? `${row.id.slice(0, 8)}…` : '—'}</p>
+                <p className="mt-1 text-sm font-semibold">{row.client_name}</p>
+                <p className="text-sm text-[#A1A1AA]">{row.driver_name || 'Chauffeur non assigné'}</p>
+              </div>
+              <p className="text-sm text-[#A1A1AA]">{new Date(row.created_at).toLocaleDateString('fr-FR')}</p>
+            </div>
+            <div className="mt-4 space-y-2 text-sm">
+              <p className="break-words text-[#A1A1AA]">{row.pickup_address}</p>
+              <p className="break-words">→ {row.dropoff_address}</p>
+              <p className="font-mono font-semibold">{formatCurrency(row.price_ttc)}</p>
+            </div>
+            <div className="mt-4 flex flex-col gap-2">
+              {ADMIN_DOCS.map((doc) => (
+                <button
+                  key={doc.type}
+                  onClick={() => downloadInvoicePdf(API_URL, row.id, doc.type)}
+                  className={`flex w-full items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-left text-sm hover:bg-white/5 ${doc.color}`}
+                >
+                  <span>{doc.icon}</span>
+                  <span>{doc.label}</span>
+                  <span className="ml-auto text-[#A1A1AA]">📥</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+        {!loading && rows.length === 0 && (
+          <div className="rounded-xl border border-white/10 bg-[#141414] px-4 py-8 text-center text-[#A1A1AA]">Aucun document trouvé</div>
+        )}
+        {loading && (
+          <div className="rounded-xl border border-white/10 bg-[#141414] px-4 py-8 text-center text-[#A1A1AA]">Chargement…</div>
+        )}
+      </div>
+
       {/* Table */}
-      <div className="bg-[#141414] rounded-xl border border-white/10 p-5 overflow-x-auto">
+      <div className="hidden overflow-x-auto rounded-xl border border-white/10 bg-[#141414] p-5 md:block">
         <table className="w-full min-w-[960px] text-sm">
           <thead>
             <tr className="text-left text-[#A1A1AA] border-b border-white/10">

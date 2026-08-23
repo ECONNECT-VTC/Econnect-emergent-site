@@ -280,9 +280,9 @@ const NewBooking = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid gap-6 lg:grid-cols-3">
         {/* Form */}
-        <div className="lg:col-span-2 glass rounded-xl p-6 md:p-8" data-testid="new-booking-form">
+        <div className="glass rounded-xl p-5 sm:p-6 md:p-8 lg:col-span-2" data-testid="new-booking-form">
           {error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6">{error}</div>
           )}
@@ -492,7 +492,7 @@ const NewBooking = () => {
         </div>
 
         {/* Price Summary Sidebar */}
-        <div className="glass rounded-xl p-6 h-fit sticky top-24">
+        <div className="glass h-fit rounded-xl p-5 sm:p-6 lg:sticky lg:top-24">
           <h3 className="text-lg font-bold font-['Cormorant_Garamond'] mb-4 flex items-center gap-2">
             <CurrencyEur size={24} className="text-[#D4AF37]" />
             Estimation tarifaire
