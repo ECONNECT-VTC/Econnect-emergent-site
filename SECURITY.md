@@ -17,11 +17,12 @@ owners immediately.
 | Revoke the compromised MongoDB Atlas user and create a new one | MongoDB Atlas | Log in to Atlas → Database Access → delete the old user, create a new one with a strong password and minimal privileges |
 | Rotate the JWT secret | Application | Changing `JWT_SECRET` invalidates all existing user sessions and tokens — users will be logged out |
 | Rotate any Stripe keys that were exposed | Stripe Dashboard | Create new secret key and webhook secret; update environment variables; delete old keys |
-| Rotate any SendGrid API key that was exposed | SendGrid Dashboard | Create new key; revoke old key |
+| Rotate any legacy SendGrid API key that was exposed | SendGrid Dashboard | Even if SendGrid is no longer used, old exposed keys must still be revoked |
+| Rotate the Brevo transactional API key if exposed | Brevo Dashboard | Generate a new API key and update `BREVO_API_KEY` in all environments |
 | Change the admin account password | Application | Log in as admin → change password, or remove and re-bootstrap the account with new credentials |
 | Purge the secret from Git history | Git / GitHub | Use `git filter-repo` or BFG Repo Cleaner, then perform a coordinated force push; notify all collaborators to re-clone |
 | Check GitHub Secret Scanning alerts | GitHub Security tab | Review and mark resolved only after confirming rotation |
-| Review provider logs for unauthorised access | MongoDB Atlas, Stripe, SendGrid | Check access logs for the period the secrets were exposed |
+| Review provider logs for unauthorised access | MongoDB Atlas, Stripe, Brevo, SendGrid (legacy) | Check access logs for the period the secrets were exposed |
 
 ### Purging Git history (example with git-filter-repo)
 

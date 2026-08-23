@@ -22,6 +22,8 @@ for mod_name in [
     "jwt",
     "dotenv",
     "fastapi",
+    "fastapi.middleware",
+    "fastapi.middleware.cors",
     "motor",
     "motor.motor_asyncio",
     "pydantic",
@@ -31,9 +33,8 @@ for mod_name in [
     "reportlab.lib.pagesizes",
     "reportlab.pdfgen",
     "reportlab.pdfgen.canvas",
-    "sendgrid",
-    "sendgrid.helpers",
-    "sendgrid.helpers.mail",
+    "sib_api_v3_sdk",
+    "sib_api_v3_sdk.rest",
     "stripe",
     "starlette",
     "starlette.middleware",
@@ -78,6 +79,8 @@ class _CallableStub:
 fastapi_mod.HTTPException = _DummyHTTPException  # type: ignore
 for attr in ("APIRouter", "FastAPI", "Request", "Response"):
     setattr(fastapi_mod, attr, _CallableStub)
+fastapi_cors_mod = sys.modules.setdefault("fastapi.middleware.cors", types.ModuleType("fastapi.middleware.cors"))
+fastapi_cors_mod.CORSMiddleware = object  # type: ignore
 
 # dotenv
 dotenv_mod = sys.modules["dotenv"]
@@ -98,19 +101,18 @@ rl_pagesizes = sys.modules.setdefault("reportlab.lib.pagesizes", types.ModuleTyp
 rl_pagesizes.A4 = (595.27, 841.89)  # type: ignore
 rl_utils = sys.modules.setdefault("reportlab.lib.utils", types.ModuleType("reportlab.lib.utils"))
 rl_utils.ImageReader = object  # type: ignore
+rl_utils.simpleSplit = lambda *a, **kw: []  # type: ignore
 rl_canvas = sys.modules.setdefault("reportlab.pdfgen.canvas", types.ModuleType("reportlab.pdfgen.canvas"))
 rl_canvas.Canvas = object  # type: ignore
 
-# sendgrid
-sg_mod = sys.modules["sendgrid"]
-sg_mod.SendGridAPIClient = object  # type: ignore
-sg_mail = sys.modules.setdefault("sendgrid.helpers.mail", types.ModuleType("sendgrid.helpers.mail"))
-sg_mail.Mail = object  # type: ignore
-sg_mail.Attachment = object  # type: ignore
-sg_mail.FileContent = lambda value: value  # type: ignore
-sg_mail.FileName = lambda value: value  # type: ignore
-sg_mail.FileType = lambda value: value  # type: ignore
-sg_mail.Disposition = lambda value: value  # type: ignore
+# Brevo SDK
+brevo_mod = sys.modules["sib_api_v3_sdk"]
+brevo_mod.Configuration = object  # type: ignore
+brevo_mod.ApiClient = object  # type: ignore
+brevo_mod.TransactionalEmailsApi = object  # type: ignore
+brevo_mod.SendSmtpEmail = object  # type: ignore
+brevo_rest_mod = sys.modules.setdefault("sib_api_v3_sdk.rest", types.ModuleType("sib_api_v3_sdk.rest"))
+brevo_rest_mod.ApiException = Exception  # type: ignore
 
 # starlette cors
 st_cors = sys.modules.setdefault("starlette.middleware.cors", types.ModuleType("starlette.middleware.cors"))

@@ -17,9 +17,8 @@ os.environ.setdefault("JWT_SECRET", "test_secret")
 import unittest.mock as mock
 sys.modules.setdefault("motor", mock.MagicMock())
 sys.modules.setdefault("motor.motor_asyncio", mock.MagicMock())
-sys.modules.setdefault("sendgrid", mock.MagicMock())
-sys.modules.setdefault("sendgrid.helpers", mock.MagicMock())
-sys.modules.setdefault("sendgrid.helpers.mail", mock.MagicMock())
+sys.modules.setdefault("sib_api_v3_sdk", mock.MagicMock())
+sys.modules.setdefault("sib_api_v3_sdk.rest", mock.MagicMock())
 sys.modules.setdefault("bcrypt", mock.MagicMock())
 
 import importlib
