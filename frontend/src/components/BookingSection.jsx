@@ -45,7 +45,7 @@ const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
   startingPrice: category.startingPrice,
 }));
 
-const BOOKING_PANEL_MIN_HEIGHT_CLASSES = 'min-h-[760px] sm:min-h-[800px] lg:min-h-[680px]';
+const BOOKING_PANEL_MIN_HEIGHT_CLASSES = 'min-h-[700px] sm:min-h-[800px] lg:min-h-[680px]';
 const VEHICLE_CARD_IMAGE_BG_CLASS = 'bg-[#141414]';
 
 const BookingSection = () => {
@@ -475,17 +475,17 @@ const BookingSection = () => {
 
   return (
     <section id="reserver" className="pt-20 pb-10 md:pt-24 md:pb-14 bg-[#141414]" data-testid="booking-section">
-      <div className="max-w-7xl mx-auto px-6 md:px-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="text-center mb-12 md:mb-16"
         >
           <span className="text-[#D4AF37] text-sm tracking-[0.3em] uppercase">{t('reservationLabel')}</span>
-          <h2 className="text-4xl md:text-5xl font-bold font-['Cormorant_Garamond'] mt-4 tracking-tight" data-testid="booking-title">
+          <h2 className="mt-4 text-3xl font-bold tracking-tight font-['Cormorant_Garamond'] sm:text-4xl md:text-5xl" data-testid="booking-title">
             {t('bookingTitle1')}
             <br />
             <span className="gold-text">{t('bookingTitle2')}</span>
@@ -501,7 +501,7 @@ const BookingSection = () => {
             transition={{ duration: 0.6 }}
             className="w-full h-full flex flex-col"
           >
-            <div ref={formPanelRef} className={`glass rounded-2xl p-8 md:p-10 flex-1 flex flex-col overflow-hidden ${bookingPanelMinHeight}`}>
+            <div ref={formPanelRef} className={`glass rounded-2xl p-5 sm:p-6 md:p-10 flex-1 flex flex-col overflow-hidden ${bookingPanelMinHeight}`}>
             {/* Step indicators */}
             <div className="mb-8 flex flex-col items-center gap-4 text-center flex-shrink-0">
               <div className="flex w-full items-center justify-center gap-2 sm:gap-3">

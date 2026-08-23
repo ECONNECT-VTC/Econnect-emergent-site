@@ -115,7 +115,7 @@ const DriverDashboard = () => {
       )}
 
       <div
-        className="glass rounded-xl p-6 mb-6 flex items-center justify-between"
+        className="glass mb-6 flex flex-col gap-4 rounded-xl p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6"
         data-testid="availability-toggle"
       >
         <div className="flex items-center gap-3">
@@ -132,7 +132,7 @@ const DriverDashboard = () => {
         />
       </div>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('ASSIGNED')}>
           <p className="text-2xl font-bold text-blue-400">
             {bookings.filter((b) => statusEquals(b.status, 'ASSIGNED')).length}

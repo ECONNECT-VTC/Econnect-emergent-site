@@ -32,7 +32,7 @@ const DriverEarnings = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
-      <div className="grid md:grid-cols-3 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="bg-[#141414] rounded-xl border border-white/10 p-5">
           <p className="text-[#A1A1AA] text-sm">Total gagné</p>
           <p className="text-2xl font-bold text-green-400 mt-2">{formatAmount(totals.total)}</p>
@@ -47,7 +47,27 @@ const DriverEarnings = () => {
         </div>
       </div>
 
-      <div className="bg-[#141414] rounded-xl border border-white/10 p-5 overflow-x-auto">
+      <div className="space-y-4 md:hidden">
+        {!loading && rows.map((row) => (
+          <div key={row.booking_id} className="rounded-xl border border-white/10 bg-[#141414] p-4">
+            <p className="break-words font-medium">{row.pickup_address} → {row.dropoff_address}</p>
+            <p className="mt-2 text-sm text-[#A1A1AA]">{row.pickup_date} {row.pickup_time}</p>
+            <div className="mt-4 grid grid-cols-1 gap-2 text-sm">
+              <p><span className="text-[#A1A1AA]">Prix TTC :</span> {formatAmount(row.price_ttc)}</p>
+              <p><span className="text-[#A1A1AA]">Commission :</span> {formatAmount(row.commission_ttc)}</p>
+              <p className="font-semibold text-green-400"><span className="text-[#A1A1AA]">Mon gain :</span> {formatAmount(row.driver_earning)}</p>
+            </div>
+          </div>
+        ))}
+        {!loading && rows.length === 0 && (
+          <div className="rounded-xl border border-white/10 bg-[#141414] px-4 py-8 text-center text-[#A1A1AA]">Aucun gain disponible</div>
+        )}
+        {loading && (
+          <div className="rounded-xl border border-white/10 bg-[#141414] px-4 py-8 text-center text-[#A1A1AA]">Chargement...</div>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-white/10 bg-[#141414] p-5 md:block">
         <table className="w-full min-w-[860px] text-sm">
           <thead>
             <tr className="text-left text-[#A1A1AA] border-b border-white/10">

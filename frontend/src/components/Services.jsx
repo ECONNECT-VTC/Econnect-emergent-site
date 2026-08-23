@@ -74,17 +74,17 @@ const Services = () => {
 
   return (
     <section id="services" className="pt-12 pb-10 md:pt-16 md:pb-14 bg-[#0A0A0A]" data-testid="services-section">
-      <div className="max-w-7xl mx-auto px-6 md:px-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-12 md:mb-14"
+          className="text-center mb-10 md:mb-14"
         >
-          <span className="text-[#D4AF37] text-sm tracking-[0.3em] uppercase">{t('nosServicesLabel')}</span>
-          <h2 className="text-4xl md:text-5xl font-bold font-['Cormorant_Garamond'] mt-4 tracking-tight" data-testid="services-title">
+          <span className="text-[#D4AF37] text-xs sm:text-sm tracking-[0.24em] sm:tracking-[0.3em] uppercase">{t('nosServicesLabel')}</span>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight font-['Cormorant_Garamond'] sm:text-4xl md:text-5xl" data-testid="services-title">
             {t('servicesTitle1')}
             <br />
             <span className="gold-text">{t('servicesTitle2')}</span>
@@ -103,7 +103,7 @@ const Services = () => {
             <motion.div
               key={service.id}
               variants={itemVariants}
-              className={`service-card group relative overflow-hidden rounded-2xl ${service.colSpan} ${service.rowSpan} min-h-[300px] md:min-h-[350px] card-glow transition-all duration-500`}
+              className={`service-card group relative overflow-hidden rounded-2xl ${service.colSpan} ${service.rowSpan} min-h-[280px] md:min-h-[350px] card-glow transition-all duration-500`}
               data-testid={`service-${service.id}`}
             >
               {/* Background Image */}
@@ -117,7 +117,7 @@ const Services = () => {
               </div>
 
               {/* Content */}
-              <div className="relative z-10 h-full flex flex-col justify-end p-8">
+              <div className="relative z-10 flex h-full flex-col justify-end p-5 sm:p-8">
                 <div className="mb-4">
                   <service.icon size={40} weight="light" className="text-[#D4AF37]" />
                 </div>

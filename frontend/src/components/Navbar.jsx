@@ -20,6 +20,18 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  useEffect(() => {
+    document.body.style.overflow = isMobileMenuOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileMenuOpen]);
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
+    setIsGammeOpen(false);
+  };
+
   const navLinks = [
     { key: 'accueil', href: '#accueil' },
     { key: 'services', href: '#services' },
@@ -56,10 +68,10 @@ const Navbar = () => {
         </div>
       </div>
 
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 py-3 md:py-4 flex items-center justify-between gap-4">
+      <nav className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 py-3 md:py-4 flex items-center justify-between gap-3 sm:gap-4">
         <a href="#accueil" className="flex items-center" data-testid="logo">
-          <span className="rounded-[22px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
-            <LogoDisplay className="h-[40px] w-[150px] sm:h-[46px] sm:w-[172px] md:h-[56px] md:w-[220px]" priority />
+          <span className="rounded-[22px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-3 py-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.28)] sm:px-4 sm:py-3">
+            <LogoDisplay className="h-[34px] w-[122px] sm:h-[46px] sm:w-[172px] md:h-[56px] md:w-[220px]" priority />
           </span>
         </a>
 
@@ -138,9 +150,10 @@ const Navbar = () => {
 
         <div className="md:hidden flex items-center gap-3">
           <button
-            className="text-[#FAFAFA] hover:text-[#D4AF37] transition-colors"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-[#111111]/90 text-[#FAFAFA] transition-colors hover:text-[#D4AF37]"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             data-testid="mobile-menu-toggle"
+            aria-label={isMobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
           >
             {isMobileMenuOpen ? <X size={28} /> : <List size={28} />}
           </button>
@@ -157,18 +170,18 @@ const Navbar = () => {
             className="md:hidden border-t border-[#D4AF37]/10 bg-[#090909]/98 backdrop-blur-xl"
             data-testid="mobile-menu"
           >
-            <div className="px-6 py-6 flex flex-col gap-4">
+            <div className="flex max-h-[calc(100dvh-5rem)] flex-col gap-4 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6">
               <div className="rounded-2xl border border-[#D4AF37]/20 bg-[#121212] p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <LogoDisplay className="h-[34px] w-[132px]" priority />
-                  <div className="min-w-[110px]">
+                  <div className="shrink-0">
                     <LanguageDropdown />
                   </div>
                 </div>
                 <a
                   href="tel:+33753418833"
                   className="inline-flex items-center gap-2 text-sm font-medium text-[#F3D67A]"
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  onClick={closeMobileMenu}
                 >
                   <Phone size={15} weight="fill" />
                   +337 53 41 88 33
@@ -181,8 +194,8 @@ const Navbar = () => {
                   href={link.href}
                   className={`${
                     link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#A1A1AA]'
-                  } hover:text-[#D4AF37] transition-colors py-2 text-lg`}
-                  onClick={() => setIsMobileMenuOpen(false)}
+                  } hover:text-[#D4AF37] transition-colors py-2 text-lg break-words`}
+                  onClick={closeMobileMenu}
                 >
                   {t(link.key)}
                 </a>
@@ -197,7 +210,7 @@ const Navbar = () => {
                       key={item.key}
                       href={item.href}
                       className="py-1 text-base transition-colors duration-200 text-[#D4AF37]"
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={closeMobileMenu}
                     >
                       {t(item.key)}
                     </a>
@@ -209,7 +222,7 @@ const Navbar = () => {
                 href="#reserver"
                 className="font-semibold w-full text-center py-3 rounded-lg transition-all duration-300 mt-2"
                 style={{ background: '#D4AF37', color: '#0A0A0A' }}
-                onClick={() => setIsMobileMenuOpen(false)}
+                onClick={closeMobileMenu}
               >
                 {t('reserver')}
               </a>
@@ -219,7 +232,7 @@ const Navbar = () => {
                 to={`/${language}/login`}
                 className="font-semibold w-full text-center py-3 rounded-lg transition-all duration-300"
                 style={{ border: '1.5px solid #D4AF37', color: '#D4AF37', background: 'transparent' }}
-                onClick={() => setIsMobileMenuOpen(false)}
+                onClick={closeMobileMenu}
               >
                 {t('connexion')}
               </Link>

@@ -35,6 +35,10 @@ html {
   scroll-behavior: smooth;
 }
 
+html, body, #root {
+  max-width: 100%;
+}
+
 body {
   margin: 0;
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -51,6 +55,19 @@ h1, h2, h3, h4, h5, h6 {
 @layer base {
   * {
     @apply border-border;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  img,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
   }
 }
 

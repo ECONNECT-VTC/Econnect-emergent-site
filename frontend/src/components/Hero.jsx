@@ -9,7 +9,7 @@ const Hero = () => {
   return (
     <section
       id="accueil"
-      className="relative min-h-screen flex items-center justify-center overflow-hidden"
+      className="relative flex min-h-[100svh] items-center justify-center overflow-hidden pb-16 pt-28 sm:pb-20 sm:pt-32"
       data-testid="hero-section"
     >
       {/* Background Image */}
@@ -27,13 +27,13 @@ const Hero = () => {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 md:px-12 text-center">
+      <div className="relative z-10 mx-auto max-w-7xl px-4 text-center sm:px-6 md:px-12">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
-          <span className="inline-block text-[#D4AF37] text-sm md:text-base tracking-[0.3em] uppercase mb-6">
+          <span className="mb-5 inline-block text-xs uppercase tracking-[0.24em] text-[#D4AF37] sm:text-sm md:text-base">
             {t('serviceVtcPremium')}
           </span>
         </motion.div>
@@ -42,7 +42,7 @@ const Hero = () => {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="text-5xl md:text-7xl lg:text-8xl font-bold font-['Cormorant_Garamond'] tracking-tighter leading-none mb-6"
+          className="mb-6 break-words text-4xl font-bold font-['Cormorant_Garamond'] leading-[0.95] tracking-tighter sm:text-5xl md:text-7xl lg:text-8xl"
           data-testid="hero-title"
         >
           {t('heroTitle1')}
@@ -54,7 +54,7 @@ const Hero = () => {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.6 }}
-          className="text-[#A1A1AA] text-lg md:text-xl max-w-2xl mx-auto mb-10"
+          className="mx-auto mb-8 max-w-2xl text-base text-[#A1A1AA] sm:text-lg md:mb-10 md:text-xl"
           data-testid="hero-subtitle"
         >
           {t('heroSubtitle')}
@@ -64,12 +64,12 @@ const Hero = () => {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.8 }}
-          className="flex flex-col sm:flex-row gap-4 justify-center"
+          className="flex flex-col justify-center gap-4 sm:flex-row"
         >
           <Button
             asChild
             size="lg"
-            className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold px-10 py-6 text-lg transition-all duration-300 hover:scale-105"
+            className="w-full bg-[#D4AF37] px-6 py-6 text-base font-semibold text-[#0A0A0A] transition-all duration-300 hover:bg-[#F0C74A] hover:scale-105 sm:w-auto sm:px-10 sm:text-lg"
             data-testid="hero-cta-reserver"
           >
             <a href="#reserver">{t('reserverMaintenant')}</a>
@@ -78,7 +78,7 @@ const Hero = () => {
             asChild
             size="lg"
             variant="outline"
-            className="border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37]/10 px-10 py-6 text-lg transition-all duration-300"
+            className="w-full border-[#D4AF37] px-6 py-6 text-base text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37]/10 sm:w-auto sm:px-10 sm:text-lg"
             data-testid="hero-cta-services"
           >
             <a href="#services">{t('nosServices')}</a>
@@ -91,7 +91,7 @@ const Hero = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.2 }}
-        className="absolute bottom-10 left-1/2 -translate-x-1/2"
+        className="absolute bottom-6 left-1/2 hidden -translate-x-1/2 sm:block"
       >
         <a href="#services" className="flex flex-col items-center text-[#A1A1AA] hover:text-[#D4AF37] transition-colors">
           <span className="text-xs tracking-widest uppercase mb-2">{t('decouvrir')}</span>

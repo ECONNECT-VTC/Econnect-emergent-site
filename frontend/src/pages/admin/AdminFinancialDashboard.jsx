@@ -139,7 +139,7 @@ const AdminFinancialDashboard = () => {
         </select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
           <div key={card.label} className="bg-[#141414] rounded-xl border border-white/10 p-5">
             <p className="text-[#A1A1AA] text-sm">{card.label}</p>
@@ -148,8 +148,45 @@ const AdminFinancialDashboard = () => {
         ))}
       </div>
 
-      <div className="bg-[#141414] rounded-xl border border-white/10 p-5 overflow-x-auto">
-        <h2 className="text-lg font-semibold mb-4">Courses complétées</h2>
+      <h2 className="mb-4 text-lg font-semibold">Courses complétées</h2>
+      <div className="space-y-4 md:hidden">
+        {bookingRows.map((booking) => (
+          <div key={booking.id} className="rounded-xl border border-white/10 bg-[#141414] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold">{booking.client_name}</p>
+                <p className="text-sm text-[#A1A1AA]">{booking.driver_name || '-'}</p>
+              </div>
+              <p className="text-sm text-[#A1A1AA]">{booking.pickup_date} {booking.pickup_time}</p>
+            </div>
+            <div className="mt-4 space-y-2 text-sm">
+              <p className="break-words">{booking.pickup_address} → {booking.dropoff_address}</p>
+              <p><span className="text-[#A1A1AA]">Prix TTC :</span> {formatAmount(booking.priceTtc)}</p>
+              <p><span className="text-[#A1A1AA]">Commission :</span> {formatAmount(booking.commissionTtc)}</p>
+              <p className="font-semibold text-green-400"><span className="text-[#A1A1AA]">Gain chauffeur :</span> {formatAmount(booking.driverEarning)}</p>
+            </div>
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                onClick={() => window.open(`${API_URL}/api/admin/invoices/${booking.id}/pdf`, '_blank')}
+                className="rounded-lg bg-[#D4AF37] px-3 py-2 font-medium text-[#0A0A0A]"
+              >
+                Facture PDF
+              </button>
+              <button
+                onClick={() => openAdjustModal(booking)}
+                className="rounded-lg border border-[#D4AF37] px-3 py-2 text-[#D4AF37]"
+              >
+                Ajuster commission
+              </button>
+            </div>
+          </div>
+        ))}
+        {bookingRows.length === 0 && (
+          <div className="rounded-xl border border-white/10 bg-[#141414] px-4 py-8 text-center text-[#A1A1AA]">Aucune course complétée</div>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-xl border border-white/10 bg-[#141414] p-5 md:block">
         <table className="w-full min-w-[980px] text-sm">
           <thead>
             <tr className="text-left text-[#A1A1AA] border-b border-white/10">

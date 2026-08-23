@@ -47,23 +47,23 @@ const ClientDashboard = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" data-testid="client-stats">
-        <Link to={`/${lang}/client/bookings`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4" data-testid="client-stats">
+        <Link to={`/${lang}/client/bookings`} className="glass block rounded-xl p-5 transition-all cursor-pointer hover:border-[#D4AF37]/50 sm:p-6">
           <CalendarCheck size={32} className="text-[#D4AF37] mb-3" />
           <p className="text-3xl font-bold">{stats.total}</p>
           <p className="text-[#A1A1AA] text-sm">Total courses</p>
         </Link>
-        <Link to={`/${lang}/client/bookings?status=DRAFT`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+        <Link to={`/${lang}/client/bookings?status=DRAFT`} className="glass block rounded-xl p-5 transition-all cursor-pointer hover:border-[#D4AF37]/50 sm:p-6">
           <Clock size={32} className="text-yellow-400 mb-3" />
           <p className="text-3xl font-bold">{stats.pending}</p>
           <p className="text-[#A1A1AA] text-sm">En attente</p>
         </Link>
-        <Link to={`/${lang}/client/bookings?status=IN_PROGRESS`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+        <Link to={`/${lang}/client/bookings?status=IN_PROGRESS`} className="glass block rounded-xl p-5 transition-all cursor-pointer hover:border-[#D4AF37]/50 sm:p-6">
           <Car size={32} className="text-blue-400 mb-3" />
           <p className="text-3xl font-bold">{stats.assigned}</p>
           <p className="text-[#A1A1AA] text-sm">En cours</p>
         </Link>
-        <Link to={`/${lang}/client/bookings?status=COMPLETED`} className="glass rounded-xl p-6 hover:border-[#D4AF37]/50 transition-all cursor-pointer block">
+        <Link to={`/${lang}/client/bookings?status=COMPLETED`} className="glass block rounded-xl p-5 transition-all cursor-pointer hover:border-[#D4AF37]/50 sm:p-6">
           <CheckCircle size={32} className="text-green-400 mb-3" />
           <p className="text-3xl font-bold">{stats.completed}</p>
           <p className="text-[#A1A1AA] text-sm">Terminées</p>

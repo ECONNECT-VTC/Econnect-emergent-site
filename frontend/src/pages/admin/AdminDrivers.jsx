@@ -86,7 +86,7 @@ const AdminDrivers = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[#A1A1AA]">{drivers.length} chauffeur(s)</p>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
@@ -180,7 +180,7 @@ const AdminDrivers = () => {
           placeholder="Rechercher par nom, email ou téléphone..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="bg-[#1E1E1E] border-white/10 max-w-sm"
+          className="w-full max-w-sm bg-[#1E1E1E] border-white/10"
         />
       </div>
 
@@ -197,7 +197,43 @@ const AdminDrivers = () => {
           <p className="text-[#A1A1AA]">Aucun résultat pour « {search} »</p>
         </div>
       ) : (
-        <div className="glass rounded-xl p-4 overflow-x-auto" data-testid="drivers-list">
+        <>
+          <div className="space-y-4 md:hidden" data-testid="drivers-list">
+            {filteredDrivers.map((driver) => (
+              <div key={driver.id} className="glass rounded-xl p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{driver.name}</p>
+                    <p className="break-all text-sm text-[#A1A1AA]">{driver.email}</p>
+                    <p className="text-sm text-[#A1A1AA]">{driver.phone}</p>
+                  </div>
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full ${
+                      driver.is_available
+                        ? 'bg-green-500/20 text-green-400'
+                        : 'bg-red-500/20 text-red-400'
+                    }`}
+                  >
+                    {driver.is_available ? 'Disponible' : 'Indisponible'}
+                  </span>
+                </div>
+                <div className="mt-4 space-y-2 text-sm">
+                  <p><span className="text-[#A1A1AA]">Véhicule :</span> {driver.vehicle_model}</p>
+                  <p><span className="text-[#A1A1AA]">Immatriculation :</span> {driver.vehicle_plate}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  onClick={() => deleteDriver(driver.id)}
+                  className="mt-4 w-full text-red-400 hover:bg-red-500/10"
+                >
+                  <Trash size={18} className="mr-2" />
+                  Supprimer
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-xl p-4 glass md:block" data-testid="drivers-list">
           <table className="w-full min-w-[980px] text-sm">
             <thead>
               <tr className="text-left text-[#A1A1AA] border-b border-white/10">
@@ -244,6 +280,7 @@ const AdminDrivers = () => {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

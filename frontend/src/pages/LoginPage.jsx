@@ -62,7 +62,7 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center px-6" data-testid="login-page">
+    <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A] px-4 py-20 sm:px-6" data-testid="login-page">
       <div className="absolute top-4 right-4">
         <LanguageDropdown />
       </div>
@@ -71,9 +71,9 @@ const LoginPage = () => {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md"
       >
-        <div className="glass rounded-2xl p-8">
+        <div className="glass rounded-2xl p-5 sm:p-8">
           {/* Back link */}
-          <Link to={`/${lang}`} className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
+          <Link to={`/${lang}`} className="mb-8 inline-flex items-center text-[#A1A1AA] transition-colors hover:text-[#D4AF37]">
             <ArrowLeft size={20} className="mr-2" />
             {t('loginBackHome') || 'Retour à l\'accueil'}
           </Link>

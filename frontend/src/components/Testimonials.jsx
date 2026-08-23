@@ -47,17 +47,17 @@ const Testimonials = () => {
 
   return (
     <section className="pt-24 pb-12 md:pt-32 md:pb-16 bg-[#141414]" data-testid="testimonials-section">
-      <div className="max-w-7xl mx-auto px-6 md:px-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="text-center mb-16"
+          className="text-center mb-12 md:mb-16"
         >
           <span className="text-[#D4AF37] text-sm tracking-[0.3em] uppercase">{t('temoignagesLabel')}</span>
-          <h2 className="text-4xl md:text-5xl font-bold font-['Cormorant_Garamond'] mt-4 tracking-tight" data-testid="testimonials-title">
+          <h2 className="mt-4 text-3xl font-bold tracking-tight font-['Cormorant_Garamond'] sm:text-4xl md:text-5xl" data-testid="testimonials-title">
             {t('testimonialsTitle1')}
             <br />
             <span className="gold-text">{t('testimonialsTitle2')}</span>
@@ -70,13 +70,13 @@ const Testimonials = () => {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, margin: '-50px' }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-8"
+          className="grid grid-cols-1 gap-6 md:grid-cols-3 md:gap-8"
         >
           {testimonials.map((testimonial, index) => (
             <motion.div
               key={index}
               variants={itemVariants}
-              className="p-8 rounded-2xl bg-[#1E1E1E] border border-white/5 relative"
+              className="relative rounded-2xl border border-white/5 bg-[#1E1E1E] p-6 sm:p-8"
               data-testid={`testimonial-${index}`}
             >
               {/* Quote Icon */}
