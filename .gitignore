@@ -85,7 +85,16 @@ frontend/node_modules/.cache/default-development/5.pack
 frontend/node_modules/.cache/default-development/5.pack
 frontend/node_modules/.cache/default-development/6.pack
 frontend/node_modules/.cache/default-development/7.pack
--e 
-# Environment files
-*.env
-*.env.*
+
+# Environment files – never commit secrets
+.env
+.env.*
+**/.env
+**/.env.*
+# Allow example/template files
+!.env.example
+!**/.env.example
+
+# Test credentials (auto-generated, may contain secrets)
+test_credentials.md
+**/test_credentials.md

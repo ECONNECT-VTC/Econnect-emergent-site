@@ -2990,22 +2990,13 @@ async def send_notification_email(
         return False
 
     try:
-    message = Mail(
-        from_email=sender_email,
-        to_emails=to_email,
-        subject=subject,
-        html_content=html_content
-    )
+        message = Mail(
+            from_email=sender_email,
+            to_emails=to_email,
+            subject=subject,
+            html_content=html_content
+        )
 
-    sg = SendGridAPIClient(SENDGRID_API_KEY)
-    response = sg.send(message)
-
-    print("SendGrid status:", response.status_code)
-    print("SendGrid body:", response.body)
-
-except Exception as e:
-    print("SendGrid error:", str(e))
-    raise
         if attachment_bytes:
             filename = attachment_filename or "document.pdf"
             encoded_file = b64encode(attachment_bytes).decode()
@@ -5409,30 +5400,33 @@ async def startup_event():
     await db.email_verification_tokens.create_index("token_hash", unique=True)
     await db.email_verification_tokens.create_index("user_id")
 
-    # Seed admin user
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@econnect-vtc.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
+    # Bootstrap admin user
+    # ADMIN_EMAIL and ADMIN_PASSWORD must be supplied explicitly via environment
+    # variables. No default credentials are used. The admin account is only
+    # created when it does not already exist in the database. The password is
+    # never reset automatically on subsequent start-ups.
+    admin_email = os.environ.get("ADMIN_EMAIL", "").strip()
+    admin_password = os.environ.get("ADMIN_PASSWORD", "").strip()
 
-    existing_admin = await db.users.find_one({"email": admin_email})
-    if not existing_admin:
-        admin_doc = {
-            "id": str(uuid.uuid4()),
-            "email": admin_email,
-            "name": "Administrateur",
-            "phone": None,
-            "password_hash": hash_password(admin_password),
-            "role": "admin",
-            "email_verified": True,
-            "created_at": datetime.now(timezone.utc)
-        }
-        await db.users.insert_one(admin_doc)
-        logger.info(f"Admin user created: {admin_email}")
-    elif not verify_password(admin_password, existing_admin["password_hash"]):
-        await db.users.update_one(
-            {"email": admin_email},
-            {"$set": {"password_hash": hash_password(admin_password)}}
-        )
-        logger.info("Admin password updated")
+    if admin_email and admin_password:
+        existing_admin = await db.users.find_one({"email": admin_email})
+        if not existing_admin:
+            admin_doc = {
+                "id": str(uuid.uuid4()),
+                "email": admin_email,
+                "name": "Administrateur",
+                "phone": None,
+                "password_hash": hash_password(admin_password),
+                "role": "admin",
+                "email_verified": True,
+                "created_at": datetime.now(timezone.utc)
+            }
+            await db.users.insert_one(admin_doc)
+            logger.info(f"Admin user bootstrapped: {admin_email}")
+        else:
+            logger.info(f"Admin user already exists, skipping bootstrap: {admin_email}")
+    else:
+        logger.info("ADMIN_EMAIL or ADMIN_PASSWORD not set – skipping admin bootstrap")
 
     # Seed default vehicle categories if none exist
     existing_categories = await db.vehicle_categories.count_documents({})
@@ -5544,61 +5538,6 @@ async def startup_event():
             "updated_at": datetime.now(timezone.utc)
         })
         logger.info("Default commission settings created")
-
-    # Write test credentials
-    credentials_path = Path("./test_credentials.md")
-    credentials_path.parent.mkdir(parents=True, exist_ok=True)
-    credentials_path.write_text(f"""# Test Credentials
-
-## Admin Account
-- **Email**: {admin_email}
-- **Password**: {admin_password}
-- **Role**: admin
-
-## Auth Endpoints
-- POST /api/auth/register - Register new client
-- POST /api/auth/login - Login
-- POST /api/auth/logout - Logout
-- GET /api/auth/me - Get current user
-
-## Password Reset Flow
-- POST /api/auth/forgot-password - Request password reset
-- GET /api/auth/verify-reset-token/{{token}} - Verify token validity
-- POST /api/auth/reset-password - Reset password with token
-
-## Admin Endpoints
-- GET /api/admin/stats - Dashboard stats
-- GET /api/admin/bookings - All bookings
-- PUT /api/admin/bookings/{{id}}/assign - Assign to driver
-- GET /api/admin/drivers - All drivers
-- POST /api/admin/drivers - Create driver
-- DELETE /api/admin/drivers/{{id}} - Delete driver
-- GET /api/admin/clients - All clients
-- GET /api/admin/vehicle-categories - All vehicle categories
-- POST /api/admin/vehicle-categories - Create category
-- PUT /api/admin/vehicle-categories/{{id}} - Update category
-- DELETE /api/admin/vehicle-categories/{{id}} - Delete category
-
-## Public Endpoints
-- GET /api/vehicle-categories - Active vehicle categories
-- POST /api/estimate-price?distance_km=X - Estimate prices
-
-## Driver Endpoints
-- GET /api/driver/bookings - Driver's bookings
-- PUT /api/driver/bookings/{{id}}/status - Update status
-- PUT /api/driver/availability - Set availability
-
-## Client Endpoints
-- POST /api/bookings - Create booking
-- GET /api/bookings/my - My bookings
-
-## Default Vehicle Categories
-- Berline: 2.50€/km, min 25€
-- Van: 3.00€/km, min 35€
-- Luxe: 4.00€/km, min 50€
-- Green: 2.80€/km, min 30€
-""")
-    logger.info("Test credentials written to ./test_credentials.md")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
