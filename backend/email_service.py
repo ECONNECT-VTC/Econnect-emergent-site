@@ -65,7 +65,7 @@ def resolve_brevo_template_id(template_key: Optional[str], template_id: Optional
 
     env_name = BREVO_TEMPLATE_ENV_BY_KEY.get(template_key)
     if env_name is None:
-        logger.warning("Unknown Brevo template key '%s'; falling back to HTML email", template_key)
+        logger.warning("Unknown Brevo template key; falling back to HTML email")
         return None
 
     return _parse_positive_template_id(os.environ.get(env_name), env_name)
