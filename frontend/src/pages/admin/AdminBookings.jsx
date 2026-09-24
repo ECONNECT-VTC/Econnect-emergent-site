@@ -623,7 +623,7 @@ const AdminBookings = () => {
       : filter === 'PAID'
         ? bookings.filter((b) => statusEquals(b.status, 'PAID') || b.payment_status === 'paid')
       : bookings.filter((b) => normalizeCourseStatus(b.status) === filter);
-  const editPaymentStatusOptions = editForm.payment_status === 'partially_paid'
+  const editPaymentStatusOptions = editForm.payment_status === 'partially_paid' && !PAYMENT_STATUS_OPTIONS.some((option) => option.value === 'partially_paid')
     ? [...PAYMENT_STATUS_OPTIONS, { value: 'partially_paid', label: 'Paiement partiel' }]
     : PAYMENT_STATUS_OPTIONS;
   const canCreateBooking =

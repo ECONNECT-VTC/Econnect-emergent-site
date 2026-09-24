@@ -5061,6 +5061,9 @@ async def admin_update_booking(booking_id: str, payload: dict, request: Request)
             update_data["paid_amount"] = existing_paid_amount
             update_data["paid_currency"] = booking.get("paid_currency") or "eur"
         else:
+            existing_manual_payments = normalize_manual_payments(booking.get("manual_payments"))
+            if existing_manual_payments:
+                raise HTTPException(status_code=400, detail="Impossible de repasser à « À payer » après un paiement reçu")
             update_data["payment_completed_at"] = None
             update_data["paid_amount"] = None
             update_data["paid_currency"] = None

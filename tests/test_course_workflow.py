@@ -294,6 +294,43 @@ class TestCourseWorkflow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(context.exception.status_code, 400)
         self.assertEqual(context.exception.detail, "Le montant reçu doit être supérieur à 0")
 
+    async def test_admin_update_booking_rejects_reset_to_pending_after_manual_payment(self):
+        paid_at = server.datetime.now(server.timezone.utc)
+        await self.bookings.insert_one({
+            "id": "course_manual_reset",
+            "client_name": "Client Test",
+            "client_email": "client@test.com",
+            "pickup_address": "Paris",
+            "dropoff_address": "Lyon",
+            "pickup_date": "24/09/2026",
+            "pickup_time": "10:00",
+            "transfer_type": "simple",
+            "status": "INVOICED",
+            "payment_status": "partially_paid",
+            "estimated_price": 90.0,
+            "paid_amount": 30.0,
+            "paid_currency": "EUR",
+            "manual_payments": [{
+                "amount": 30.0,
+                "paid_at": paid_at,
+                "admin_id": "admin_1",
+            }],
+            "created_at": server.datetime.now(server.timezone.utc),
+        })
+
+        with patch.object(server, "db", self.fake_db), patch.object(
+            server, "require_admin", AsyncMock(return_value={"id": "admin_1"})
+        ):
+            with self.assertRaises(server.HTTPException) as context:
+                await server.admin_update_booking(
+                    "course_manual_reset",
+                    {"payment_status": "pending"},
+                    request=object(),
+                )
+
+        self.assertEqual(context.exception.status_code, 400)
+        self.assertEqual(context.exception.detail, "Impossible de repasser à « À payer » après un paiement reçu")
+
 
 if __name__ == "__main__":
     unittest.main()
