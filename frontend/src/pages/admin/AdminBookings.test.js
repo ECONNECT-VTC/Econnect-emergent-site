@@ -54,6 +54,9 @@ jest.mock('@phosphor-icons/react', () => ({
 }), { virtual: true });
 jest.mock('@/utils/vehicleCategories', () => ({
   getCategoryDisplayName: (value) => value,
+  getVehicleCategoryImageUrl: () => '/photo/chr.png',
+  getVehicleCategoryPresentation: () => null,
+  findPriceEstimateForCategory: () => null,
 }), { virtual: true });
 jest.mock('@/utils/invoiceGenerator', () => ({
   downloadInvoicePdf: jest.fn(),

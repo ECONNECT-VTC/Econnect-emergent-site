@@ -73,8 +73,11 @@ const BookingPaymentSuccess = () => {
             <p><span className="text-[#A1A1AA]">Réservation :</span> #{booking.id}</p>
             <p><span className="text-[#A1A1AA]">Trajet :</span> {booking.pickup_address} → {booking.dropoff_address}</p>
             <p><span className="text-[#A1A1AA]">Date :</span> {booking.pickup_date} à {booking.pickup_time}</p>
-            <p><span className="text-[#A1A1AA]">Montant payé :</span> {Number(booking.paid_amount ?? booking.estimated_price ?? 0).toFixed(2)} €</p>
-            <p><span className="text-[#A1A1AA]">Paiement :</span> {booking.payment_status === 'paid' ? 'Payé' : booking.payment_status || 'En cours de vérification'}</p>
+            <p><span className="text-[#A1A1AA]">{booking.payment_status === 'partially_paid' ? 'Acompte payé :' : 'Montant payé :'}</span> {Number(booking.paid_amount ?? booking.estimated_price ?? 0).toFixed(2)} €</p>
+            {booking.remaining_amount != null && (
+              <p><span className="text-[#A1A1AA]">Solde restant :</span> {Number(booking.remaining_amount).toFixed(2)} €</p>
+            )}
+            <p><span className="text-[#A1A1AA]">Paiement :</span> {booking.payment_status === 'paid' ? 'Payé' : booking.payment_status === 'partially_paid' ? 'Paiement partiel' : booking.payment_status || 'En cours de vérification'}</p>
           </div>
         )}
 

@@ -1,3 +1,5 @@
+import getPublicAssetUrl from '../lib/publicAsset';
+
 export const VEHICLE_CATEGORY_CONFIG = [
   {
     backendName: 'Berline',
@@ -93,6 +95,17 @@ export const findDispositionEstimateForCategory = (estimates = [], categoryName)
   }) || null;
 };
 
+export const findPriceEstimateForCategory = (estimates = [], categoryId, categoryName = '') => {
+  if (categoryId) {
+    const matchedById = estimates.find((estimate) => estimate?.category_id === categoryId);
+    if (matchedById) {
+      return matchedById;
+    }
+  }
+
+  return findDispositionEstimateForCategory(estimates, categoryName || categoryId);
+};
+
 export const findVehicleCategoryByName = (categories = [], categoryName) => {
   const rawCategoryName = (categoryName || '').trim();
   if (!rawCategoryName) {
@@ -123,4 +136,17 @@ export const getOrderedDispositionCategoryNames = (categories = []) => {
   const remainingCategories = categoryNames.filter((categoryName) => !CATEGORY_ORDER_SET.has(categoryName));
 
   return [...knownCategories, ...remainingCategories];
+};
+
+export const getVehicleCategoryImageUrl = (categoryName, fallbackImageUrl = '') => {
+  const presetImage = getVehicleCategoryPresentation(categoryName)?.image;
+  if (presetImage) {
+    return getPublicAssetUrl(presetImage);
+  }
+
+  if (fallbackImageUrl) {
+    return getPublicAssetUrl(fallbackImageUrl);
+  }
+
+  return getPublicAssetUrl('/photo/chr.png');
 };

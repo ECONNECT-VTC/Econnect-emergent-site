@@ -47,6 +47,7 @@ const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
 
 const BOOKING_PANEL_MIN_HEIGHT_CLASSES = 'min-h-[700px] sm:min-h-[800px] lg:min-h-[680px]';
 const VEHICLE_CARD_IMAGE_BG_CLASS = 'bg-[#141414]';
+const DEPOSIT_PAYMENT_METHODS = new Set(['virement', 'cash']);
 
 const BookingSection = () => {
   const navigate = useNavigate();
@@ -68,6 +69,7 @@ const BookingSection = () => {
   const [estimatingPrice, setEstimatingPrice] = useState(false);
   const [distanceKm, setDistanceKm] = useState('');
   const [submittingCheckout, setSubmittingCheckout] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('cb');
   const [bookingError, setBookingError] = useState('');
   const [bookingNotice, setBookingNotice] = useState('');
   const [fromStripeCancel, setFromStripeCancel] = useState(false);
@@ -202,6 +204,7 @@ const BookingSection = () => {
     setSelectedCategory('');
     setDispositionHours('');
     setDistanceKm('');
+    setPaymentMethod('cb');
     setDispositionPrices([]);
     setPriceEstimates([]);
     setStep(1);
@@ -313,12 +316,13 @@ const BookingSection = () => {
       distance_km: transferType === 'disposition' ? null : (distanceKm ? parseFloat(distanceKm) : null),
       duration_minutes: null,
       estimated_price: estimatedPrice,
+      payment_method: paymentMethod,
       notes: null,
       disposition_hours: transferType === 'disposition' && dispositionHours ? parseFloat(dispositionHours) : null,
       success_path: `/${lang}/booking/confirmation`,
       cancel_path: `/${lang}/booking/cancel`,
     };
-  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, dispositionHours, getEstimatedPrice, lang]);
+  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, dispositionHours, getEstimatedPrice, lang, paymentMethod]);
 
   const submitCheckout = useCallback(async (payload, draftState = null) => {
     setBookingError('');
@@ -332,6 +336,7 @@ const BookingSection = () => {
       time,
       transferType,
       selectedCategory,
+      paymentMethod,
       dispositionHours,
       distanceKm,
       step: 3,
@@ -352,7 +357,7 @@ const BookingSection = () => {
       setBookingNotice('');
       setSubmittingCheckout(false);
     }
-  }, [date, pickup, dropoff, time, transferType, selectedCategory, dispositionHours, distanceKm]);
+  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm]);
 
   const handleAuthChoice = (authPath) => {
     const payload = buildCheckoutPayload();
@@ -364,6 +369,7 @@ const BookingSection = () => {
         time,
         transferType,
         selectedCategory,
+        paymentMethod,
         dispositionHours,
         distanceKm,
         step: 3,
@@ -392,6 +398,7 @@ const BookingSection = () => {
     if (draft.time) setTime(draft.time);
     if (draft.transferType) setTransferType(draft.transferType);
     if (draft.selectedCategory) setSelectedCategory(draft.selectedCategory);
+    if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
     if (draft.dispositionHours) setDispositionHours(String(draft.dispositionHours));
     if (draft.distanceKm) setDistanceKm(String(draft.distanceKm));
     if (draft.step) setStep(draft.step);
@@ -458,6 +465,7 @@ const BookingSection = () => {
         time,
         transferType,
         selectedCategory,
+        paymentMethod,
         dispositionHours,
         distanceKm,
         step: 3,
@@ -470,6 +478,14 @@ const BookingSection = () => {
 
     await submitCheckout(payload);
   };
+
+  const estimatedPrice = getEstimatedPrice();
+  const immediateChargeAmount = estimatedPrice == null
+    ? null
+    : (DEPOSIT_PAYMENT_METHODS.has(paymentMethod) ? estimatedPrice * 0.2 : estimatedPrice);
+  const remainingBalance = estimatedPrice == null || immediateChargeAmount == null
+    ? null
+    : Math.max(estimatedPrice - immediateChargeAmount, 0);
 
   const stepIndicatorText = step === 'auth' ? 'Authentification' : `Étape ${step}/3`;
 
@@ -580,7 +596,6 @@ const BookingSection = () => {
                               mode="single"
                               selected={date}
                               onSelect={setDate}
-                              disabled={(date) => date < new Date()}
                               initialFocus
                               className="bg-[#1E1E1E]"
                               data-testid="calendar"
@@ -806,7 +821,7 @@ const BookingSection = () => {
                             ? `Mise à disposition · ${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory)}`
                             : `${VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.name} · à partir de ${getCategoryStartingPriceLabel(selectedCategory, VEHICLE_CATEGORIES.find(c => c.id === selectedCategory)?.startingPrice || '')}`}
                         </p>
-                        <p className="text-[#A1A1AA] text-xs mt-1">Le prix final sera confirmé par votre chauffeur.</p>
+                        <p className="text-[#A1A1AA] text-xs mt-1">Le prix total se met à jour automatiquement selon la gamme choisie et la distance ou la durée renseignée.</p>
                       </motion.div>
                     )}
                   </div>
@@ -876,7 +891,48 @@ const BookingSection = () => {
                         {`${dispositionHours}h · ${getFormattedDispositionPrice(selectedCategory)}`}
                       </p>
                     ) : (
-                      <p className="text-[#D4AF37]">Tarif indicatif: {getCategoryStartingPriceLabel(selectedCategory, VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice || '')}</p>
+                      <p className="text-[#D4AF37]">
+                        Prix total: {estimatedPrice != null ? `${estimatedPrice.toFixed(2)}€` : getCategoryStartingPriceLabel(selectedCategory, VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.startingPrice || '')}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-4 rounded-xl border border-white/10 bg-[#111111] p-5">
+                    <div className="space-y-2">
+                      <Label className="text-[#A1A1AA] text-sm">Moyen de paiement</Label>
+                      <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                        <SelectTrigger className="bg-[#1E1E1E] border-white/10 hover:border-[#D4AF37]/50" data-testid="payment-method-select">
+                          <SelectValue placeholder="Choisir un moyen de paiement" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#1E1E1E] border-white/10">
+                          <SelectItem value="cb">Paiement immédiat par carte (Stripe)</SelectItem>
+                          <SelectItem value="virement">Virement bancaire</SelectItem>
+                          <SelectItem value="cash">Espèces</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {DEPOSIT_PAYMENT_METHODS.has(paymentMethod) && (
+                      <div className="rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-3 text-sm text-[#F3D67A]" data-testid="deposit-payment-notice">
+                        20% du montant de la course sera payé maintenant pour confirmer la réservation, le solde sera réglé par virement/espèces.
+                      </div>
+                    )}
+
+                    {estimatedPrice != null && immediateChargeAmount != null && (
+                      <div className="grid gap-3 text-sm text-[#C7B588] sm:grid-cols-3">
+                        <div className="rounded-lg border border-white/10 bg-[#1E1E1E] px-4 py-3">
+                          <p className="text-[#A1A1AA]">Montant total</p>
+                          <p className="text-lg font-semibold text-white">{estimatedPrice.toFixed(2)}€</p>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-[#1E1E1E] px-4 py-3">
+                          <p className="text-[#A1A1AA]">{DEPOSIT_PAYMENT_METHODS.has(paymentMethod) ? 'Acompte à payer' : 'Montant à payer maintenant'}</p>
+                          <p className="text-lg font-semibold text-[#D4AF37]">{immediateChargeAmount.toFixed(2)}€</p>
+                        </div>
+                        <div className="rounded-lg border border-white/10 bg-[#1E1E1E] px-4 py-3">
+                          <p className="text-[#A1A1AA]">Solde restant</p>
+                          <p className="text-lg font-semibold text-white">{(remainingBalance ?? 0).toFixed(2)}€</p>
+                        </div>
+                      </div>
                     )}
                   </div>
 
@@ -895,7 +951,11 @@ const BookingSection = () => {
                       className="flex-1 bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6 text-lg transition-all duration-300 hover:scale-[1.02]"
                       data-testid="submit-booking"
                     >
-                      {submittingCheckout ? 'Redirection vers Stripe...' : t('reserverMaintenant')}
+                      {submittingCheckout
+                        ? 'Redirection vers Stripe...'
+                        : DEPOSIT_PAYMENT_METHODS.has(paymentMethod)
+                          ? 'Payer l’acompte et confirmer'
+                          : t('reserverMaintenant')}
                       <ArrowRight size={20} className="ml-2" />
                     </Button>
                   </div>

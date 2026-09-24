@@ -6,6 +6,7 @@ export const PAYMENT_METHOD_OPTIONS = [
 
 export const PAYMENT_STATUS_OPTIONS = [
   { value: 'pending', label: 'À payer' },
+  { value: 'partially_paid', label: 'Paiement partiel' },
   { value: 'paid', label: 'Payée' },
 ];
 
@@ -18,7 +19,7 @@ export const normalizePaymentMethod = (value) => {
 
   if (raw.includes('cb') || raw.includes('carte') || raw.includes('card') || raw.includes('bleue')) return 'cb';
   if (raw.includes('cash') || raw.includes('espece') || raw.includes('especes')) return 'cash';
-  if (raw.includes('virement')) return 'virement';
+  if (raw.includes('virement') || raw.includes('transfer')) return 'virement';
   return '';
 };
 

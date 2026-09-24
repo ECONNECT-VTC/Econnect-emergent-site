@@ -10,7 +10,12 @@ import { CalendarCheck, CarSimple, CheckCircle, MapPin, User, DownloadSimple } f
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
 import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, isStatusAtOrAfter, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
-import { getCategoryDisplayName } from '@/utils/vehicleCategories';
+import {
+  findPriceEstimateForCategory,
+  getCategoryDisplayName,
+  getVehicleCategoryImageUrl,
+  getVehicleCategoryPresentation,
+} from '@/utils/vehicleCategories';
 import { useAuth } from '@/contexts/AuthContext';
 import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
 import {
@@ -261,11 +266,14 @@ const AdminBookings = () => {
           { withCredentials: true },
         );
         const estimates = Array.isArray(response.data) ? response.data : [];
-        if (estimates.length === 0) return;
+        if (estimates.length === 0 || !createForm.vehicle_category_id) return;
 
-        const selectedEstimate = createForm.vehicle_category_id
-          ? estimates.find((estimate) => estimate.category_id === createForm.vehicle_category_id)
-          : estimates[0];
+        const selectedCategory = vehicleCategories.find((category) => category.id === createForm.vehicle_category_id);
+        const selectedEstimate = findPriceEstimateForCategory(
+          estimates,
+          createForm.vehicle_category_id,
+          selectedCategory?.name,
+        );
         const estimatedPrice = toOptionalNumber(selectedEstimate?.final_price);
         if (estimatedPrice === null) return;
 
@@ -283,6 +291,7 @@ const AdminBookings = () => {
     createForm.duration_minutes,
     createForm.disposition_hours,
     createForm.vehicle_category_id,
+    vehicleCategories,
   ]);
 
   const updateCreateField = (field, value) => {
@@ -634,6 +643,8 @@ const AdminBookings = () => {
     createForm.pickup_date.trim() &&
     createForm.pickup_time &&
     createForm.transfer_type;
+  const selectedCreateCategory = vehicleCategories.find((category) => category.id === createForm.vehicle_category_id) || null;
+  const selectedCreateCategoryPresentation = getVehicleCategoryPresentation(selectedCreateCategory?.name);
 
   const getStatusBadge = (status) => {
     const normalized = normalizeCourseStatus(status);
@@ -1066,11 +1077,26 @@ const AdminBookings = () => {
                   <SelectItem value="none">Aucune</SelectItem>
                   {vehicleCategories.map((category) => (
                     <SelectItem key={category.id} value={category.id}>
-                      {getCategoryDisplayName(category.name)} - {category.price_per_km.toFixed(2)}€/km
+                      {getCategoryDisplayName(category.name)} - dès {Number(category.min_fare || 0).toFixed(2)}€
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {selectedCreateCategory && (
+                <div className="mt-3 flex items-center gap-3 rounded-lg border border-[#D4AF37]/20 bg-[#141414] p-3">
+                  <img
+                    src={getVehicleCategoryImageUrl(selectedCreateCategory.name, selectedCreateCategory.image_url)}
+                    alt={getCategoryDisplayName(selectedCreateCategory.name)}
+                    className="h-14 w-20 rounded-md object-cover"
+                  />
+                  <div className="text-sm">
+                    <p className="font-medium text-white">{selectedCreateCategoryPresentation?.displayName || getCategoryDisplayName(selectedCreateCategory.name)}</p>
+                    <p className="text-[#A1A1AA]">
+                      Dès {Number(selectedCreateCategory.min_fare || 0).toFixed(2)}€ · {Number(selectedCreateCategory.price_per_km || 0).toFixed(2)}€/km
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Prix estimé (€)</p>

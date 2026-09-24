@@ -138,6 +138,41 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(created_booking["payment_status"], "pending")
         self.assertEqual(created_booking["stripe_checkout_session_id"], "cs_test_1")
 
+    async def test_create_booking_checkout_uses_20_percent_deposit_for_transfer_payments(self):
+        bookings = InMemoryBookingsCollection()
+        vehicle_categories = SimpleNamespace(find_one=AsyncMock(return_value={"id": "berline", "name": "Berline"}))
+
+        fake_db = SimpleNamespace(bookings=bookings, vehicle_categories=vehicle_categories)
+        payload = server.BookingCheckoutCreate(
+            pickup_address="Aéroport CDG",
+            dropoff_address="Paris",
+            pickup_date="20/06/2026",
+            pickup_time="10:30",
+            transfer_type="simple",
+            vehicle_category_id="berline",
+            distance_km=30.0,
+            estimated_price=95.0,
+            payment_method="virement",
+            success_path="/fr/booking/confirmation",
+            cancel_path="/fr/booking/cancel",
+        )
+
+        with patch.object(server, "db", fake_db), \
+             patch.object(server, "STRIPE_SECRET_KEY", "sk_test_123"), \
+             patch.object(server, "STRIPE_PUBLISHABLE_KEY", "pk_test_123"), \
+             patch.object(server, "get_current_user", AsyncMock(return_value={"id": "u1", "name": "Client", "email": "client@test.com"})), \
+             patch.object(server.stripe.checkout.Session, "create", return_value={"id": "cs_test_2", "url": "https://checkout.stripe.test/2"}) as create_session:
+            result = await server.create_booking_checkout(payload, request=object())
+
+        self.assertEqual(result.session_id, "cs_test_2")
+        created_booking = next(iter(bookings.docs.values()))
+        self.assertEqual(created_booking["payment_method"], "virement")
+        self.assertEqual(created_booking["payment_mode"], "deposit")
+        create_session.assert_called_once()
+        create_kwargs = create_session.call_args.kwargs
+        self.assertEqual(create_kwargs["line_items"][0]["price_data"]["unit_amount"], 1900)
+        self.assertEqual(create_kwargs["metadata"]["payment_scope"], "deposit")
+
     async def test_mark_booking_paid_is_idempotent(self):
         bookings = InMemoryBookingsCollection()
         booking_id = "booking_1"
@@ -197,7 +232,7 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
 
         updated_booking = bookings.docs[booking_id]
         self.assertEqual(updated_booking["payment_status"], "paid")
-        self.assertEqual(updated_booking["status"], "received")
+        self.assertEqual(updated_booking["status"], "QUOTE_ACCEPTED")
         self.assertEqual(updated_booking["paid_amount"], 100.0)
         self.assertTrue(was_updated)
         self.assertFalse(was_updated_repeat)
@@ -270,7 +305,78 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(response.verified)
         self.assertEqual(response.payment_status, "paid")
         self.assertEqual(response.booking.id, booking_id)
-        self.assertEqual(bookings.docs[booking_id]["status"], "received")
+        self.assertEqual(bookings.docs[booking_id]["status"], "QUOTE_ACCEPTED")
+        self.assertEqual(send_email.await_count, 1)
+
+    async def test_confirm_booking_payment_marks_transfer_deposit_as_partially_paid(self):
+        bookings = InMemoryBookingsCollection()
+        booking_id = "booking_deposit_confirm"
+        await bookings.insert_one({
+            "id": booking_id,
+            "client_id": "u1",
+            "client_name": "Client Test",
+            "client_email": "client@test.com",
+            "client_phone": None,
+            "pickup_date": "20/06/2026",
+            "pickup_time": "10:30",
+            "pickup_address": "A",
+            "dropoff_address": "B",
+            "transfer_type": "simple",
+            "vehicle_category_id": None,
+            "vehicle_category_name": None,
+            "distance_km": 12.0,
+            "duration_minutes": None,
+            "notes": None,
+            "disposition_hours": None,
+            "payment_status": "pending",
+            "payment_method": "virement",
+            "payment_mode": "deposit",
+            "status": "pending",
+            "estimated_price": 120.0,
+            "stripe_checkout_session_id": "cs_test_deposit",
+            "stripe_payment_intent_id": None,
+            "paid_amount": None,
+            "paid_currency": None,
+            "driver_id": None,
+            "driver_name": None,
+            "driver_display_name": None,
+            "commission_override": None,
+            "fulfilled_by_admin": None,
+            "cancellation_reason": None,
+            "driver_cancellation_reason": None,
+            "cancellation_previous_status": None,
+            "refund_amount": None,
+            "refunded_at": None,
+            "payment_completed_at": None,
+            "created_at": server.datetime.now(server.timezone.utc),
+            "assigned_at": None,
+        })
+        fake_db = SimpleNamespace(bookings=bookings)
+        checkout_session = {
+            "id": "cs_test_deposit",
+            "payment_status": "paid",
+            "payment_intent": "pi_test_deposit",
+            "amount_total": 2400,
+            "currency": "eur",
+            "metadata": {"booking_id": booking_id},
+        }
+
+        with patch.object(server, "db", fake_db), \
+             patch.object(server, "STRIPE_SECRET_KEY", "sk_test_123"), \
+             patch.object(server, "get_current_user", AsyncMock(return_value={"id": "u1"})), \
+             patch.object(server, "send_booking_confirmation_to_client", AsyncMock()) as send_email, \
+             patch.object(server.stripe.checkout.Session, "retrieve", return_value=checkout_session):
+            response = await server.confirm_booking_payment(
+                booking_id,
+                server.BookingPaymentConfirmationRequest(session_id="cs_test_deposit"),
+                request=object()
+            )
+
+        self.assertFalse(response.verified)
+        self.assertEqual(response.payment_status, "partially_paid")
+        self.assertEqual(response.booking.paid_amount, 24.0)
+        self.assertEqual(response.booking.remaining_amount, 96.0)
+        self.assertEqual(bookings.docs[booking_id]["status"], "QUOTE_ACCEPTED")
         self.assertEqual(send_email.await_count, 1)
 
     async def test_refund_booking_payment_full_refund_without_amount_param(self):
