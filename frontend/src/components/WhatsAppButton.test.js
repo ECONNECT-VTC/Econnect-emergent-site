@@ -44,11 +44,13 @@ describe('WhatsAppButton', () => {
     });
 
     const whatsappButton = container.querySelector('[data-testid="whatsapp-button"]');
+    const buttonHalo = whatsappButton?.querySelector('span');
 
     expect(whatsappButton).not.toBeNull();
     expect(whatsappButton.getAttribute('href')).toContain('https://wa.me/33753418833');
     expect(whatsappButton.className).toContain('bg-[#050505]/78');
     expect(whatsappButton.textContent).toBe('');
-    expect(whatsappButton.querySelector('span').className).toContain('pulse-gold');
+    expect(buttonHalo).not.toBeNull();
+    expect(buttonHalo.className).toContain('pulse-gold');
   });
 });
