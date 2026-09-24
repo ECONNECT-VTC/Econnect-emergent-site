@@ -1,247 +1,155 @@
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { List, X, CaretDown, Phone } from '@phosphor-icons/react';
-import { Link } from 'react-router-dom';
-import { useLanguage } from '@/contexts/LanguageContext';
-import LanguageDropdown from '@/components/LanguageDropdown';
-import LogoDisplay from '@/components/LogoDisplay';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-const Navbar = () => {
-  const [isScrolled, setIsScrolled] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isGammeOpen, setIsGammeOpen] = useState(false);
-  const { language, t } = useLanguage();
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+:root {
+  --background: 0 0% 4%;
+  --background-secondary: 0 0% 8%;
+  --background-tertiary: 0 0% 12%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 8%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 6%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 43 74% 52%;
+  --primary-foreground: 0 0% 4%;
+  --secondary: 0 0% 12%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 14%;
+  --muted-foreground: 0 0% 60%;
+  --accent: 43 74% 52%;
+  --accent-foreground: 0 0% 4%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 14%;
+  --input: 0 0% 14%;
+  --ring: 43 74% 52%;
+  --radius: 0.75rem;
+  --gold: #D4AF37;
+  --gold-light: #F0C74A;
+}
 
-  useEffect(() => {
-    document.body.style.overflow = isMobileMenuOpen ? 'hidden' : '';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isMobileMenuOpen]);
+html {
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+}
 
-  const closeMobileMenu = () => {
-    setIsMobileMenuOpen(false);
-    setIsGammeOpen(false);
-  };
+html, body, #root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
 
-  const navLinks = [
-    { key: 'accueil', href: '#accueil' },
-    { key: 'services', href: '#services' },
-    { key: 'apropos', href: '#apropos' },
-    { key: 'contact', href: '#contact' },
-  ];
+body {
+  margin: 0;
+  min-width: 320px;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #0A0A0A;
+  color: #FAFAFA;
+}
 
-  const GAMME_ITEMS = [
-    { key: 'comfortClassique', href: '#gammes' },
-    { key: 'comfortPremium', href: '#gammes' },
-    { key: 'prestige', href: '#gammes' },
-    { key: 'van', href: '#gammes' },
-  ];
+#root {
+  min-height: 100vh;
+}
 
-  return (
-    <motion.header
-      initial={{ y: -100 }}
-      animate={{ y: 0 }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled ? 'bg-[#0A0A0A]/92 backdrop-blur-xl border-b border-[#D4AF37]/10' : 'bg-transparent'
-      }`}
-      data-testid="navbar"
-    >
-      <div className="border-b border-white/5 bg-[#050505]/85">
-        <div className="mx-auto hidden max-w-[88rem] items-center justify-between px-6 py-2.5 text-xs uppercase tracking-[0.28em] text-[#C7B588] md:flex lg:px-10 xl:px-16">
-          <span>Service chauffeur privé premium</span>
-          <div className="flex items-center gap-6">
-            <span className="inline-flex items-center gap-2">
-              <Phone size={12} weight="fill" className="text-[#D4AF37]" />
-              +337 53 41 88 33
-            </span>
-          </div>
-        </div>
-      </div>
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Cormorant Garamond', serif;
+}
 
-      <nav className="mx-auto flex max-w-[88rem] items-center justify-between gap-4 px-4 py-3.5 sm:gap-5 sm:px-6 md:py-5 lg:px-10 xl:px-16">
-        <a href="#accueil" className="flex items-center" data-testid="logo">
-          <span className="rounded-[24px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-3.5 py-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.28)] sm:px-5 sm:py-3">
-            <LogoDisplay className="h-[34px] w-[128px] sm:h-[44px] sm:w-[168px] md:h-[52px] md:w-[206px]" priority />
-          </span>
-        </a>
+@layer base {
+  * {
+    @apply border-border;
+  }
 
-        <div className="hidden items-center gap-8 rounded-full border border-white/8 bg-[#111111]/85 px-7 py-3.5 lg:flex xl:gap-10">
-          {navLinks.map((link) => (
-            <a
-              key={link.key}
-              href={link.href}
-              className={`${
-                link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#CFCFCF]'
-              } hover:text-[#D4AF37] transition-colors duration-300 text-[0.95rem] tracking-[0.22em] uppercase`}
-              data-testid={`nav-link-${link.key}`}
-            >
-              {t(link.key)}
-            </a>
-          ))}
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
 
-          <div
-            className="relative"
-            onMouseEnter={() => setIsGammeOpen(true)}
-            onMouseLeave={() => setIsGammeOpen(false)}
-          >
-            <button
-              className="flex items-center gap-1 text-[#CFCFCF] hover:text-[#D4AF37] transition-colors duration-300 text-[0.95rem] tracking-[0.22em] uppercase"
-              data-testid="nav-link-gamme"
-            >
-              {t('gamme')} <CaretDown size={14} className={`transition-transform duration-200 ${isGammeOpen ? 'rotate-180' : ''}`} />
-            </button>
+  img,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
+  }
 
-            <AnimatePresence>
-              {isGammeOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.18 }}
-                  className="absolute top-full left-0 mt-3 w-52 rounded-2xl overflow-hidden shadow-xl"
-                  style={{ background: '#111111', border: '1px solid rgba(212,175,55,0.18)' }}
-                >
-                  {GAMME_ITEMS.map((item) => (
-                    <a
-                      key={item.key}
-                      href={item.href}
-                      className="block px-4 py-3 text-sm transition-colors duration-200 hover:bg-[#1A1A1A] text-[#D4AF37]"
-                      onClick={() => setIsGammeOpen(false)}
-                    >
-                      {t(item.key)}
-                    </a>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
+  img {
+    display: block;
+    height: auto;
+  }
+}
 
-        <div className="hidden md:flex items-center gap-3.5">
-          <LanguageDropdown />
+::selection {
+  background: rgba(212, 175, 55, 0.35);
+  color: #fff;
+}
 
-          <a
-            href="#reserver"
-            className="rounded-full px-6 py-3 text-[0.95rem] font-semibold transition-all duration-300 hover:scale-105"
-            style={{ background: '#D4AF37', color: '#0A0A0A' }}
-            data-testid="cta-reserver"
-          >
-            {t('reserver')}
-          </a>
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
 
-          <Link
-            to={`/${language}/login`}
-            className="rounded-full border border-[#D4AF37]/70 px-6 py-3 text-[0.95rem] font-semibold text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37] hover:text-[#232323]"
-            data-testid="btn-connexion"
-          >
-            {t('connexion')}
-          </Link>
-        </div>
+::-webkit-scrollbar-track {
+  background: #0A0A0A;
+}
 
-        <div className="md:hidden flex items-center gap-3">
-          <button
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-[#111111]/90 text-[#FAFAFA] transition-colors hover:text-[#D4AF37]"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            data-testid="mobile-menu-toggle"
-            aria-label={isMobileMenuOpen ? 'Fermer le menu' : 'Ouvrir le menu'}
-          >
-            {isMobileMenuOpen ? <X size={28} /> : <List size={28} />}
-          </button>
-        </div>
-      </nav>
+::-webkit-scrollbar-thumb {
+  background: #D4AF37;
+  border-radius: 4px;
+}
 
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="md:hidden border-t border-[#D4AF37]/10 bg-[#090909]/98 backdrop-blur-xl"
-            data-testid="mobile-menu"
-          >
-            <div className="flex max-h-[calc(100dvh-5rem)] flex-col gap-4 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6">
-              <div className="rounded-2xl border border-[#D4AF37]/20 bg-[#121212] p-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <LogoDisplay className="h-[34px] w-[132px]" priority />
-                  <div className="shrink-0">
-                    <LanguageDropdown />
-                  </div>
-                </div>
-                <a
-                  href="tel:+33753418833"
-                  className="inline-flex items-center gap-2 text-sm font-medium text-[#F3D67A]"
-                  onClick={closeMobileMenu}
-                >
-                  <Phone size={15} weight="fill" />
-                  +337 53 41 88 33
-                </a>
-              </div>
+::-webkit-scrollbar-thumb:hover {
+  background: #F0C74A;
+}
 
-              {navLinks.map((link) => (
-                <a
-                  key={link.key}
-                  href={link.href}
-                  className={`${
-                    link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#A1A1AA]'
-                  } hover:text-[#D4AF37] transition-colors py-2 text-lg break-words`}
-                  onClick={closeMobileMenu}
-                >
-                  {t(link.key)}
-                </a>
-              ))}
+/* Glass effect */
+.glass {
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
 
-              {/* Gamme sub-items in mobile */}
-              <div>
-                <p className="text-[#A1A1AA] text-sm uppercase tracking-wide py-1">{t('gamme')}</p>
-                <div className="pl-4 flex flex-col gap-2 mt-1">
-                  {GAMME_ITEMS.map((item) => (
-                    <a
-                      key={item.key}
-                      href={item.href}
-                      className="py-1 text-base transition-colors duration-200 text-[#D4AF37]"
-                      onClick={closeMobileMenu}
-                    >
-                      {t(item.key)}
-                    </a>
-                  ))}
-                </div>
-              </div>
+/* Gold gradient text */
+.gold-text {
+  background: linear-gradient(135deg, #D4AF37 0%, #F0C74A 50%, #D4AF37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 
-              <a
-                href="#reserver"
-                className="font-semibold w-full text-center py-3 rounded-lg transition-all duration-300 mt-2"
-                style={{ background: '#D4AF37', color: '#0A0A0A' }}
-                onClick={closeMobileMenu}
-              >
-                {t('reserver')}
-              </a>
+/* Pulse animation for WhatsApp button */
+@keyframes pulse-gold {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 15px rgba(212, 175, 55, 0);
+  }
+}
 
-              {/* Connexion */}
-              <Link
-                to={`/${language}/login`}
-                className="font-semibold w-full text-center py-3 rounded-lg transition-all duration-300"
-                style={{ border: '1.5px solid #D4AF37', color: '#D4AF37', background: 'transparent' }}
-                onClick={closeMobileMenu}
-              >
-                {t('connexion')}
-              </Link>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.header>
-  );
-};
+.pulse-gold {
+  animation: pulse-gold 2s infinite;
+}
 
-export default Navbar;
+/* Card hover glow */
+.card-glow:hover {
+  box-shadow: 0 0 30px rgba(212, 175, 55, 0.15);
+}
+
+@media (min-width: 1200px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+@media (min-width: 1600px) {
+  html {
+    font-size: 18px;
+  }
+}
