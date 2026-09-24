@@ -266,14 +266,18 @@ const AdminBookings = () => {
           { withCredentials: true },
         );
         const estimates = Array.isArray(response.data) ? response.data : [];
-        if (estimates.length === 0 || !createForm.vehicle_category_id) return;
+        if (estimates.length === 0) return;
 
         const selectedCategory = vehicleCategories.find((category) => category.id === createForm.vehicle_category_id);
-        const selectedEstimate = findPriceEstimateForCategory(
-          estimates,
-          createForm.vehicle_category_id,
-          selectedCategory?.name,
-        );
+        const selectedEstimate = createForm.vehicle_category_id
+          ? (
+            findPriceEstimateForCategory(
+              estimates,
+              createForm.vehicle_category_id,
+              selectedCategory?.name,
+            ) || estimates[0]
+          )
+          : estimates[0];
         const estimatedPrice = toOptionalNumber(selectedEstimate?.final_price);
         if (estimatedPrice === null) return;
 
