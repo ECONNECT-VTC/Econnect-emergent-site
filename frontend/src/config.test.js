@@ -58,6 +58,26 @@ describe('API config resolution', () => {
     expect(config.API_URL_SOURCE).toBe('runtime-config');
   });
 
+  it('updates API exports when the runtime config object is mutated in place', () => {
+    process.env = {
+      ...ORIGINAL_ENV,
+      REACT_APP_API_URL: 'https://build.example.com',
+      REACT_APP_BACKEND_URL: '',
+      VITE_API_URL: '',
+    };
+    window.__ECONNECT_CONFIG__ = {};
+
+    const config = require('./config');
+
+    expect(config.API_URL).toBe('https://build.example.com');
+    expect(config.API_URL_SOURCE).toBe('build-config');
+
+    window.__ECONNECT_CONFIG__.API_URL = 'https://runtime.example.com/api';
+
+    expect(config.API_URL).toBe('https://runtime.example.com');
+    expect(config.API_URL_SOURCE).toBe('runtime-config');
+  });
+
   it('falls back to the current origin outside localhost', () => {
     process.env = {
       ...ORIGINAL_ENV,

@@ -33,6 +33,8 @@ const getBuildTimeApiUrl = () => (
 export let API_URL = '';
 export let API_URL_SOURCE = 'same-origin-fallback';
 
+const runtimeConfigProxies = new WeakMap();
+
 const syncApiConfig = () => {
   const runtimeApiUrl = getRuntimeApiUrl();
   const buildTimeApiUrl = getBuildTimeApiUrl();
@@ -49,18 +51,40 @@ const syncApiConfig = () => {
     );
 };
 
+const wrapRuntimeConfig = (value) => {
+  if (!value || typeof value !== 'object') return value;
+  const existingProxy = runtimeConfigProxies.get(value);
+  if (existingProxy) return existingProxy;
+
+  const proxy = new Proxy(value, {
+    set(target, property, nextValue) {
+    target[property] = nextValue;
+    syncApiConfig();
+    return true;
+    },
+    deleteProperty(target, property) {
+    delete target[property];
+    syncApiConfig();
+    return true;
+    },
+  });
+
+  runtimeConfigProxies.set(value, proxy);
+  return proxy;
+};
+
 if (typeof window !== 'undefined') {
   const descriptor = Object.getOwnPropertyDescriptor(window, '__ECONNECT_CONFIG__');
   if (!descriptor || descriptor.configurable) {
-    let runtimeConfig = window.__ECONNECT_CONFIG__;
+    let runtimeConfig = wrapRuntimeConfig(window.__ECONNECT_CONFIG__);
     Object.defineProperty(window, '__ECONNECT_CONFIG__', {
-      configurable: true,
-      enumerable: true,
-      get: () => runtimeConfig,
-      set: (value) => {
-        runtimeConfig = value;
-        syncApiConfig();
-      },
+    configurable: true,
+    enumerable: true,
+    get: () => runtimeConfig,
+    set: (value) => {
+      runtimeConfig = wrapRuntimeConfig(value);
+      syncApiConfig();
+    },
     });
   }
 }
