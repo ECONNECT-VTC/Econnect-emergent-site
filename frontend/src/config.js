@@ -1,5 +1,11 @@
 const trimValue = (value) => (typeof value === 'string' ? value.trim() : '');
 
+const normalizeApiBase = (value) => {
+  const trimmedValue = trimValue(value);
+  if (!trimmedValue) return '';
+  return trimmedValue.replace(/\/+$/, '').replace(/\/api$/, '');
+};
+
 const isLocalHostname = (hostname = '') => (
   hostname === 'localhost' ||
   hostname === '127.0.0.1' ||
@@ -8,7 +14,7 @@ const isLocalHostname = (hostname = '') => (
 
 const getRuntimeApiUrl = () => {
   if (typeof window === 'undefined') return '';
-  return trimValue(window.__ECONNECT_CONFIG__?.API_URL);
+  return normalizeApiBase(window.__ECONNECT_CONFIG__?.API_URL);
 };
 
 const getFallbackApiUrl = () => {
@@ -18,9 +24,9 @@ const getFallbackApiUrl = () => {
 
 const configuredApiUrl =
   getRuntimeApiUrl() ||
-  trimValue(process.env.REACT_APP_API_URL) ||
-  trimValue(process.env.REACT_APP_BACKEND_URL) ||
-  trimValue(process.env.VITE_API_URL);
+  normalizeApiBase(process.env.REACT_APP_API_URL) ||
+  normalizeApiBase(process.env.REACT_APP_BACKEND_URL) ||
+  normalizeApiBase(process.env.VITE_API_URL);
 
 export const API_URL = configuredApiUrl || getFallbackApiUrl();
 export const API_URL_SOURCE = configuredApiUrl

@@ -21,6 +21,14 @@ describe('API config resolution', () => {
     expect(API_URL_SOURCE).toBe('configured');
   });
 
+  it('normalizes configured API values that already end with /api', () => {
+    process.env = { ...ORIGINAL_ENV, REACT_APP_API_URL: 'https://api.example.com/api/' };
+
+    const { API_URL } = require('./config');
+
+    expect(API_URL).toBe('https://api.example.com');
+  });
+
   it('falls back to the current origin outside localhost', () => {
     process.env = {
       ...ORIGINAL_ENV,
