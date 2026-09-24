@@ -4,6 +4,7 @@ import { CaretDown } from '@phosphor-icons/react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 
+/** Optional class overrides let callers resize the trigger and dropdown menu without changing behavior. */
 const LanguageDropdown = ({ buttonClassName = '', menuClassName = '' }) => {
   const { language, setLanguage, availableLanguages } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
