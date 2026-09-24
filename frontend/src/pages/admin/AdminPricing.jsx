@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Car, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import getPublicAssetUrl from '@/lib/publicAsset';
 import {
   CATEGORY_IMAGES,
   getCategoryDisplayName,
@@ -350,7 +351,7 @@ const AdminPricing = () => {
                 >
                   <div className="h-48 overflow-hidden">
                     <img
-                      src={CATEGORY_IMAGES[category.name] || category.image_url || '/photo/chr.png'}
+                      src={category.image_url || getPublicAssetUrl(CATEGORY_IMAGES[category.name] || '/photo/chr.png')}
                       alt={getCategoryDisplayName(category.name)}
                       className="w-full h-full object-cover"
                     />
@@ -420,7 +421,7 @@ const AdminPricing = () => {
                   <div key={catName} className="glass rounded-xl overflow-hidden">
                     <div className="h-36 overflow-hidden">
                       <img
-                        src={CATEGORY_IMAGES[catName] || categoriesByName[catName]?.image_url || '/photo/chr.png'}
+                        src={categoriesByName[catName]?.image_url || getPublicAssetUrl(CATEGORY_IMAGES[catName] || '/photo/chr.png')}
                         alt={getCategoryDisplayName(catName)}
                         className="w-full h-full object-cover"
                       />

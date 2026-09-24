@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import VehicleFeatureBadges from '@/components/VehicleFeatureBadges';
+import getPublicAssetUrl from '@/lib/publicAsset';
 import { VEHICLE_CATEGORY_CONFIG, findVehicleCategoryByName } from '@/utils/vehicleCategories';
 import API_URL from '@/config';
 
@@ -102,7 +103,7 @@ const FleetSection = () => {
               {/* Car image */}
               <div className="relative h-44 overflow-hidden">
                 <img
-                  src={gamme.image}
+                  src={getPublicAssetUrl(gamme.image)}
                   alt={t(gamme.nameKey)}
                   className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                 />

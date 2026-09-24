@@ -1,4 +1,5 @@
 import React from 'react';
+import getPublicAssetUrl from '@/lib/publicAsset';
 import {
   formatDate,
   calculateDueDate,
@@ -112,13 +113,13 @@ const InvoiceClientTemplate = ({ booking, settings }) => {
         <div className="flex-1 min-w-0">
           <div className="inline-flex bg-[#F3F3F3] rounded-md px-4 py-2">
             <img
-              src="/photo/logo-invoice-hd.png"
+              src={getPublicAssetUrl('/photo/logo-invoice-hd.png')}
               alt="Logo ECONNECT VTC"
               className="h-[64px] w-[220px] object-contain"
               loading="eager"
               onError={(event) => {
                 event.currentTarget.onerror = null;
-                event.currentTarget.src = '/photo/logo-cropped.png';
+                event.currentTarget.src = getPublicAssetUrl('/photo/logo-cropped.png');
               }}
             />
           </div>
