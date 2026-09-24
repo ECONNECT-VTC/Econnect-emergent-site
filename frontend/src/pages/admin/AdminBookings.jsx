@@ -623,6 +623,9 @@ const AdminBookings = () => {
       : filter === 'PAID'
         ? bookings.filter((b) => statusEquals(b.status, 'PAID') || b.payment_status === 'paid')
       : bookings.filter((b) => normalizeCourseStatus(b.status) === filter);
+  const editPaymentStatusOptions = editForm.payment_status === 'partially_paid'
+    ? [...PAYMENT_STATUS_OPTIONS, { value: 'partially_paid', label: 'Paiement partiel' }]
+    : PAYMENT_STATUS_OPTIONS;
   const canCreateBooking =
     createForm.client_name.trim() &&
     createForm.client_email.trim() &&
@@ -700,7 +703,8 @@ const AdminBookings = () => {
       ) : (
         <div className="space-y-4" data-testid="admin-bookings">
           {filteredBookings.map((booking) => {
-            const paymentPending = PAYMENT_AWAITING_STATUSES.includes(booking.payment_status);
+            const awaitingAnyPayment = PAYMENT_AWAITING_STATUSES.includes(booking.payment_status);
+            const paymentPending = booking.payment_status === 'pending';
             const paymentPartiallyReceived = booking.payment_status === 'partially_paid';
             const isBankTransferPending = paymentPending && normalizePaymentMethod(booking.payment_method) === 'virement';
             const isPostAssignmentStatus = ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED']
@@ -710,7 +714,7 @@ const AdminBookings = () => {
             const canSelfAssign = statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED');
             const canDownloadQuote = isStatusAtOrAfter(booking.status, 'QUOTE_SENT');
             const bookingDriverName = booking.driver_display_name || booking.driver_name;
-            const canRecordPayment = paymentPending && ['COMPLETED', 'INVOICED', 'PAID'].some((status) => statusEquals(booking.status, status));
+            const canRecordPayment = awaitingAnyPayment && ['COMPLETED', 'INVOICED', 'PAID'].some((status) => statusEquals(booking.status, status));
             const paidAmount = normalizeAmount(booking.paid_amount);
             const remainingAmount = normalizeAmount(booking.remaining_amount);
 
@@ -1121,7 +1125,7 @@ const AdminBookings = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1E1E1E] border-white/10">
-                  {PAYMENT_STATUS_OPTIONS.map((option) => (
+                  {editPaymentStatusOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                   ))}
                 </SelectContent>

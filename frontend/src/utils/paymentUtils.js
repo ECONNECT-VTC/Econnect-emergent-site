@@ -6,7 +6,6 @@ export const PAYMENT_METHOD_OPTIONS = [
 
 export const PAYMENT_STATUS_OPTIONS = [
   { value: 'pending', label: 'À payer' },
-  { value: 'partially_paid', label: 'Paiement partiel' },
   { value: 'paid', label: 'Payée' },
 ];
 

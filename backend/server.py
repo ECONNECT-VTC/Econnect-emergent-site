@@ -1045,9 +1045,19 @@ def normalize_manual_payments(value: Any) -> List[dict]:
             continue
         if amount <= 0:
             continue
+        paid_at = entry.get("paid_at")
+        if isinstance(paid_at, str):
+            try:
+                paid_at = datetime.fromisoformat(paid_at.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+        elif isinstance(paid_at, (int, float)):
+            paid_at = datetime.fromtimestamp(float(paid_at), tz=timezone.utc)
+        elif not isinstance(paid_at, datetime):
+            continue
         normalized_payments.append({
             "amount": amount,
-            "paid_at": entry.get("paid_at"),
+            "paid_at": paid_at,
             "admin_id": entry.get("admin_id"),
             "admin_name": entry.get("admin_name"),
             "admin_email": entry.get("admin_email"),
@@ -5038,8 +5048,17 @@ async def admin_update_booking(booking_id: str, payload: dict, request: Request)
             update_data["paid_amount"] = resolved_estimated_price
             update_data["paid_currency"] = "eur"
         elif normalized_payment_status == "partially_paid":
+            existing_paid_amount = resolve_client_paid_amount(booking)
+            try:
+                resolved_estimated_price_value = round_amount(float(resolved_estimated_price)) if resolved_estimated_price is not None else None
+            except (TypeError, ValueError):
+                resolved_estimated_price_value = None
+            if existing_paid_amount is None or existing_paid_amount <= 0:
+                raise HTTPException(status_code=400, detail="Utilisez « Paiement reçu » pour enregistrer un montant partiel")
+            if resolved_estimated_price_value is not None and existing_paid_amount >= resolved_estimated_price_value:
+                raise HTTPException(status_code=400, detail="Le montant payé couvre déjà la totalité de la facture")
             update_data["payment_completed_at"] = None
-            update_data["paid_amount"] = booking.get("paid_amount")
+            update_data["paid_amount"] = existing_paid_amount
             update_data["paid_currency"] = booking.get("paid_currency") or "eur"
         else:
             update_data["payment_completed_at"] = None
