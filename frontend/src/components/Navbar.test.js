@@ -98,4 +98,54 @@ describe('Navbar mobile menu', () => {
     expect(reserveCta.className).toContain('lg:px-7');
     expect(logoDisplay.className).toContain('md:h-[58px]');
   });
+
+  it('opens the gamme dropdown via click and closes it when focus leaves', async () => {
+    await act(async () => {
+      root.render(<Navbar />);
+    });
+
+    const gammeButton = container.querySelector('[data-testid="nav-link-gamme"]');
+    expect(container.querySelector('#navbar-gamme-menu')).toBeNull();
+
+    await act(async () => {
+      gammeButton.click();
+    });
+
+    expect(gammeButton.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('#navbar-gamme-menu')).not.toBeNull();
+
+    const outside = document.createElement('button');
+    container.appendChild(outside);
+
+    await act(async () => {
+      gammeButton.focus();
+      outside.focus();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(gammeButton.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('#navbar-gamme-menu')).toBeNull();
+  });
+
+  it('supports keyboard open and close on the gamme trigger', async () => {
+    await act(async () => {
+      root.render(<Navbar />);
+    });
+
+    const gammeButton = container.querySelector('[data-testid="nav-link-gamme"]');
+
+    await act(async () => {
+      gammeButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+
+    expect(gammeButton.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelector('#navbar-gamme-menu')).not.toBeNull();
+
+    await act(async () => {
+      gammeButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+
+    expect(gammeButton.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelector('#navbar-gamme-menu')).toBeNull();
+  });
 });

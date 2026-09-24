@@ -45,6 +45,8 @@ const Navbar = () => {
     { key: 'prestige', href: '#gammes' },
     { key: 'van', href: '#gammes' },
   ];
+  const gammeMenuId = 'navbar-gamme-menu';
+  const gammeButtonId = 'navbar-gamme-button';
 
   return (
     <motion.header
@@ -94,8 +96,33 @@ const Navbar = () => {
               className="relative"
               onMouseEnter={() => setIsGammeOpen(true)}
               onMouseLeave={() => setIsGammeOpen(false)}
+              onBlur={(event) => {
+                const menuRoot = event.currentTarget;
+                window.setTimeout(() => {
+                  if (!menuRoot.contains(document.activeElement)) {
+                    setIsGammeOpen(false);
+                  }
+                }, 0);
+              }}
             >
               <button
+                id={gammeButtonId}
+                type="button"
+                onClick={() => setIsGammeOpen((prev) => !prev)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setIsGammeOpen(false);
+                    return;
+                  }
+                  if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setIsGammeOpen(true);
+                  }
+                }}
+                aria-expanded={isGammeOpen}
+                aria-controls={isGammeOpen ? gammeMenuId : undefined}
                 className="flex items-center gap-1 whitespace-nowrap text-[0.88rem] uppercase tracking-[0.18em] text-[#CFCFCF] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.95rem]"
                 data-testid="nav-link-gamme"
               >
@@ -105,6 +132,8 @@ const Navbar = () => {
               <AnimatePresence>
                 {isGammeOpen && (
                   <motion.div
+                    id={gammeMenuId}
+                    aria-labelledby={gammeButtonId}
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
