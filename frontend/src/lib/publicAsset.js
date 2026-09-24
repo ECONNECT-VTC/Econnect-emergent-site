@@ -20,6 +20,10 @@ export const getPublicAssetUrl = (assetPath = '') => {
     return `/${normalizedPath}`;
   }
 
+  if (publicUrl.startsWith('//')) {
+    return `${publicUrl.replace(/\/$/, '')}/${normalizedPath}`;
+  }
+
   if (ABSOLUTE_URL_PATTERN.test(publicUrl)) {
     return new URL(normalizedPath, `${publicUrl.replace(/\/?$/, '/')}`).toString();
   }
