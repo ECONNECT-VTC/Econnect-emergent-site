@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Envelope, CircleNotch, CheckCircle } from '@phosphor-icons/react';
-import API_URL from '@/config';
+import API_URL from '../config';
+import { logApiError, parseApiError } from '../utils/apiErrors';
 
 const VerifyEmailPending = () => {
   const { lang = 'fr' } = useParams();
   const location = useLocation();
   const initialEmail = location.state?.email || '';
+  const activationEmailSent = location.state?.activationEmailSent !== false;
 
   const [email, setEmail] = useState(initialEmail);
   const [loading, setLoading] = useState(false);
@@ -25,8 +27,9 @@ const VerifyEmailPending = () => {
     try {
       await axios.post(`${API_URL}/api/auth/resend-activation`, { email });
       setSuccess(true);
-    } catch {
-      setError('Une erreur est survenue. Veuillez réessayer.');
+    } catch (err) {
+      logApiError('resend-activation', err);
+      setError(parseApiError(err, 'Une erreur est survenue. Veuillez réessayer.'));
     } finally {
       setLoading(false);
     }
@@ -48,9 +51,20 @@ const VerifyEmailPending = () => {
             Vérifiez votre email
           </h1>
           <p className="text-[#A1A1AA] mb-6">
-            Un lien d'activation a été envoyé à{' '}
-            <strong className="text-white">{initialEmail || 'votre adresse email'}</strong>.
-            <br />Cliquez sur ce lien pour activer votre compte.
+            {activationEmailSent ? (
+              <>
+                Un lien d'activation a été envoyé à{' '}
+                <strong className="text-white">{initialEmail || 'votre adresse email'}</strong>.
+                <br />Cliquez sur ce lien pour activer votre compte.
+              </>
+            ) : (
+              <>
+                Le compte a bien été créé pour{' '}
+                <strong className="text-white">{initialEmail || 'votre adresse email'}</strong>,
+                mais l'email d'activation n'a pas encore pu être envoyé.
+                <br />Vérifiez la configuration email du serveur puis renvoyez le lien ci-dessous.
+              </>
+            )}
           </p>
 
           <div className="bg-[#1E1E1E] rounded-lg p-4 mb-8 text-left text-sm text-[#A1A1AA]">

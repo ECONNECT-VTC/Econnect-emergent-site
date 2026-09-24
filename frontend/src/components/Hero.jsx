@@ -10,7 +10,7 @@ const Hero = () => {
   return (
     <section
       id="accueil"
-      className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden pb-14 pt-24 sm:pb-16 sm:pt-28 lg:pt-32"
+      className="relative flex min-h-[100svh] items-center justify-center overflow-hidden pb-16 pt-28 sm:pb-20 sm:pt-32 lg:min-h-screen lg:pt-36"
       data-testid="hero-section"
     >
       {/* Background Image */}
@@ -28,13 +28,13 @@ const Hero = () => {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-4 text-center sm:px-6 md:px-10 lg:px-12">
+      <div className="relative z-10 mx-auto w-full max-w-7xl px-5 text-center sm:px-8 md:px-12 lg:px-16">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
         >
-          <span className="mb-5 inline-block text-xs uppercase tracking-[0.24em] text-[#D4AF37] sm:text-sm md:text-base">
+          <span className="mb-6 inline-block text-sm uppercase tracking-[0.28em] text-[#D4AF37] md:text-[1rem]">
             {t('serviceVtcPremium')}
           </span>
         </motion.div>
@@ -43,7 +43,7 @@ const Hero = () => {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="mb-6 break-words text-[2.7rem] font-bold font-['Cormorant_Garamond'] leading-[0.95] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl"
+          className="mb-6 break-words text-[3.15rem] font-bold font-['Cormorant_Garamond'] leading-[0.94] tracking-tight sm:text-[3.75rem] md:text-[4.5rem] lg:text-[5.35rem] xl:text-[6rem]"
           data-testid="hero-title"
         >
           {t('heroTitle1')}
@@ -55,7 +55,7 @@ const Hero = () => {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.6 }}
-          className="mx-auto mb-8 max-w-2xl text-sm text-[#D4D4D8] sm:text-base md:mb-10 md:text-lg"
+          className="mx-auto mb-8 max-w-3xl text-base text-[#D4D4D8] sm:text-lg md:mb-10 md:text-xl"
           data-testid="hero-subtitle"
         >
           {t('heroSubtitle')}
@@ -65,12 +65,12 @@ const Hero = () => {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.8 }}
-          className="flex flex-col justify-center gap-4 sm:flex-row"
+          className="flex flex-col justify-center gap-4 sm:flex-row sm:gap-5"
         >
           <Button
             asChild
             size="lg"
-            className="w-full bg-[#D4AF37] px-6 py-5 text-base font-semibold text-[#0A0A0A] transition-all duration-300 hover:bg-[#F0C74A] hover:scale-105 sm:w-auto sm:px-8 sm:text-lg"
+            className="w-full bg-[#D4AF37] px-7 py-6 text-lg font-semibold text-[#0A0A0A] transition-all duration-300 hover:bg-[#F0C74A] hover:scale-105 sm:w-auto sm:px-10 sm:text-xl"
             data-testid="hero-cta-reserver"
           >
             <a href="#reserver">{t('reserverMaintenant')}</a>
@@ -79,7 +79,7 @@ const Hero = () => {
             asChild
             size="lg"
             variant="outline"
-            className="w-full border-[#D4AF37] px-6 py-5 text-base text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37]/10 sm:w-auto sm:px-8 sm:text-lg"
+            className="w-full border-[#D4AF37] px-7 py-6 text-lg text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37]/10 sm:w-auto sm:px-10 sm:text-xl"
             data-testid="hero-cta-services"
           >
             <a href="#services">{t('nosServices')}</a>

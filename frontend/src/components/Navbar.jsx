@@ -57,9 +57,9 @@ const Navbar = () => {
       data-testid="navbar"
     >
       <div className="border-b border-white/5 bg-[#050505]/85">
-        <div className="mx-auto hidden max-w-7xl items-center justify-between px-4 py-2 text-[11px] uppercase tracking-[0.24em] text-[#C7B588] md:flex md:px-6 lg:px-10">
+        <div className="mx-auto hidden max-w-[88rem] items-center justify-between px-6 py-2.5 text-xs uppercase tracking-[0.28em] text-[#C7B588] md:flex lg:px-10 xl:px-16">
           <span>Service chauffeur privé premium</span>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-6">
             <span className="inline-flex items-center gap-2">
               <Phone size={12} weight="fill" className="text-[#D4AF37]" />
               +337 53 41 88 33
@@ -68,21 +68,21 @@ const Navbar = () => {
         </div>
       </div>
 
-      <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6 md:py-4 lg:px-10">
+      <nav className="mx-auto flex max-w-[88rem] items-center justify-between gap-4 px-4 py-3.5 sm:gap-5 sm:px-6 md:py-5 lg:px-10 xl:px-16">
         <a href="#accueil" className="flex items-center" data-testid="logo">
-          <span className="rounded-[20px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-3 py-2 shadow-[0_16px_40px_rgba(0,0,0,0.28)] sm:px-4 sm:py-2.5">
-            <LogoDisplay className="h-[30px] w-[112px] sm:h-[40px] sm:w-[152px] md:h-[48px] md:w-[190px]" priority />
+          <span className="rounded-[24px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-3.5 py-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.28)] sm:px-5 sm:py-3">
+            <LogoDisplay className="h-[34px] w-[128px] sm:h-[44px] sm:w-[168px] md:h-[52px] md:w-[206px]" priority />
           </span>
         </a>
 
-        <div className="hidden items-center gap-6 rounded-full border border-white/8 bg-[#111111]/85 px-5 py-3 lg:flex">
+        <div className="hidden items-center gap-8 rounded-full border border-white/8 bg-[#111111]/85 px-7 py-3.5 lg:flex xl:gap-10">
           {navLinks.map((link) => (
             <a
               key={link.key}
               href={link.href}
               className={`${
                 link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#CFCFCF]'
-              } hover:text-[#D4AF37] transition-colors duration-300 text-sm tracking-[0.2em] uppercase`}
+              } hover:text-[#D4AF37] transition-colors duration-300 text-[0.95rem] tracking-[0.22em] uppercase`}
               data-testid={`nav-link-${link.key}`}
             >
               {t(link.key)}
@@ -95,7 +95,7 @@ const Navbar = () => {
             onMouseLeave={() => setIsGammeOpen(false)}
           >
             <button
-              className="flex items-center gap-1 text-[#CFCFCF] hover:text-[#D4AF37] transition-colors duration-300 text-sm tracking-[0.2em] uppercase"
+              className="flex items-center gap-1 text-[#CFCFCF] hover:text-[#D4AF37] transition-colors duration-300 text-[0.95rem] tracking-[0.22em] uppercase"
               data-testid="nav-link-gamme"
             >
               {t('gamme')} <CaretDown size={14} className={`transition-transform duration-200 ${isGammeOpen ? 'rotate-180' : ''}`} />
@@ -127,12 +127,12 @@ const Navbar = () => {
           </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-3.5">
           <LanguageDropdown />
 
           <a
             href="#reserver"
-            className="font-semibold px-5 py-2.5 rounded-full transition-all duration-300 hover:scale-105 text-sm"
+            className="rounded-full px-6 py-3 text-[0.95rem] font-semibold transition-all duration-300 hover:scale-105"
             style={{ background: '#D4AF37', color: '#0A0A0A' }}
             data-testid="cta-reserver"
           >
@@ -141,7 +141,7 @@ const Navbar = () => {
 
           <Link
             to={`/${language}/login`}
-            className="font-semibold px-5 py-2.5 rounded-full transition-all duration-300 text-sm border border-[#D4AF37]/70 text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#232323]"
+            className="rounded-full border border-[#D4AF37]/70 px-6 py-3 text-[0.95rem] font-semibold text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37] hover:text-[#232323]"
             data-testid="btn-connexion"
           >
             {t('connexion')}

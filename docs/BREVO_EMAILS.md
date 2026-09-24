@@ -77,7 +77,14 @@ Les factures restent envoyées en pièce jointe PDF via Brevo (base64 + nom de f
    - annulation/remboursement.
 5. Vérifier la délivrabilité et les logs Brevo (sans données sensibles).
 
-## 8) Transactionnel vs marketing
+## 8) Vérifications Hostinger / production
+
+- Frontend : définir `REACT_APP_API_URL` vers l'URL publique du backend si l'API n'est pas servie sur le même domaine que le frontend.
+- Backend : définir `FRONTEND_URL` avec l'URL publique exacte du site pour générer les liens d'activation.
+- Backend : définir `CORS_ORIGINS` avec toutes les origines frontend autorisées (Hostinger, domaine principal, `www`, etc.).
+- Si `BREVO_API_KEY` ou l'expéditeur Brevo sont absents, la création de compte reste possible mais l'email d'activation ne pourra pas être envoyé tant que la configuration n'est pas corrigée.
+
+## 9) Transactionnel vs marketing
 
 - Les emails décrits ici sont **transactionnels** (réservation, compte, facture, paiement).
 - Les campagnes marketing/newsletters et la gestion de consentement opt-in/opt-out ne font pas partie de cette intégration.

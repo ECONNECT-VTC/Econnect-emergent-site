@@ -111,6 +111,8 @@ class TestRegisterEndpoint(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("message", result)
         self.assertIn("email", result)
+        self.assertTrue(result["activation_email_sent"])
+        self.assertIn("Veuillez consulter votre email", result["message"])
         # Ensure email_verified defaults to False
         inserted_doc = mock_users_coll.insert_one.call_args[0][0]
         self.assertFalse(inserted_doc["email_verified"])
@@ -139,6 +141,27 @@ class TestRegisterEndpoint(unittest.IsolatedAsyncioTestCase):
         mock_send.assert_called_once()
         call_args = mock_send.call_args[0]
         self.assertEqual(call_args[0], "newuser2@example.com")
+
+    async def test_register_reports_when_activation_email_could_not_be_sent(self):
+        user_data = server.UserCreate(
+            email="newuser3@example.com",
+            **{"password": VALID_PASSWORD},
+            name="New User 3",
+        )
+        mock_users_coll = MagicMock()
+        mock_users_coll.find_one = AsyncMock(return_value=None)
+        mock_users_coll.insert_one = AsyncMock()
+
+        mock_tokens_coll = MagicMock()
+        mock_tokens_coll.insert_one = AsyncMock()
+
+        with patch.object(server.db, "users", mock_users_coll), \
+             patch.object(server.db, "email_verification_tokens", mock_tokens_coll), \
+             patch.object(server, "send_notification_email", new=AsyncMock(return_value=False)):
+            result = await server.register(user_data)
+
+        self.assertFalse(result["activation_email_sent"])
+        self.assertIn("n'a pas pu être envoyé", result["message"])
 
     async def test_register_duplicate_email_rejected(self):
         user_data = server.UserCreate(

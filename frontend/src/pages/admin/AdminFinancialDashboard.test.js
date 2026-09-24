@@ -88,7 +88,8 @@ describe('AdminFinancialDashboard', () => {
       await Promise.resolve();
     });
 
-    expect(container.textContent).toContain('HTTP 503 — Service Unavailable');
+    expect(container.textContent).toContain('Chauffeurs :');
+    expect(container.textContent).toContain('Le serveur a rencontré une erreur.');
     expect(container.textContent).toContain('120.00€');
     expect(container.textContent).toContain('Client Test');
   });

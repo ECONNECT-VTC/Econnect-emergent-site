@@ -1,8 +1,17 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import axios from 'axios';
-import API_URL from '@/config';
+import API_URL from '../config';
+import { parseApiError } from '../utils/apiErrors';
 
 const AuthContext = createContext(null);
+
+const buildClientError = (error, fallback) => {
+  const clientError = new Error(parseApiError(error, fallback));
+  clientError.response = error?.response;
+  clientError.code = error?.code;
+  clientError.isAxiosError = error?.isAxiosError;
+  return clientError;
+};
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -35,30 +44,17 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (email, password, name, phone, role) => {
-  try {
-    const response = await axios.post(
-      `${API_URL}/api/auth/register`,
-      { email, password, name, phone, role },
-      { withCredentials: true }
-    );
-    return response.data;
-  } catch (err) {
-    const data = err.response?.data;
-    const detail = data?.detail;
-
-    let message = "Erreur lors de l'inscription";
-
-    if (typeof detail === 'string') {
-      message = detail;
-    } else if (Array.isArray(detail)) {
-      message = detail.map((e) => e.msg).join(' ');
-    } else if (typeof data?.message === 'string') {
-      message = data.message;
+    try {
+      const response = await axios.post(
+        `${API_URL}/api/auth/register`,
+        { email, password, name, phone, role },
+        { withCredentials: true }
+      );
+      return response.data;
+    } catch (error) {
+      throw buildClientError(error, "Erreur lors de l'inscription");
     }
-
-    throw new Error(message);
-  }
-};
+  };
 
   const logout = async () => {
     try {

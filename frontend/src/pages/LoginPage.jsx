@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Envelope, Lock, ArrowLeft, CircleNotch } from '@phosphor-icons/react';
 import LanguageDropdown from '@/components/LanguageDropdown';
 import { getBookingCheckoutResumeState } from '@/utils/bookingCheckout';
+import { logApiError, parseApiError } from '../utils/apiErrors';
 import PasswordInput from '../components/PasswordInput';
 
 const LoginPage = () => {
@@ -49,13 +50,13 @@ const LoginPage = () => {
         navigate(dashboards[user.role] || `/${lang}`, { replace: true });
       }
     } catch (err) {
+      logApiError('login', err);
       const status = err.response?.status;
-      const detail = err.response?.data?.detail;
       if (status === 403) {
         setUnverifiedEmail(email);
-        setError(typeof detail === 'string' ? detail : 'Adresse email non vérifiée.');
+        setError(parseApiError(err, 'Adresse email non vérifiée.'));
       } else {
-        setError(typeof detail === 'string' ? detail : t('loginError') || 'Erreur de connexion');
+        setError(parseApiError(err, t('loginError') || 'Erreur de connexion'));
       }
     } finally {
       setLoading(false);
