@@ -24,7 +24,8 @@ export const getPublicAssetUrl = (assetPath = '') => {
     return new URL(normalizedPath, `${publicUrl.replace(/\/?$/, '/')}`).toString();
   }
 
-  return `${publicUrl.replace(/\/$/, '')}/${normalizedPath}`;
+  const normalizedPublicUrl = publicUrl === '/' ? '' : publicUrl.replace(/\/$/, '');
+  return `${normalizedPublicUrl}/${normalizedPath}`;
 };
 
 export default getPublicAssetUrl;

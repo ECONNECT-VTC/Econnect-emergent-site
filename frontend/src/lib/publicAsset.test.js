@@ -26,6 +26,12 @@ describe('getPublicAssetUrl', () => {
     expect(getPublicAssetUrl('/photo/logo-cropped.png')).toBe('https://cdn.example.com/econnect/photo/logo-cropped.png');
   });
 
+  it('keeps root deployments on a single leading slash', () => {
+    process.env.PUBLIC_URL = '/';
+
+    expect(getPublicAssetUrl('/photo/logo-cropped.png')).toBe('/photo/logo-cropped.png');
+  });
+
   it('preserves absolute remote asset urls', () => {
     expect(getPublicAssetUrl('https://cdn.example.com/logo.png')).toBe('https://cdn.example.com/logo.png');
   });
