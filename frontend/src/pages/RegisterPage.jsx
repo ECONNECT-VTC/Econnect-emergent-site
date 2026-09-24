@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Envelope, Lock, User, Phone, ArrowLeft, CircleNotch } from '@phosphor-icons/react';
 import { getBookingCheckoutResumeState } from '@/utils/bookingCheckout';
+import { logApiError, parseApiError } from '../utils/apiErrors';
 import PasswordInput from '../components/PasswordInput';
 
 const RegisterPage = () => {
@@ -37,43 +38,44 @@ const RegisterPage = () => {
   };
 
  const handleSubmit = async (e) => {
-  e.preventDefault();
+   e.preventDefault();
 
-  if (!role) {
-    setError("Veuillez sélectionner un type de compte");
-    return;
-  }
+   if (!role) {
+     setError('Veuillez sélectionner un type de compte');
+     return;
+   }
 
-  if (password !== confirmPassword) {
-    setError("Les mots de passe ne correspondent pas");
-    return;
-  }
+   if (password !== confirmPassword) {
+     setError('Les mots de passe ne correspondent pas');
+     return;
+   }
 
-  if (password.length < 10) {
-    setError("Le mot de passe doit contenir au moins 10 caractères");
-    return;
-  }
+   const passwordError = validatePassword(password);
+   if (passwordError) {
+     setError(passwordError);
+     return;
+   }
 
-  try {
-    setLoading(true);
-    setError("");
+   try {
+     setLoading(true);
+     setError('');
 
-    await register(email, password, name, phone, role);
+     const result = await register(email, password, name, phone, role);
 
-    navigate("/verify-email");
-  } catch (error) {
-  console.error("REGISTER ERROR:", error.response?.data || error.message);
-  setError(
-    error.response?.data?.detail ||
-    error.response?.data?.message ||
-    error.message ||
-    "Erreur lors de l'inscription"
-  );
-} finally {
-    setLoading(false);
-  }
-  }; 
-  
+     navigate(`/${lang}/verify-email`, {
+       state: {
+         email,
+         activationEmailSent: result?.activation_email_sent !== false,
+       },
+     });
+   } catch (error) {
+     logApiError('register', error);
+     setError(parseApiError(error, "Erreur lors de l'inscription"));
+   } finally {
+     setLoading(false);
+   }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A] px-4 py-12 sm:px-6" data-testid="register-page">
       <motion.div

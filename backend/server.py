@@ -14,6 +14,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 from urllib.parse import urlencode
+from urllib.parse import urlsplit
 
 # Third-party
 import bcrypt
@@ -71,9 +72,7 @@ STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY")
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
-# Create the main app
-app = FastAPI(title="Econnect VTC API")
-origins = [
+DEFAULT_CORS_ORIGINS = [
     "https://econnect-vtc.com",
     "https://www.econnect-vtc.com",
     "https://econnect-emergent-site.hostingersite.com",
@@ -82,9 +81,32 @@ origins = [
     "http://localhost:5173",
 ]
 
+
+def _normalize_origin(value: Optional[str]) -> Optional[str]:
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return None
+    parsed = urlsplit(raw_value)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return raw_value.rstrip("/")
+
+
+def get_cors_origins() -> List[str]:
+    configured_origins = os.environ.get("CORS_ORIGINS", "")
+    origins: List[str] = []
+    for candidate in [FRONTEND_URL, *configured_origins.split(","), *DEFAULT_CORS_ORIGINS]:
+        normalized = _normalize_origin(candidate)
+        if normalized and normalized not in origins:
+            origins.append(normalized)
+    return origins
+
+# Create the main app
+app = FastAPI(title="Econnect VTC API")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -3522,10 +3544,11 @@ async def register(user: UserCreate):
             detail="Le rôle doit être 'client' ou 'chauffeur'"
         )
 
-    if len(user.password) < 10:
+    password_error = validate_password_strength(user.password)
+    if password_error:
         raise HTTPException(
             status_code=400,
-            detail="Le mot de passe doit contenir au moins 10 caractères"
+            detail=password_error
         )
 
     email = user.email.strip().lower()
@@ -3551,11 +3574,16 @@ async def register(user: UserCreate):
     }
 
     await db.users.insert_one(user_doc)
-    await _create_and_send_activation_token(user_id, user_doc["email"], user_doc["name"])
+    activation_email_sent = await _create_and_send_activation_token(user_id, user_doc["email"], user_doc["name"])
 
     return {
-        "message": "Compte créé. Veuillez consulter votre email pour activer votre compte.",
+        "message": (
+            "Compte créé. Veuillez consulter votre email pour activer votre compte."
+            if activation_email_sent
+            else "Compte créé, mais l'email d'activation n'a pas pu être envoyé pour le moment."
+        ),
         "email": user_doc["email"],
+        "activation_email_sent": activation_email_sent,
     }
 
 @api_router.post("/auth/login")
@@ -3736,7 +3764,7 @@ async def _find_verification_token_record(token: str) -> Optional[dict]:
         return None
     return record
 
-async def _create_and_send_activation_token(user_id: str, user_email: str, user_name: str) -> None:
+async def _create_and_send_activation_token(user_id: str, user_email: str, user_name: str) -> bool:
     """Generate an activation token, store its hash, and send the activation email."""
     raw_token = secrets.token_urlsafe(32)
     token_hash = _hash_verification_token(raw_token)
@@ -3781,6 +3809,7 @@ async def _create_and_send_activation_token(user_id: str, user_email: str, user_
     )
     if not sent:
         logger.warning(f"Activation email not sent for user {user_id} (email service not configured)")
+    return sent
 
 # ==================== EMAIL VERIFICATION ROUTES ====================
 
@@ -5890,16 +5919,6 @@ async def root():
 
 # Include router and setup
 app.include_router(api_router)
-
-# CORS Configuration
-frontend_url = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=[frontend_url, "http://localhost:3000"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # ==================== STARTUP EVENTS ====================
 

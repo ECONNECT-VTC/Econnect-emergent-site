@@ -147,4 +147,5 @@ describe('RegisterPage – role selection', () => {
     expect(chauffeurRadio.checked).toBe(true);
     expect(clientRadio.checked).toBe(false);
   });
+
 });
