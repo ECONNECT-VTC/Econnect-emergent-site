@@ -13,8 +13,18 @@ export const getPublicAssetUrl = (assetPath = '') => {
     return assetPath;
   }
 
-  const normalizedPath = assetPath.startsWith('/') ? assetPath : `/${assetPath}`;
-  return `${process.env.PUBLIC_URL || ''}${normalizedPath}`;
+  const normalizedPath = assetPath.replace(/^\/+/, '');
+  const publicUrl = process.env.PUBLIC_URL || '';
+
+  if (!publicUrl) {
+    return `/${normalizedPath}`;
+  }
+
+  if (ABSOLUTE_URL_PATTERN.test(publicUrl)) {
+    return new URL(normalizedPath, `${publicUrl.replace(/\/?$/, '/')}`).toString();
+  }
+
+  return `${publicUrl.replace(/\/$/, '')}/${normalizedPath}`;
 };
 
 export default getPublicAssetUrl;
