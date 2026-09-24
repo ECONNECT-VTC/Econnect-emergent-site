@@ -6,16 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CarSimple, Plus, Trash } from '@phosphor-icons/react';
 import API_URL from '@/config';
-
-const parseError = (err) => {
-  const detail = err.response?.data?.detail;
-  if (!detail) return 'Erreur inconnue';
-  if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail)) {
-    return detail.map((e) => `${e.loc?.slice(-1)[0] || 'champ'}: ${e.msg}`).join(' | ');
-  }
-  return 'Erreur inconnue';
-};
+import PasswordInput from '../../components/PasswordInput';
+import { logApiError, parseApiError } from '../../utils/apiErrors';
 
 const AdminDrivers = () => {
   const [drivers, setDrivers] = useState([]);
@@ -31,6 +23,7 @@ const AdminDrivers = () => {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [loadError, setLoadError] = useState('');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
@@ -39,10 +32,13 @@ const AdminDrivers = () => {
 
   const fetchDrivers = async () => {
     try {
+      setLoadError('');
       const response = await axios.get(`${API_URL}/api/admin/drivers`, { withCredentials: true });
       setDrivers(response.data);
     } catch (error) {
-      console.error('Error:', error);
+      setDrivers([]);
+      setLoadError(parseApiError(error, 'Impossible de charger les chauffeurs'));
+      logApiError('AdminDrivers.fetchDrivers', error);
     } finally {
       setLoading(false);
     }
@@ -58,7 +54,8 @@ const AdminDrivers = () => {
       setFormData({ name: '', email: '', phone: '', password: '', vehicle_model: '', vehicle_plate: '' });
       fetchDrivers();
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible de créer le chauffeur'));
+      logApiError('AdminDrivers.createDriver', err);
     } finally {
       setSubmitting(false);
     }
@@ -70,7 +67,8 @@ const AdminDrivers = () => {
       await axios.delete(`${API_URL}/api/admin/drivers/${id}`, { withCredentials: true });
       fetchDrivers();
     } catch (error) {
-      console.error('Error:', error);
+      setLoadError(parseApiError(error, 'Impossible de supprimer le chauffeur'));
+      logApiError('AdminDrivers.deleteDriver', error);
     }
   };
 
@@ -86,6 +84,11 @@ const AdminDrivers = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {loadError}
+        </div>
+      )}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[#A1A1AA]">{drivers.length} chauffeur(s)</p>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -137,8 +140,7 @@ const AdminDrivers = () => {
               </div>
               <div>
                 <Label className="text-[#A1A1AA]">Mot de passe</Label>
-                <Input
-                  type="password"
+                <PasswordInput
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   required

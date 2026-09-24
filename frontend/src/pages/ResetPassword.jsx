@@ -3,10 +3,10 @@ import { Link, useNavigate, useSearchParams, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, CircleNotch, Lock } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import PasswordInput from '../components/PasswordInput';
 
 const REDIRECT_DELAY_MS = 3000;
 
@@ -141,9 +141,8 @@ const ResetPassword = () => {
             <Label htmlFor="new-password" className="text-[#A1A1AA]">Nouveau mot de passe</Label>
             <div className="relative">
               <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
-              <Input
+              <PasswordInput
                 id="new-password"
-                type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="••••••••"
@@ -160,9 +159,8 @@ const ResetPassword = () => {
             <Label htmlFor="confirm-password" className="text-[#A1A1AA]">Confirmer le mot de passe</Label>
             <div className="relative">
               <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
-              <Input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"

@@ -20,18 +20,11 @@ import {
   PAYMENT_STATUS_OPTIONS,
 } from '@/utils/paymentUtils';
 import { buildAdminEstimatePriceQuery, toOptionalNumber } from './adminBookingUtils';
+import { logApiError, parseApiError } from '../../utils/apiErrors';
 
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
-const parseError = (error) => {
-  const detail = error?.response?.data?.detail;
-  if (!detail) return 'Erreur inconnue';
-  if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail)) {
-    return detail.map((e) => `${e.loc?.slice(-1)[0] || 'champ'}: ${e.msg}`).join(' | ');
-  }
-  return 'Erreur inconnue';
-};
+const describeLoadFailure = (label, error) => `${label} : ${parseApiError(error, 'Erreur inconnue')}`;
 
 const getInitialCreateForm = () => ({
   client_name: '',
@@ -181,19 +174,55 @@ const AdminBookings = () => {
   const fetchData = useCallback(async (includeUnpaidPending = false) => {
     setLoading(true);
     try {
+      setError('');
       const bookingParams = includeUnpaidPending ? { include_unpaid_pending: true } : undefined;
-      const [bookingsRes, driversRes, clientsRes, categoriesRes] = await Promise.all([
+      const [bookingsRes, driversRes, clientsRes, categoriesRes] = await Promise.allSettled([
         axios.get(`${API_URL}/api/admin/bookings`, { withCredentials: true, params: bookingParams }),
         axios.get(`${API_URL}/api/admin/drivers`, { withCredentials: true }),
         axios.get(`${API_URL}/api/admin/clients`, { withCredentials: true }),
         axios.get(`${API_URL}/api/vehicle-categories`, { withCredentials: true })
       ]);
-      setBookings(bookingsRes.data);
-      setDrivers(driversRes.data);
-      setClients(clientsRes.data);
-      setVehicleCategories(categoriesRes.data);
+
+      const secondaryFailures = [];
+
+      if (bookingsRes.status === 'fulfilled') {
+        setBookings(bookingsRes.value.data);
+      } else {
+        setBookings([]);
+        secondaryFailures.push(describeLoadFailure('Réservations', bookingsRes.reason));
+        logApiError('AdminBookings.fetchData.bookings', bookingsRes.reason);
+      }
+
+      if (driversRes.status === 'fulfilled') {
+        setDrivers(driversRes.value.data);
+      } else {
+        setDrivers([]);
+        secondaryFailures.push(describeLoadFailure('Chauffeurs', driversRes.reason));
+        logApiError('AdminBookings.fetchData.drivers', driversRes.reason);
+      }
+
+      if (clientsRes.status === 'fulfilled') {
+        setClients(clientsRes.value.data);
+      } else {
+        setClients([]);
+        secondaryFailures.push(describeLoadFailure('Clients', clientsRes.reason));
+        logApiError('AdminBookings.fetchData.clients', clientsRes.reason);
+      }
+
+      if (categoriesRes.status === 'fulfilled') {
+        setVehicleCategories(categoriesRes.value.data);
+      } else {
+        setVehicleCategories([]);
+        secondaryFailures.push(describeLoadFailure('Gammes de véhicule', categoriesRes.reason));
+        logApiError('AdminBookings.fetchData.vehicleCategories', categoriesRes.reason);
+      }
+
+      if (secondaryFailures.length > 0) {
+        setError(secondaryFailures.join(' | '));
+      }
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible de charger les réservations'));
+      logApiError('AdminBookings.fetchData', err);
     } finally {
       setLoading(false);
     }
@@ -301,7 +330,8 @@ const AdminBookings = () => {
       handleCreateDialogOpenChange(false);
       fetchData();
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible de créer la réservation'));
+      logApiError('AdminBookings.handleCreateBooking', err);
     } finally {
       setCreating(false);
     }
@@ -315,7 +345,8 @@ const AdminBookings = () => {
       downloadInvoicePdf(API_URL, bookingId, 'quote');
       fetchData();
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible d’auto-affecter la réservation'));
+      logApiError('AdminBookings.handleAssignSelf', err);
     } finally {
       setDocumentActionId('');
     }
@@ -332,7 +363,8 @@ const AdminBookings = () => {
       );
       fetchData();
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible de charger le détail de la réservation'));
+      logApiError('AdminBookings.openEditDialog', err);
     } finally {
       setDocumentActionId('');
     }
@@ -366,7 +398,8 @@ const AdminBookings = () => {
       setAssignSelfDriverName('');
       fetchData();
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible d’assigner le chauffeur'));
+      logApiError('AdminBookings.handleAssignBooking', err);
     } finally {
       setAssigningSelf(false);
     }
@@ -383,7 +416,8 @@ const AdminBookings = () => {
       );
       fetchData();
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible de traiter l’annulation'));
+      logApiError('AdminBookings.handleCancellationDecision', err);
     } finally {
       setStatusUpdatingId('');
     }
@@ -458,7 +492,8 @@ const AdminBookings = () => {
       setRefundAmount('');
       fetchData();
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible de mettre à jour la réservation'));
+      logApiError('AdminBookings.handleEditBooking', err);
     }
   };
 
@@ -499,7 +534,8 @@ const AdminBookings = () => {
       setEditingBooking(null);
       fetchData();
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible d’annuler la réservation'));
+      logApiError('AdminBookings.handleAdminCancelBooking', err);
     } finally {
       setEditSubmitting(false);
     }
@@ -526,7 +562,8 @@ const AdminBookings = () => {
       setAdminCancelRefundAmount('');
       fetchData();
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible d’annuler la réservation'));
+      logApiError('AdminBookings.handleAdminCancelBooking', err);
     }
   };
 

@@ -25,6 +25,11 @@ jest.mock('@/utils/bookingCheckout', () => ({
   getBookingCheckoutResumeState: () => null,
 }), { virtual: true });
 
+jest.mock('../components/PasswordInput', () => (props) => {
+  const React = require('react');
+  return React.createElement('input', { ...props, type: props.type || 'password' });
+}, { virtual: true });
+
 jest.mock('framer-motion', () => {
   const React = require('react');
   return {
