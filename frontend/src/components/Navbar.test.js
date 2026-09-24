@@ -95,8 +95,9 @@ describe('Navbar mobile menu', () => {
     expect(reserveCta).not.toBeNull();
     expect(logoDisplay).not.toBeNull();
     expect(navbar.querySelector('nav').className).toContain('landing-shell');
-    expect(reserveCta.className).toContain('lg:px-7');
-    expect(logoDisplay.className).toContain('md:h-[58px]');
+    expect(navbar.querySelector('nav').className).toContain('lg:grid-cols-[auto,minmax(0,1fr),auto]');
+    expect(reserveCta.className).toContain('lg:px-8');
+    expect(logoDisplay.className).toContain('md:h-[62px]');
   });
 
   it('opens the gamme dropdown via click and closes it when focus leaves', async () => {

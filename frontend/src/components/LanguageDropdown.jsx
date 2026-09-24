@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CaretDown } from '@phosphor-icons/react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { cn } from '@/lib/utils';
 
-const LanguageDropdown = () => {
+const LanguageDropdown = ({ buttonClassName = '', menuClassName = '' }) => {
   const { language, setLanguage, availableLanguages } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -36,7 +37,10 @@ const LanguageDropdown = () => {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all duration-200 text-sm font-semibold"
+        className={cn(
+          'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-all duration-200',
+          buttonClassName,
+        )}
         style={{
           background: isOpen ? 'rgba(212,175,55,0.12)' : 'transparent',
           border: '1.5px solid rgba(212,175,55,0.35)',
@@ -62,7 +66,10 @@ const LanguageDropdown = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 mt-2 w-48 rounded-xl overflow-hidden shadow-2xl z-50"
+            className={cn(
+              'absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-xl shadow-2xl',
+              menuClassName,
+            )}
             style={{
               background: '#181818',
               border: '1px solid rgba(212,175,55,0.2)',

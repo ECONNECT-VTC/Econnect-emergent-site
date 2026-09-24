@@ -79,7 +79,9 @@ describe('Hero responsive layout', () => {
     expect(heroTitle).not.toBeNull();
     expect(reserveCta).not.toBeNull();
     expect(backgroundImage).not.toBeNull();
+    expect(heroSection.className).toContain('md:pt-36');
     expect(heroSection.className).toContain('lg:min-h-[105vh]');
+    expect(heroTitle.className).toContain('md:max-w-[13ch]');
     expect(heroTitle.className).toContain('text-[clamp(3.15rem,8vw,7.25rem)]');
     expect(reserveCta.className).toContain('lg:min-w-[15rem]');
     expect(backgroundImage.className).toContain('hero-backdrop-image');
