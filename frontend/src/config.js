@@ -17,10 +17,10 @@ const getFallbackApiUrl = () => {
 };
 
 const configuredApiUrl =
+  getRuntimeApiUrl() ||
   trimValue(process.env.REACT_APP_API_URL) ||
   trimValue(process.env.REACT_APP_BACKEND_URL) ||
-  trimValue(process.env.VITE_API_URL) ||
-  getRuntimeApiUrl();
+  trimValue(process.env.VITE_API_URL);
 
 export const API_URL = configuredApiUrl || getFallbackApiUrl();
 export const API_URL_SOURCE = configuredApiUrl

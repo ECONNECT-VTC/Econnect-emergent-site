@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Envelope, CircleNotch, CheckCircle } from '@phosphor-icons/react';
-import API_URL from '@/config';
+import API_URL from '../config';
 import { logApiError, parseApiError } from '../utils/apiErrors';
 
 const VerifyEmailPending = () => {

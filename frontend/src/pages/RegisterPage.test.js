@@ -7,6 +7,12 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const mockNavigate = jest.fn();
 const mockRegister = jest.fn();
 
+const setInputValue = (element, value) => {
+  const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+  valueSetter.call(element, value);
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+};
+
 jest.mock('react-router-dom', () => {
   const React = require('react');
   return {
@@ -148,4 +154,31 @@ describe('RegisterPage – role selection', () => {
     expect(clientRadio.checked).toBe(false);
   });
 
+  it('navigates to verify-email with activation email delivery state after a successful signup', async () => {
+    mockRegister.mockResolvedValue({ activation_email_sent: false });
+
+    await act(async () => {
+      root.render(<RegisterPage />);
+    });
+
+    await act(async () => {
+      container.querySelector('[data-testid="register-role-client"]').click();
+      setInputValue(container.querySelector('[data-testid="register-name"]'), 'Jean Dupont');
+      setInputValue(container.querySelector('[data-testid="register-email"]'), 'jean@example.com');
+      setInputValue(container.querySelector('[data-testid="register-password"]'), 'ValidPass!1');
+      setInputValue(container.querySelector('[data-testid="register-confirm-password"]'), 'ValidPass!1');
+    });
+
+    await act(async () => {
+      container.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true }));
+    });
+
+    expect(mockRegister).toHaveBeenCalledWith('jean@example.com', 'ValidPass!1', 'Jean Dupont', '', 'client');
+    expect(mockNavigate).toHaveBeenCalledWith('/fr/verify-email', {
+      state: {
+        email: 'jean@example.com',
+        activationEmailSent: false,
+      },
+    });
+  });
 });
