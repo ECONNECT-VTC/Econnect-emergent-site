@@ -20,6 +20,10 @@ jest.mock('@/contexts/LanguageContext', () => ({
 
 jest.mock('@/components/LanguageDropdown', () => () => <div data-testid="lang-dropdown">Langues</div>, { virtual: true });
 jest.mock('@/components/LogoDisplay', () => ({ className }) => <div data-testid="logo-display" className={className}>Logo</div>, { virtual: true });
+jest.mock('@/config', () => ({
+  CONTACT_PHONE: '+33753418833',
+  CONTACT_PHONE_DISPLAY: '+33 7 53 41 88 33',
+}), { virtual: true });
 
 jest.mock('framer-motion', () => {
   const React = require('react');
@@ -90,13 +94,16 @@ describe('Navbar mobile menu', () => {
     const navbar = container.querySelector('[data-testid="navbar"]');
     const reserveCta = container.querySelector('[data-testid="cta-reserver"]');
     const logoDisplay = container.querySelector('[data-testid="logo-display"]');
+    const desktopPhoneLink = container.querySelector('a[href="tel:+33753418833"]');
 
     expect(navbar).not.toBeNull();
     expect(reserveCta).not.toBeNull();
     expect(logoDisplay).not.toBeNull();
+    expect(desktopPhoneLink).not.toBeNull();
     expect(navbar.querySelector('nav').className).toContain('landing-shell');
-    expect(reserveCta.className).toContain('lg:px-7');
-    expect(logoDisplay.className).toContain('md:h-[58px]');
+    expect(navbar.querySelector('nav').className).toContain('lg:grid-cols-[auto,minmax(0,1fr),auto]');
+    expect(reserveCta.className).toContain('lg:px-8');
+    expect(logoDisplay.className).toContain('md:h-[62px]');
   });
 
   it('opens the gamme dropdown via click and closes it when focus leaves', async () => {

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageDropdown from '@/components/LanguageDropdown';
 import LogoDisplay from '@/components/LogoDisplay';
+import { CONTACT_PHONE, CONTACT_PHONE_DISPLAY } from '@/config';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -58,34 +59,34 @@ const Navbar = () => {
       }`}
       data-testid="navbar"
     >
-      <div className="border-b border-white/5 bg-[#050505]/85">
-        <div className="landing-shell hidden items-center justify-between py-2.5 text-xs uppercase tracking-[0.28em] text-[#C7B588] md:flex">
+      <div className="border-b border-white/5 bg-[#050505]/88">
+        <div className="landing-shell hidden items-center justify-between py-3 text-[0.7rem] uppercase tracking-[0.32em] text-[#C7B588] md:flex lg:py-3.5">
           <span>Service chauffeur privé premium</span>
           <div className="flex items-center gap-6">
-            <span className="inline-flex items-center gap-2">
+            <a href={`tel:${CONTACT_PHONE}`} className="inline-flex items-center gap-2 transition-colors duration-300 hover:text-[#F3D67A]">
               <Phone size={12} weight="fill" className="text-[#D4AF37]" />
-              +337 53 41 88 33
-            </span>
+              {CONTACT_PHONE_DISPLAY}
+            </a>
           </div>
         </div>
       </div>
 
-      <nav className="landing-shell flex items-center justify-between gap-4 py-3.5 sm:gap-5 md:py-5 lg:gap-6 lg:py-6">
+      <nav className="landing-shell flex items-center justify-between gap-4 py-4 sm:gap-5 sm:py-5 md:py-6 lg:grid lg:grid-cols-[auto,minmax(0,1fr),auto] lg:items-center lg:gap-8 lg:py-7 xl:gap-10 xl:py-8">
         <a href="#accueil" className="flex shrink-0 items-center" data-testid="logo">
-          <span className="rounded-[28px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-3.5 py-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.28)] sm:px-5 sm:py-3.5">
-            <LogoDisplay className="h-[34px] w-[128px] sm:h-[46px] sm:w-[176px] md:h-[58px] md:w-[226px] xl:h-[62px] xl:w-[244px]" priority />
+          <span className="rounded-[30px] border border-[#D4AF37]/20 bg-[#0E0E0E]/92 px-4 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.3)] sm:px-5 sm:py-3.5 md:px-6 md:py-4">
+            <LogoDisplay className="h-[34px] w-[128px] sm:h-[46px] sm:w-[176px] md:h-[62px] md:w-[236px] xl:h-[68px] xl:w-[260px]" priority />
           </span>
         </a>
 
         <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
-          <div className="flex min-w-0 items-center gap-6 rounded-full border border-white/8 bg-[#111111]/85 px-6 py-4 xl:gap-8 xl:px-8">
+          <div className="flex w-full max-w-[40rem] min-w-0 items-center justify-center gap-6 rounded-full border border-white/8 bg-[#111111]/88 px-7 py-[1.05rem] shadow-[0_18px_50px_rgba(0,0,0,0.28)] xl:max-w-[44rem] xl:gap-8 xl:px-9">
             {navLinks.map((link) => (
               <a
                 key={link.key}
                 href={link.href}
                 className={`${
                   link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#CFCFCF]'
-                } whitespace-nowrap text-[0.88rem] uppercase tracking-[0.18em] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.95rem]`}
+                } whitespace-nowrap text-[0.88rem] uppercase tracking-[0.2em] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.95rem]`}
                 data-testid={`nav-link-${link.key}`}
               >
                 {t(link.key)}
@@ -123,7 +124,7 @@ const Navbar = () => {
                 }}
                 aria-expanded={isGammeOpen}
                 aria-controls={isGammeOpen ? gammeMenuId : undefined}
-                className="flex items-center gap-1 whitespace-nowrap text-[0.88rem] uppercase tracking-[0.18em] text-[#CFCFCF] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.95rem]"
+                className="flex items-center gap-1 whitespace-nowrap text-[0.88rem] uppercase tracking-[0.2em] text-[#CFCFCF] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.95rem]"
                 data-testid="nav-link-gamme"
               >
                 {t('gamme')} <CaretDown size={14} className={`transition-transform duration-200 ${isGammeOpen ? 'rotate-180' : ''}`} />
@@ -158,12 +159,15 @@ const Navbar = () => {
           </div>
         </div>
 
-        <div className="hidden shrink-0 items-center gap-3 md:flex lg:gap-4">
-          <LanguageDropdown />
+        <div className="hidden shrink-0 items-center gap-3 md:flex lg:gap-4 xl:gap-5">
+          <LanguageDropdown
+            buttonClassName="rounded-full px-4 py-2 text-[0.9rem] lg:px-5 lg:py-2.5"
+            menuClassName="mt-3"
+          />
 
           <a
             href="#reserver"
-            className="rounded-full px-6 py-3 text-[0.95rem] font-semibold transition-all duration-300 hover:scale-105 lg:px-7 lg:py-3.5 lg:text-[1rem]"
+            className="rounded-full px-6 py-3 text-[0.95rem] font-semibold transition-all duration-300 hover:scale-105 lg:px-8 lg:py-3.5 lg:text-[1rem] xl:px-9"
             style={{ background: '#D4AF37', color: '#0A0A0A' }}
             data-testid="cta-reserver"
           >
@@ -172,7 +176,7 @@ const Navbar = () => {
 
           <Link
             to={`/${language}/login`}
-            className="rounded-full border border-[#D4AF37]/70 px-6 py-3 text-[0.95rem] font-semibold text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37] hover:text-[#232323] lg:px-7 lg:py-3.5 lg:text-[1rem]"
+            className="rounded-full border border-[#D4AF37]/70 px-6 py-3 text-[0.95rem] font-semibold text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37] hover:text-[#232323] lg:px-8 lg:py-3.5 lg:text-[1rem] xl:px-9"
             data-testid="btn-connexion"
           >
             {t('connexion')}
@@ -210,12 +214,12 @@ const Navbar = () => {
                   </div>
                 </div>
                 <a
-                  href="tel:+33753418833"
+                  href={`tel:${CONTACT_PHONE}`}
                   className="inline-flex items-center gap-2 text-sm font-medium text-[#F3D67A]"
                   onClick={closeMobileMenu}
                 >
                   <Phone size={15} weight="fill" />
-                  +337 53 41 88 33
+                  {CONTACT_PHONE_DISPLAY}
                 </a>
               </div>
 

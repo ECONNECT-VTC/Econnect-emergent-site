@@ -10,7 +10,7 @@ const Hero = () => {
   return (
     <section
       id="accueil"
-      className="relative flex min-h-[100svh] items-center justify-center overflow-hidden pb-16 pt-28 sm:pb-20 sm:pt-32 lg:min-h-[105vh] lg:pb-24 lg:pt-40 xl:min-h-[108vh] xl:pt-44"
+      className="relative flex min-h-[100svh] items-center justify-center overflow-hidden pb-16 pt-28 sm:pb-20 sm:pt-32 md:pb-24 md:pt-36 lg:min-h-[105vh] lg:pb-24 lg:pt-44 xl:min-h-[108vh] xl:pt-48"
       data-testid="hero-section"
     >
       {/* Background Image */}
@@ -43,7 +43,7 @@ const Hero = () => {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="mx-auto mb-6 max-w-[12ch] break-words text-[clamp(3.15rem,8vw,7.25rem)] font-bold font-['Cormorant_Garamond'] leading-[0.9] tracking-[-0.02em] lg:mb-7"
+          className="mx-auto mb-6 max-w-[12ch] break-words text-[clamp(3.15rem,8vw,7.25rem)] font-bold font-['Cormorant_Garamond'] leading-[0.9] tracking-[-0.02em] md:max-w-[13ch] lg:mb-7"
           data-testid="hero-title"
         >
           {t('heroTitle1')}
@@ -55,7 +55,7 @@ const Hero = () => {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.6 }}
-          className="mx-auto mb-8 max-w-4xl text-base text-[#D4D4D8] sm:text-lg md:mb-10 md:text-xl lg:text-[1.35rem] lg:leading-relaxed"
+          className="mx-auto mb-8 max-w-4xl text-base text-[#D4D4D8] sm:text-lg md:mb-10 md:max-w-[52rem] md:text-xl lg:text-[1.35rem] lg:leading-relaxed"
           data-testid="hero-subtitle"
         >
           {t('heroSubtitle')}
