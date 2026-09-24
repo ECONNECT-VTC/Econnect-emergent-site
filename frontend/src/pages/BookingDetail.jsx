@@ -321,6 +321,18 @@ const BookingDetail = () => {
                 <span className="text-[#A1A1AA]">Statut</span>
                 <span>{formatPaymentStatusLabel(booking.payment_status)}</span>
               </div>
+              {booking.paid_amount != null && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-[#A1A1AA]">Montant reçu</span>
+                  <span>{Number(booking.paid_amount).toFixed(2)} €</span>
+                </div>
+              )}
+              {booking.remaining_amount != null && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-[#A1A1AA]">Solde restant</span>
+                  <span>{Number(booking.remaining_amount).toFixed(2)} €</span>
+                </div>
+              )}
             </div>
           </div>
 

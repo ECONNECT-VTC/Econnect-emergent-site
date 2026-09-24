@@ -13,7 +13,12 @@ import { fr } from 'date-fns/locale';
 import { ArrowRight, Calendar, Car, CircleNotch, Clock, CurrencyEur, MapPin } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import VehicleFeatureBadges from '@/components/VehicleFeatureBadges';
-import { getCategoryDisplayName, getVehicleCategoryPresentation } from '@/utils/vehicleCategories';
+import {
+  findPriceEstimateForCategory,
+  getCategoryDisplayName,
+  getVehicleCategoryImageUrl,
+  getVehicleCategoryPresentation,
+} from '@/utils/vehicleCategories';
 import { buildEstimatePriceQuery, parseBookingError } from './newBookingUtils';
 import { createCheckoutSession, saveBookingCheckoutDraft } from '@/utils/bookingCheckout';
 
@@ -108,8 +113,9 @@ const NewBooking = () => {
   });
 
   const getSelectedPrice = () => {
-    if (!selectedCategory || priceEstimates.length === 0) return null;
-    return priceEstimates.find(e => e.category_id === selectedCategory);
+    if (!selectedCategory) return null;
+    const category = categories.find((entry) => entry.id === selectedCategory);
+    return findPriceEstimateForCategory(priceEstimates, selectedCategory, category?.name);
   };
 
   const getEstimateRateLabel = (estimate) => {
@@ -182,41 +188,11 @@ const NewBooking = () => {
     console.info('Vehicle card badge data:', badgeDebug);
   }, [categories, priceEstimates, enableDebugLogging]);
 
-  useEffect(() => {
-    if (!selectedCategory) return;
-    if (!priceEstimates.some((estimate) => estimate.category_id === selectedCategory)) {
-      setSelectedCategory(null);
-    }
-  }, [priceEstimates, selectedCategory]);
-
-  const sortedPriceEstimates = [...priceEstimates].sort((a, b) => {
-    const aPresentation = getVehicleCategoryPresentation(a.category_name);
-    const bPresentation = getVehicleCategoryPresentation(b.category_name);
+  const sortedCategories = [...categories].sort((a, b) => {
+    const aPresentation = getVehicleCategoryPresentation(a.name);
+    const bPresentation = getVehicleCategoryPresentation(b.name);
     return (aPresentation?.order ?? 99) - (bPresentation?.order ?? 99);
   });
-
-  const displayedEstimates = transferType === 'disposition'
-    ? (() => {
-      const estimateCategoryIds = new Set(priceEstimates.map((estimate) => estimate.category_id));
-      const missingDispositionCategories = categories
-        .filter((category) => category?.id && !estimateCategoryIds.has(category.id))
-        .sort((a, b) => {
-          const aOrder = getVehicleCategoryPresentation(a.name)?.order ?? 99;
-          const bOrder = getVehicleCategoryPresentation(b.name)?.order ?? 99;
-          return aOrder - bOrder;
-        })
-        .map((category) => ({
-          category_id: category.id,
-          category_name: category.name,
-          final_price: null,
-          min_fare: null,
-          pricing_basis: 'hourly',
-          rate_label: 'Tarif indisponible',
-        }));
-
-      return [...sortedPriceEstimates, ...missingDispositionCategories];
-    })()
-    : sortedPriceEstimates;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -224,6 +200,11 @@ const NewBooking = () => {
 
     if (!date || !time || !pickup || !dropoff || !transferType) {
       setError('Veuillez remplir tous les champs obligatoires');
+      return;
+    }
+
+    if (!selectedCategory) {
+      setError('Veuillez choisir une gamme de véhicule');
       return;
     }
 
@@ -300,7 +281,7 @@ const NewBooking = () => {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0 bg-[#1E1E1E] border-white/10">
-                    <CalendarComponent mode="single" selected={date} onSelect={setDate} disabled={(d) => d < new Date()} initialFocus />
+                    <CalendarComponent mode="single" selected={date} onSelect={setDate} initialFocus />
                   </PopoverContent>
                 </Popover>
               </div>
@@ -408,36 +389,33 @@ const NewBooking = () => {
             )}
 
             {/* Vehicle Category Selection */}
-            {displayedEstimates.length > 0 && (
+            {sortedCategories.length > 0 && (
               <div className="space-y-3">
-                <Label className="text-[#A1A1AA]">Choisir votre vehicule</Label>
+                <Label className="text-[#A1A1AA]">Choisir votre véhicule</Label>
                 <div className="grid sm:grid-cols-2 gap-3" data-testid="vehicle-selection">
-                  {displayedEstimates.map((estimate) => {
-                    const category = categories.find(c => c.id === estimate.category_id || c.name === estimate.category_name);
+                  {sortedCategories.map((category) => {
+                    const estimate = findPriceEstimateForCategory(priceEstimates, category.id, category.name);
                     const categoryMeta = getCategoryMeta(category);
-                    const displayMeta = getDisplayMeta(estimate.category_name, categoryMeta);
-                    const isSelected = selectedCategory === estimate.category_id;
-                    const hasPrice = Number.isFinite(estimate.final_price);
+                    const displayMeta = getDisplayMeta(category.name, categoryMeta);
+                    const isSelected = selectedCategory === category.id;
+                    const hasPrice = Number.isFinite(Number(estimate?.final_price));
+                    const minFare = Number(category?.min_fare);
                     return (
                       <div 
-                        key={estimate.category_id}
-                        onClick={() => {
-                          if (hasPrice) {
-                            setSelectedCategory(estimate.category_id);
-                          }
-                        }}
+                        key={category.id}
+                        onClick={() => setSelectedCategory(category.id)}
                         className={`overflow-hidden rounded-2xl transition-all ${
-                          hasPrice ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'
+                          'cursor-pointer'
                         } ${
                           isSelected 
                             ? 'bg-[#D4AF37]/20 border-2 border-[#D4AF37]' 
                             : 'bg-[#1E1E1E] border-2 border-transparent hover:border-white/20'
                         }`}
-                        data-testid={`vehicle-${estimate.category_id}`}
+                        data-testid={`vehicle-${category.id}`}
                       >
-                        {(displayMeta.image || category?.image_url) ? (
+                        {getVehicleCategoryImageUrl(category.name, category?.image_url) ? (
                           <img
-                            src={displayMeta.image || category?.image_url}
+                            src={getVehicleCategoryImageUrl(category.name, category?.image_url)}
                             alt={displayMeta.displayName}
                             className="h-36 w-full object-cover"
                           />
@@ -451,14 +429,14 @@ const NewBooking = () => {
                             <div>
                               <p className="font-bold text-base">{displayMeta.displayName}</p>
                               <p className="text-xs text-[#A1A1AA]">
-                                {getEstimateRateLabel(estimate)}
+                                {estimate ? getEstimateRateLabel(estimate) : 'Sélectionnez la distance ou la durée pour calculer le tarif'}
                               </p>
                             </div>
                             <div className="text-right">
                               <p className="text-2xl font-bold text-[#D4AF37]">
-                                {hasPrice ? `${estimate.final_price.toFixed(2)}€` : '—'}
+                                {hasPrice ? `${Number(estimate.final_price).toFixed(2)}€` : Number.isFinite(minFare) ? `dès ${minFare.toFixed(2)}€` : '—'}
                               </p>
-                              {hasPrice && estimate.final_price === estimate.min_fare && estimate.pricing_basis !== 'hourly' && (
+                              {hasPrice && Number(estimate.final_price) === Number(estimate.min_fare) && estimate.pricing_basis !== 'hourly' && (
                                 <p className="text-xs text-[#A1A1AA]">Tarif min.</p>
                               )}
                             </div>
@@ -507,7 +485,7 @@ const NewBooking = () => {
               <CircleNotch size={20} className="animate-spin" />
               Calcul en cours...
             </div>
-          ) : priceEstimates.length === 0 ? (
+          ) : sortedCategories.length === 0 ? (
             <p className="text-[#A1A1AA] text-sm">Aucune categorie disponible.</p>
           ) : (
             <div className="space-y-4">

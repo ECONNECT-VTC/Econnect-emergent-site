@@ -8,8 +8,10 @@ import {
 describe('paymentUtils', () => {
   it('normalizes supported payment methods', () => {
     expect(normalizePaymentMethod('Carte bancaire')).toBe('cb');
+    expect(normalizePaymentMethod('card')).toBe('cb');
     expect(normalizePaymentMethod('espèces')).toBe('cash');
     expect(normalizePaymentMethod('Virement bancaire')).toBe('virement');
+    expect(normalizePaymentMethod('transfer')).toBe('virement');
   });
 
   it('formats robust payment labels for legacy values', () => {

@@ -298,6 +298,7 @@ class BookingResponse(BaseModel):
     assigned_at: Optional[datetime] = None
 
 class BookingCheckoutCreate(BookingCreate):
+    payment_method: Optional[str] = None
     success_path: Optional[str] = "/fr/booking/confirmation"
     cancel_path: Optional[str] = "/fr/booking/cancel"
 
@@ -1004,7 +1005,7 @@ def normalize_payment_method_code(value: Any, fallback: Any = None) -> Optional[
         return "cb"
     if any(token in normalized for token in ["cash", "espece", "especes"]):
         return "cash"
-    if "virement" in normalized:
+    if "virement" in normalized or "transfer" in normalized:
         return "virement"
     return None
 
@@ -3855,6 +3856,7 @@ async def resend_activation(data: ResendActivationRequest):
 # ==================== CLIENT ROUTES ====================
 
 def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_category_name: Optional[str]) -> dict:
+    payment_method = normalize_payment_method_code(getattr(booking, "payment_method", None))
     return {
         "id": str(uuid.uuid4()),
         "client_id": user["id"],
@@ -3879,6 +3881,8 @@ def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_catego
         "disposition_hours": booking.disposition_hours,
         "status": "DRAFT",
         "payment_status": "pending",
+        "payment_method": payment_method,
+        "payment_mode": "deposit" if payment_method in {"virement", "cash"} else "immediate",
         "payment_completed_at": None,
         "stripe_checkout_session_id": None,
         "stripe_payment_intent_id": None,
@@ -3950,13 +3954,16 @@ async def create_booking_checkout(booking: BookingCheckoutCreate, request: Reque
     estimated_price = booking.estimated_price
     if estimated_price is None or not isinstance(estimated_price, (int, float)) or float(estimated_price) <= 0:
         raise HTTPException(status_code=400, detail="Le montant estimé est requis pour le paiement")
+    estimated_price = round_amount(float(estimated_price))
+    payment_method = normalize_payment_method_code(booking.payment_method) or "cb"
 
     vehicle_category_name = await resolve_vehicle_category_name(booking.vehicle_category_id)
 
     booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name)
     await db.bookings.insert_one(booking_doc)
 
-    unit_amount = int(round(float(estimated_price) * 100))
+    charge_amount = _get_checkout_charge_amount(estimated_price, payment_method)
+    unit_amount = int(round(charge_amount * 100))
     success_url = _safe_frontend_url(
         booking.success_path,
         "/fr/booking/confirmation",
@@ -3986,7 +3993,9 @@ async def create_booking_checkout(booking: BookingCheckoutCreate, request: Reque
             customer_email=user["email"],
             metadata={
                 "booking_id": booking_doc["id"],
-                "client_id": user["id"]
+                "client_id": user["id"],
+                "payment_method": payment_method,
+                "payment_scope": "deposit" if _is_deposit_payment_method(payment_method) else "full",
             },
             success_url=success_url,
             cancel_url=cancel_url,
@@ -4014,6 +4023,8 @@ async def create_booking_checkout(booking: BookingCheckoutCreate, request: Reque
 async def get_my_bookings(request: Request):
     user = await get_current_user(request)
     bookings = await db.bookings.find({"client_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    for booking in bookings:
+        enrich_booking_payment_tracking(booking)
     return [BookingResponse(**b) for b in bookings]
 
 @api_router.get("/bookings/{booking_id}", response_model=BookingResponse)
@@ -4024,6 +4035,7 @@ async def get_booking_detail_client(booking_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
     if booking.get("client_id") != user["id"]:
         raise HTTPException(status_code=403, detail="Accès refusé à cette réservation")
+    enrich_booking_payment_tracking(booking)
     return BookingResponse(**booking)
 
 
@@ -4039,39 +4051,96 @@ def _stripe_amount_to_float(amount) -> Optional[float]:
     return None
 
 
+def _is_deposit_payment_method(payment_method: Optional[str]) -> bool:
+    return normalize_payment_method_code(payment_method) in {"virement", "cash"}
+
+
+def _get_checkout_charge_amount(total_amount: float, payment_method: Optional[str]) -> float:
+    if _is_deposit_payment_method(payment_method):
+        return round_amount(total_amount * 0.20)
+    return round_amount(total_amount)
+
+
 async def _mark_booking_paid(session: dict) -> Tuple[Optional[dict], bool]:
     metadata = _stripe_value(session, "metadata") or {}
     booking_id = _stripe_value(metadata, "booking_id")
     if not booking_id:
         return None, False
 
-    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
-    if not booking:
-        return None, False
-
-    if booking.get("payment_status") == "paid" or not _is_paid_checkout_session(session):
+    if not _is_paid_checkout_session(session):
+        booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         return booking, False
 
+    payment_intent_id = _stripe_value(session, "payment_intent")
     paid_amount = _stripe_amount_to_float(_stripe_value(session, "amount_total"))
-    update_result = await db.bookings.update_one(
-        {"id": booking_id, "payment_status": {"$ne": "paid"}},
-        {"$set": {
-            "payment_status": "paid",
-            "status": "QUOTE_ACCEPTED",
-            "payment_completed_at": datetime.now(timezone.utc),
-            "stripe_checkout_session_id": _stripe_value(session, "id"),
-            "stripe_payment_intent_id": _stripe_value(session, "payment_intent"),
-            "paid_amount": paid_amount,
-            "paid_currency": (_stripe_value(session, "currency") or "eur").upper(),
-        }}
-    )
-    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
-    if update_result.modified_count == 0:
-        return booking, False
+    for _ in range(3):
+        booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+        if not booking:
+            return None, False
 
-    if booking and booking.get("client_email"):
-        await send_booking_confirmation_to_client(booking)
-    return booking, True
+        if booking.get("payment_status") == "paid":
+            return booking, False
+        if (
+            payment_intent_id
+            and booking.get("stripe_payment_intent_id") == payment_intent_id
+            and booking.get("payment_status") == "partially_paid"
+        ):
+            return booking, False
+
+        estimated_price = booking.get("estimated_price")
+        try:
+            resolved_estimated_price = round_amount(float(estimated_price)) if estimated_price is not None else None
+        except (TypeError, ValueError):
+            resolved_estimated_price = None
+        current_paid_amount = resolve_client_paid_amount(booking) or 0.0
+        cumulative_paid_amount = round_amount(current_paid_amount + (paid_amount or 0.0))
+        if resolved_estimated_price is not None:
+            cumulative_paid_amount = min(cumulative_paid_amount, resolved_estimated_price)
+
+        is_deposit_payment = _is_deposit_payment_method(booking.get("payment_method"))
+        payment_status = "paid"
+        stored_paid_amount = cumulative_paid_amount
+        payment_completed_at = datetime.now(timezone.utc)
+        if (
+            is_deposit_payment
+            and cumulative_paid_amount is not None
+            and resolved_estimated_price is not None
+            and cumulative_paid_amount < resolved_estimated_price
+        ):
+            payment_status = "partially_paid"
+            payment_completed_at = None
+
+        update_result = await db.bookings.update_one(
+            {
+                "id": booking_id,
+                "payment_status": booking.get("payment_status"),
+                "paid_amount": booking.get("paid_amount"),
+                "stripe_payment_intent_id": booking.get("stripe_payment_intent_id"),
+            },
+            {"$set": {
+                "payment_status": payment_status,
+                "status": "QUOTE_ACCEPTED",
+                "payment_completed_at": payment_completed_at,
+                "stripe_checkout_session_id": _stripe_value(session, "id"),
+                "stripe_payment_intent_id": payment_intent_id,
+                "paid_amount": stored_paid_amount,
+                "paid_currency": (_stripe_value(session, "currency") or "eur").upper(),
+            }}
+        )
+        booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+        if update_result.modified_count == 0:
+            continue
+
+        enrich_booking_payment_tracking(booking)
+
+        if booking and booking.get("client_email"):
+            await send_booking_confirmation_to_client(booking)
+        return booking, True
+
+    latest_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if latest_booking:
+        enrich_booking_payment_tracking(latest_booking)
+    return latest_booking, False
 
 
 @api_router.post("/bookings/{booking_id}/confirm-payment", response_model=BookingPaymentConfirmationResponse)
@@ -4107,6 +4176,7 @@ async def confirm_booking_payment(
     resolved_booking = updated_booking or await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     if not resolved_booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    enrich_booking_payment_tracking(resolved_booking)
 
     return BookingPaymentConfirmationResponse(
         verified=resolved_booking.get("payment_status") == "paid",

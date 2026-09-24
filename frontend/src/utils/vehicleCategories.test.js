@@ -3,9 +3,11 @@ import {
   DISPOSITION_SERVICE_CATEGORY_KEYS,
   VEHICLE_CATEGORY_CONFIG,
   findDispositionEstimateForCategory,
+  findPriceEstimateForCategory,
   findVehicleCategoryByName,
   getCategoryDisplayName,
   getOrderedDispositionCategoryNames,
+  getVehicleCategoryImageUrl,
   getVehicleCategoryPresentation,
 } from './vehicleCategories';
 
@@ -117,5 +119,27 @@ describe('vehicleCategories utils', () => {
       min_fare: 30,
     });
     expect(findVehicleCategoryByName(categories, 'Inconnue')).toBeNull();
+  });
+
+  it('matches the selected estimate by category id before falling back to display names', () => {
+    const estimates = [
+      { category_id: 'green-id', category_name: 'Green', final_price: 55 },
+      { category_id: 'berline-id', category_name: 'Berline', final_price: 30 },
+    ];
+
+    expect(findPriceEstimateForCategory(estimates, 'berline-id', 'Confort Classique')).toMatchObject({
+      category_id: 'berline-id',
+      final_price: 30,
+    });
+    expect(findPriceEstimateForCategory(estimates, 'unknown-id', 'Confort Premium')).toMatchObject({
+      category_id: 'green-id',
+      final_price: 55,
+    });
+  });
+
+  it('returns the public image urls for known admin/public categories', () => {
+    expect(getVehicleCategoryImageUrl('Berline')).toBe('/photo/chr.png');
+    expect(getVehicleCategoryImageUrl('Luxe', 'https://cdn.example.test/luxe.png')).toBe('/photo/Range_rover.png');
+    expect(getVehicleCategoryImageUrl('Autre', 'https://cdn.example.test/custom.png')).toBe('https://cdn.example.test/custom.png');
   });
 });
