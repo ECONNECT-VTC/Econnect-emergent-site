@@ -4,6 +4,7 @@ import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CalendarCheck, CarSimple, CheckCircle, MapPin, User, DownloadSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
@@ -25,6 +26,12 @@ import { logApiError, parseApiError } from '../../utils/apiErrors';
 const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
 
 const describeLoadFailure = (label, error) => `${label} : ${parseApiError(error, 'Erreur inconnue')}`;
+const PAYMENT_AWAITING_STATUSES = ['pending', 'partially_paid'];
+const normalizeAmount = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+const formatAmount = (value) => `${normalizeAmount(value).toFixed(2)} €`;
 
 const getInitialCreateForm = () => ({
   client_name: '',
@@ -74,6 +81,7 @@ const AdminBookings = () => {
   const [cancellationAction, setCancellationAction] = useState('approve');
   const [refundAmount, setRefundAmount] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [adminCancelDialogOpen, setAdminCancelDialogOpen] = useState(false);
   const [adminCancelReason, setAdminCancelReason] = useState('');
   const [adminCancelRefundAmount, setAdminCancelRefundAmount] = useState('');
@@ -88,6 +96,11 @@ const AdminBookings = () => {
   const [selectedFleetVehicle, setSelectedFleetVehicle] = useState('');
   const [assignSelfDriverName, setAssignSelfDriverName] = useState('');
   const [assigningSelf, setAssigningSelf] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [bookingToRecordPayment, setBookingToRecordPayment] = useState(null);
+  const [receivedAmount, setReceivedAmount] = useState('');
+  const [paymentNote, setPaymentNote] = useState('');
+  const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState('');
   const [documentActionId, setDocumentActionId] = useState('');
   const [googleMapsReady, setGoogleMapsReady] = useState(Boolean(window.google?.maps?.places));
@@ -567,11 +580,52 @@ const AdminBookings = () => {
     }
   };
 
+  const openPaymentDialog = (booking) => {
+    const remainingAmount = normalizeAmount(booking.remaining_amount);
+    setBookingToRecordPayment(booking);
+    setReceivedAmount(remainingAmount > 0 ? String(remainingAmount) : '');
+    setPaymentNote('');
+    setPaymentDialogOpen(true);
+  };
+
+  const handleRecordPayment = async () => {
+    if (!bookingToRecordPayment) return;
+    setPaymentSubmitting(true);
+    setError('');
+    setSuccessMessage('');
+    try {
+      await axios.post(
+        `${API_URL}/api/admin/bookings/${bookingToRecordPayment.id}/payment-received`,
+        {
+          amount: Number(receivedAmount),
+          note: paymentNote.trim() || null,
+        },
+        { withCredentials: true }
+      );
+      setPaymentDialogOpen(false);
+      setBookingToRecordPayment(null);
+      setReceivedAmount('');
+      setPaymentNote('');
+      setSuccessMessage('Paiement client enregistré avec succès.');
+      fetchData(filter === 'awaiting_payment');
+    } catch (err) {
+      setError(parseApiError(err, 'Impossible d’enregistrer le paiement reçu'));
+      logApiError('AdminBookings.handleRecordPayment', err);
+    } finally {
+      setPaymentSubmitting(false);
+    }
+  };
+
   const filteredBookings = filter === 'all'
     ? bookings
     : filter === 'awaiting_payment'
-      ? bookings.filter((b) => b.payment_status === 'pending')
+      ? bookings.filter((b) => PAYMENT_AWAITING_STATUSES.includes(b.payment_status))
+      : filter === 'PAID'
+        ? bookings.filter((b) => statusEquals(b.status, 'PAID') || b.payment_status === 'paid')
       : bookings.filter((b) => normalizeCourseStatus(b.status) === filter);
+  const editPaymentStatusOptions = editForm.payment_status === 'partially_paid' && !PAYMENT_STATUS_OPTIONS.some((option) => option.value === 'partially_paid')
+    ? [...PAYMENT_STATUS_OPTIONS, { value: 'partially_paid', label: 'Paiement partiel' }]
+    : PAYMENT_STATUS_OPTIONS;
   const canCreateBooking =
     createForm.client_name.trim() &&
     createForm.client_email.trim() &&
@@ -589,6 +643,7 @@ const AdminBookings = () => {
   const getPaymentBadge = (paymentStatus) => {
     const styles = {
       pending: 'bg-yellow-500/20 text-yellow-300',
+      partially_paid: 'bg-amber-500/20 text-amber-200',
       paid: 'bg-green-500/20 text-green-300',
       refunded: 'bg-emerald-500/20 text-emerald-300',
       partially_refunded: 'bg-emerald-500/20 text-emerald-300',
@@ -597,6 +652,7 @@ const AdminBookings = () => {
     };
     const labels = {
       pending: 'Paiement en attente',
+      partially_paid: 'Paiement partiel',
       paid: 'Payée',
       refunded: 'Remboursée',
       partially_refunded: 'Partiellement remboursée',
@@ -610,6 +666,7 @@ const AdminBookings = () => {
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
+      {successMessage && <div className="mb-4 bg-green-500/10 border border-green-500/50 text-green-400 px-4 py-2 rounded-lg text-sm">{successMessage}</div>}
 
       <div className="flex justify-end mb-4">
         <Button className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => setCreateDialogOpen(true)}>
@@ -646,7 +703,9 @@ const AdminBookings = () => {
       ) : (
         <div className="space-y-4" data-testid="admin-bookings">
           {filteredBookings.map((booking) => {
+            const awaitingAnyPayment = PAYMENT_AWAITING_STATUSES.includes(booking.payment_status);
             const paymentPending = booking.payment_status === 'pending';
+            const paymentPartiallyReceived = booking.payment_status === 'partially_paid';
             const isBankTransferPending = paymentPending && normalizePaymentMethod(booking.payment_method) === 'virement';
             const isPostAssignmentStatus = ['ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'INVOICED']
               .some((status) => statusEquals(booking.status, status));
@@ -655,6 +714,9 @@ const AdminBookings = () => {
             const canSelfAssign = statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED');
             const canDownloadQuote = isStatusAtOrAfter(booking.status, 'QUOTE_SENT');
             const bookingDriverName = booking.driver_display_name || booking.driver_name;
+            const canRecordPayment = awaitingAnyPayment && ['COMPLETED', 'INVOICED', 'PAID'].some((status) => statusEquals(booking.status, status));
+            const paidAmount = normalizeAmount(booking.paid_amount);
+            const remainingAmount = normalizeAmount(booking.remaining_amount);
 
             return (
             <div key={booking.id} className="glass rounded-xl p-6">
@@ -783,7 +845,7 @@ const AdminBookings = () => {
                 </div>
               </div>
 
-              {(booking.vehicle_category_name || bookingDriverName || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin || booking.distance_km != null) && (
+              {(booking.vehicle_category_name || bookingDriverName || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin || booking.distance_km != null || booking.paid_amount != null || booking.remaining_amount != null) && (
                 <div className="mt-4 pt-4 border-t border-white/10 space-y-1 text-sm">
                   {booking.distance_km != null && !isNaN(Number(booking.distance_km)) && (
                     <p className="text-[#A1A1AA]">📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>
@@ -799,6 +861,16 @@ const AdminBookings = () => {
                     <p className="text-[#A1A1AA]">⏱ Mise à disposition: <span className="text-white">{booking.disposition_hours}h</span></p>
                   )}
                   <p className="text-[#A1A1AA]">💳 Mode de paiement: <span className="text-white">{formatPaymentMethodLabel(booking.payment_method)}</span></p>
+                  {(paymentPartiallyReceived || paidAmount > 0 || remainingAmount > 0) && (
+                    <div className="rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 space-y-1">
+                      {(paymentPartiallyReceived || paidAmount > 0) && (
+                        <p className="text-amber-100">Reçu client: <span className="font-medium">{formatAmount(paidAmount)}</span></p>
+                      )}
+                      {remainingAmount > 0 && (
+                        <p className="text-xs text-amber-200">Reste à payer: {formatAmount(remainingAmount)}</p>
+                      )}
+                    </div>
+                  )}
                   {booking.transfer_type === 'disposition' && booking.estimated_price != null && (
                     <p className="text-[#D4AF37]">Tarif horaire réservé: {Number(booking.estimated_price).toFixed(2)}€</p>
                   )}
@@ -876,6 +948,17 @@ const AdminBookings = () => {
                     onClick={() => downloadInvoicePdf(API_URL, booking.id, 'invoice')}
                   >
                     <DownloadSimple size={14} className="mr-1" />Facture client
+                  </Button>
+                )}
+                {canRecordPayment && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-emerald-500/60 text-emerald-300 hover:bg-emerald-500/10"
+                    onClick={() => openPaymentDialog(booking)}
+                    data-testid={`payment-received-btn-${booking.id}`}
+                  >
+                    <CheckCircle size={14} className="mr-1" />Paiement reçu
                   </Button>
                 )}
               </div>
@@ -1042,7 +1125,7 @@ const AdminBookings = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1E1E1E] border-white/10">
-                  {PAYMENT_STATUS_OPTIONS.map((option) => (
+                  {editPaymentStatusOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1172,6 +1255,63 @@ const AdminBookings = () => {
               className="w-full bg-red-600 hover:bg-red-700 text-white"
             >
               Confirmer l'annulation
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={paymentDialogOpen} onOpenChange={(open) => {
+        setPaymentDialogOpen(open);
+        if (!open) {
+          setBookingToRecordPayment(null);
+          setReceivedAmount('');
+          setPaymentNote('');
+        }
+      }}>
+        <DialogContent className="bg-[#141414] border-white/10 max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-[#D4AF37]">Enregistrer un paiement reçu</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-[#A1A1AA]">
+              Client: <span className="text-white">{bookingToRecordPayment?.client_name}</span>
+            </p>
+            <p className="text-sm text-[#A1A1AA]">
+              Trajet: {bookingToRecordPayment?.pickup_address} → {bookingToRecordPayment?.dropoff_address}
+            </p>
+            <div className="rounded-lg border border-white/10 bg-[#1E1E1E] px-4 py-3 text-sm space-y-1">
+              <p className="text-[#A1A1AA]">Facture client: <span className="text-[#D4AF37] font-medium">{formatAmount(bookingToRecordPayment?.estimated_price)}</span></p>
+              <p className="text-[#A1A1AA]">Déjà reçu: <span className="text-white">{formatAmount(bookingToRecordPayment?.paid_amount)}</span></p>
+              <p className="text-[#A1A1AA]">Solde restant: <span className="text-amber-200">{formatAmount(bookingToRecordPayment?.remaining_amount)}</span></p>
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Montant reçu (€)</p>
+              <Input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={receivedAmount}
+                onChange={(e) => setReceivedAmount(e.target.value)}
+                className="bg-[#1E1E1E] border-white/10"
+                placeholder="Ex: 50.00"
+              />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Note (optionnelle)</p>
+              <Textarea
+                value={paymentNote}
+                onChange={(e) => setPaymentNote(e.target.value)}
+                rows={3}
+                className="bg-[#1E1E1E] border-white/10"
+                placeholder="Ex: acompte réglé par virement"
+              />
+            </div>
+            <Button
+              onClick={handleRecordPayment}
+              disabled={paymentSubmitting || !receivedAmount}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {paymentSubmitting ? 'Enregistrement...' : 'Confirmer le paiement reçu'}
             </Button>
           </div>
         </DialogContent>

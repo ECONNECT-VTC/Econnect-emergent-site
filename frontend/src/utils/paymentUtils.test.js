@@ -16,11 +16,13 @@ describe('paymentUtils', () => {
     expect(formatPaymentMethodLabel('cb')).toBe('Carte bancaire');
     expect(formatPaymentMethodLabel('')).toBe('Non renseigné');
     expect(formatPaymentStatusLabel('paid')).toBe('Payée');
+    expect(formatPaymentStatusLabel('partially_paid')).toBe('Paiement partiel');
     expect(formatPaymentStatusLabel('not_required')).toBe('À payer');
   });
 
   it('maps editable payment statuses to supported admin values', () => {
     expect(normalizeEditablePaymentStatus('payée')).toBe('paid');
+    expect(normalizeEditablePaymentStatus('partiellement payée')).toBe('partially_paid');
     expect(normalizeEditablePaymentStatus('due')).toBe('pending');
     expect(normalizeEditablePaymentStatus('')).toBe('pending');
   });

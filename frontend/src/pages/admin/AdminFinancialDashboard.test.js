@@ -92,4 +92,50 @@ describe('AdminFinancialDashboard', () => {
     expect(container.textContent).toContain('120.00€');
     expect(container.textContent).toContain('Client Test');
   });
+
+  it('keeps driver earnings based on the full booking amount even when the client paid partially', async () => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('/api/admin/financial/stats')) {
+        return Promise.resolve({
+          data: {
+            total_revenue_ttc: 120,
+            total_revenue_ht: 100,
+            total_tva_client: 20,
+            total_commission_ttc: 12,
+            total_tva_commission: 2,
+            total_driver_earnings: 108,
+            commission_rate: 0.1,
+          },
+        });
+      }
+      if (url.includes('/api/admin/bookings?status=completed')) {
+        return Promise.resolve({
+          data: [{
+            id: 'booking-partial',
+            client_name: 'Client Partiel',
+            driver_name: 'Driver Test',
+            pickup_address: 'Paris',
+            dropoff_address: 'Lyon',
+            pickup_date: '24/09/2026',
+            pickup_time: '10:00',
+            estimated_price: 120,
+            payment_status: 'partially_paid',
+            paid_amount: 30,
+          }],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    await act(async () => {
+      root.render(<AdminFinancialDashboard />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('108.00€');
+  });
 });

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import axios from 'axios';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+let mockSearchParams = new URLSearchParams();
 
 jest.mock('axios');
 jest.mock('@/config', () => 'http://api.test', { virtual: true });
@@ -15,7 +16,7 @@ jest.mock('react-router-dom', () => {
   return {
     Link: ({ children, ...props }) => React.createElement('a', props, children),
     useParams: () => ({ lang: 'fr' }),
-    useSearchParams: () => [new URLSearchParams()],
+    useSearchParams: () => [mockSearchParams],
   };
 }, { virtual: true });
 jest.mock('@/components/ui/button', () => ({
@@ -33,6 +34,9 @@ jest.mock('@/components/ui/input', () => {
     Input: React.forwardRef((props, ref) => <input {...props} ref={ref} />),
   };
 }, { virtual: true });
+jest.mock('@/components/ui/textarea', () => ({
+  Textarea: (props) => <textarea {...props} />,
+}), { virtual: true });
 jest.mock('@/components/ui/select', () => ({
   Select: ({ children }) => <div>{children}</div>,
   SelectContent: ({ children }) => <div>{children}</div>,
@@ -59,7 +63,11 @@ jest.mock('@/utils/paymentUtils', () => ({
   normalizeEditablePaymentStatus: (value) => value || 'pending',
   normalizePaymentMethod: (value) => value || '',
   PAYMENT_METHOD_OPTIONS: [],
-  PAYMENT_STATUS_OPTIONS: [{ value: 'pending', label: 'En attente' }],
+  PAYMENT_STATUS_OPTIONS: [
+    { value: 'pending', label: 'En attente' },
+    { value: 'partially_paid', label: 'Paiement partiel' },
+    { value: 'paid', label: 'Payée' },
+  ],
 }), { virtual: true });
 jest.mock('./adminBookingUtils', () => ({
   buildAdminEstimatePriceQuery: () => null,
@@ -80,6 +88,7 @@ describe('AdminBookings', () => {
   let root;
 
   beforeEach(() => {
+    mockSearchParams = new URLSearchParams();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -132,5 +141,93 @@ describe('AdminBookings', () => {
     expect(container.textContent).toContain('Drivers endpoint failed');
     expect(container.textContent).toContain('Paris');
     expect(container.textContent).toContain('Lyon');
+  });
+
+  it('shows the payment received button and remaining balance for completed unpaid bookings', async () => {
+    axios.get.mockImplementation((url) => {
+      if (url.includes('/api/admin/bookings')) {
+        return Promise.resolve({
+          data: [{
+            id: 'booking-2',
+            client_name: 'Client Partiel',
+            client_email: 'client-partiel@test.com',
+            pickup_date: '24/09/2026',
+            pickup_time: '11:00',
+            pickup_address: 'Paris',
+            dropoff_address: 'Rouen',
+            status: 'COMPLETED',
+            payment_status: 'partially_paid',
+            payment_method: 'virement',
+            estimated_price: 120,
+            paid_amount: 40,
+            remaining_amount: 80,
+          }],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    await act(async () => {
+      root.render(<AdminBookings />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('Paiement partiel');
+    expect(container.textContent).toContain('Reçu client: 40.00 €');
+    expect(container.textContent).toContain('Reste à payer: 80.00 €');
+    expect(container.querySelector('[data-testid="payment-received-btn-booking-2"]')).not.toBeNull();
+  });
+
+  it('keeps partially paid bookings in the awaiting payment filter', async () => {
+    mockSearchParams = new URLSearchParams('status=awaiting_payment');
+    axios.get.mockImplementation((url) => {
+      if (url.includes('/api/admin/bookings')) {
+        return Promise.resolve({
+          data: [
+            {
+              id: 'booking-partial',
+              client_name: 'Client Partiel',
+              client_email: 'client-partiel@test.com',
+              pickup_date: '24/09/2026',
+              pickup_time: '11:00',
+              pickup_address: 'Paris',
+              dropoff_address: 'Rouen',
+              status: 'INVOICED',
+              payment_status: 'partially_paid',
+              payment_method: 'virement',
+            },
+            {
+              id: 'booking-paid',
+              client_name: 'Client Soldé',
+              client_email: 'client-solde@test.com',
+              pickup_date: '24/09/2026',
+              pickup_time: '12:00',
+              pickup_address: 'Lille',
+              dropoff_address: 'Paris',
+              status: 'PAID',
+              payment_status: 'paid',
+              payment_method: 'cb',
+            },
+          ],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    await act(async () => {
+      root.render(<AdminBookings />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain('Client Partiel');
+    expect(container.textContent).not.toContain('Client Soldé');
   });
 });
