@@ -95,6 +95,7 @@ describe('BookingSection', () => {
   beforeEach(() => {
     lastCalendarProps = null;
     mockReadBookingCheckoutDraft.mockReset();
+    HTMLElement.prototype.scrollIntoView = jest.fn();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);

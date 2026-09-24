@@ -391,7 +391,7 @@ const NewBooking = () => {
             {/* Vehicle Category Selection */}
             {sortedCategories.length > 0 && (
               <div className="space-y-3">
-                <Label className="text-[#A1A1AA]">Choisir votre vehicule</Label>
+                <Label className="text-[#A1A1AA]">Choisir votre véhicule</Label>
                 <div className="grid sm:grid-cols-2 gap-3" data-testid="vehicle-selection">
                   {sortedCategories.map((category) => {
                     const estimate = findPriceEstimateForCategory(priceEstimates, category.id, category.name);

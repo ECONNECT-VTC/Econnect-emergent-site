@@ -4090,19 +4090,22 @@ async def _mark_booking_paid(session: dict) -> Tuple[Optional[dict], bool]:
         resolved_estimated_price = round_amount(float(estimated_price)) if estimated_price is not None else None
     except (TypeError, ValueError):
         resolved_estimated_price = None
+    current_paid_amount = resolve_client_paid_amount(booking) or 0.0
+    cumulative_paid_amount = round_amount(current_paid_amount + (paid_amount or 0.0))
+    if resolved_estimated_price is not None:
+        cumulative_paid_amount = min(cumulative_paid_amount, resolved_estimated_price)
 
     is_deposit_payment = _is_deposit_payment_method(booking.get("payment_method"))
     payment_status = "paid"
-    stored_paid_amount = paid_amount
+    stored_paid_amount = cumulative_paid_amount
     payment_completed_at = datetime.now(timezone.utc)
     if (
         is_deposit_payment
-        and paid_amount is not None
+        and cumulative_paid_amount is not None
         and resolved_estimated_price is not None
-        and paid_amount < resolved_estimated_price
+        and cumulative_paid_amount < resolved_estimated_price
     ):
         payment_status = "partially_paid"
-        stored_paid_amount = round_amount(paid_amount)
         payment_completed_at = None
 
     update_result = await db.bookings.update_one(

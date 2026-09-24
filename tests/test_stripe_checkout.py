@@ -379,6 +379,50 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(bookings.docs[booking_id]["status"], "QUOTE_ACCEPTED")
         self.assertEqual(send_email.await_count, 1)
 
+    async def test_mark_booking_paid_accumulates_existing_deposit_before_marking_paid(self):
+        bookings = InMemoryBookingsCollection()
+        booking_id = "booking_deposit_balance"
+        await bookings.insert_one({
+            "id": booking_id,
+            "client_id": "u1",
+            "client_name": "Client Test",
+            "client_email": "client@test.com",
+            "pickup_address": "A",
+            "dropoff_address": "B",
+            "pickup_date": "20/06/2026",
+            "pickup_time": "10:30",
+            "transfer_type": "simple",
+            "payment_status": "partially_paid",
+            "payment_method": "virement",
+            "payment_mode": "deposit",
+            "status": "QUOTE_ACCEPTED",
+            "estimated_price": 120.0,
+            "stripe_checkout_session_id": "cs_test_balance",
+            "stripe_payment_intent_id": None,
+            "paid_amount": 24.0,
+            "paid_currency": "EUR",
+            "manual_payments": [],
+            "created_at": server.datetime.now(server.timezone.utc),
+        })
+        fake_db = SimpleNamespace(bookings=bookings)
+        checkout_session = {
+            "id": "cs_test_balance",
+            "payment_status": "paid",
+            "payment_intent": "pi_test_balance",
+            "amount_total": 9600,
+            "currency": "eur",
+            "metadata": {"booking_id": booking_id},
+        }
+
+        with patch.object(server, "db", fake_db), \
+             patch.object(server, "send_booking_confirmation_to_client", AsyncMock()):
+            booking, was_updated = await server._mark_booking_paid(checkout_session)
+
+        self.assertTrue(was_updated)
+        self.assertEqual(booking["payment_status"], "paid")
+        self.assertEqual(booking["paid_amount"], 120.0)
+        self.assertEqual(booking["remaining_amount"], 0.0)
+
     async def test_refund_booking_payment_full_refund_without_amount_param(self):
         booking = {
             "id": "booking_refund_full",
