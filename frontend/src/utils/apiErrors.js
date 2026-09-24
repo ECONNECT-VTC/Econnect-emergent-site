@@ -1,4 +1,4 @@
-import { API_URL_SOURCE } from '../config';
+import * as config from '../config';
 
 export const parseApiError = (error, fallback = 'Erreur inconnue') => {
   const detail = error?.response?.data?.detail ?? error?.response?.data?.message;
@@ -23,7 +23,7 @@ export const parseApiError = (error, fallback = 'Erreur inconnue') => {
   }
 
   if (error?.message === 'Network Error' || error?.code === 'ERR_NETWORK') {
-    if (API_URL_SOURCE === 'localhost-fallback') {
+    if (config.API_URL_SOURCE === 'localhost-fallback') {
       return "Impossible de joindre l'API. Vérifiez la variable d'environnement REACT_APP_API_URL sur Hostinger et la disponibilité du backend.";
     }
     return "Erreur réseau : impossible de joindre le serveur. Vérifiez l'URL API configurée, le proxy Hostinger et le CORS.";
