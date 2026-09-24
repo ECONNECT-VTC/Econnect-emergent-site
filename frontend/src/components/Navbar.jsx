@@ -57,7 +57,7 @@ const Navbar = () => {
       data-testid="navbar"
     >
       <div className="border-b border-white/5 bg-[#050505]/85">
-        <div className="mx-auto hidden max-w-[88rem] items-center justify-between px-6 py-2.5 text-xs uppercase tracking-[0.28em] text-[#C7B588] md:flex lg:px-10 xl:px-16">
+        <div className="landing-shell mx-auto hidden items-center justify-between py-2.5 text-xs uppercase tracking-[0.28em] text-[#C7B588] md:flex">
           <span>Service chauffeur privé premium</span>
           <div className="flex items-center gap-6">
             <span className="inline-flex items-center gap-2">
@@ -68,21 +68,21 @@ const Navbar = () => {
         </div>
       </div>
 
-      <nav className="mx-auto flex max-w-[88rem] items-center justify-between gap-4 px-4 py-3.5 sm:gap-5 sm:px-6 md:py-5 lg:px-10 xl:px-16">
+      <nav className="landing-shell mx-auto flex items-center justify-between gap-4 py-3.5 sm:gap-5 md:py-5 lg:py-6">
         <a href="#accueil" className="flex items-center" data-testid="logo">
-          <span className="rounded-[24px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-3.5 py-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.28)] sm:px-5 sm:py-3">
-            <LogoDisplay className="h-[34px] w-[128px] sm:h-[44px] sm:w-[168px] md:h-[52px] md:w-[206px]" priority />
+          <span className="rounded-[28px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-3.5 py-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.28)] sm:px-5 sm:py-3.5">
+            <LogoDisplay className="h-[34px] w-[128px] sm:h-[46px] sm:w-[176px] md:h-[58px] md:w-[226px] xl:h-[62px] xl:w-[244px]" priority />
           </span>
         </a>
 
-        <div className="hidden items-center gap-8 rounded-full border border-white/8 bg-[#111111]/85 px-7 py-3.5 lg:flex xl:gap-10">
+        <div className="hidden items-center gap-9 rounded-full border border-white/8 bg-[#111111]/85 px-8 py-4 lg:flex xl:gap-11 xl:px-9">
           {navLinks.map((link) => (
             <a
               key={link.key}
               href={link.href}
               className={`${
                 link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#CFCFCF]'
-              } hover:text-[#D4AF37] transition-colors duration-300 text-[0.95rem] tracking-[0.22em] uppercase`}
+              } text-[0.95rem] uppercase tracking-[0.22em] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[1rem]`}
               data-testid={`nav-link-${link.key}`}
             >
               {t(link.key)}
@@ -95,7 +95,7 @@ const Navbar = () => {
             onMouseLeave={() => setIsGammeOpen(false)}
           >
             <button
-              className="flex items-center gap-1 text-[#CFCFCF] hover:text-[#D4AF37] transition-colors duration-300 text-[0.95rem] tracking-[0.22em] uppercase"
+              className="flex items-center gap-1 text-[0.95rem] uppercase tracking-[0.22em] text-[#CFCFCF] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[1rem]"
               data-testid="nav-link-gamme"
             >
               {t('gamme')} <CaretDown size={14} className={`transition-transform duration-200 ${isGammeOpen ? 'rotate-180' : ''}`} />
@@ -127,12 +127,12 @@ const Navbar = () => {
           </div>
         </div>
 
-        <div className="hidden md:flex items-center gap-3.5">
+        <div className="hidden items-center gap-3.5 md:flex lg:gap-4">
           <LanguageDropdown />
 
           <a
             href="#reserver"
-            className="rounded-full px-6 py-3 text-[0.95rem] font-semibold transition-all duration-300 hover:scale-105"
+            className="rounded-full px-6 py-3 text-[0.95rem] font-semibold transition-all duration-300 hover:scale-105 lg:px-7 lg:py-3.5 lg:text-[1rem]"
             style={{ background: '#D4AF37', color: '#0A0A0A' }}
             data-testid="cta-reserver"
           >
@@ -141,7 +141,7 @@ const Navbar = () => {
 
           <Link
             to={`/${language}/login`}
-            className="rounded-full border border-[#D4AF37]/70 px-6 py-3 text-[0.95rem] font-semibold text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37] hover:text-[#232323]"
+            className="rounded-full border border-[#D4AF37]/70 px-6 py-3 text-[0.95rem] font-semibold text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37] hover:text-[#232323] lg:px-7 lg:py-3.5 lg:text-[1rem]"
             data-testid="btn-connexion"
           >
             {t('connexion')}

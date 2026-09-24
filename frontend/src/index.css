@@ -80,6 +80,36 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+@layer components {
+  .landing-shell {
+    width: min(100% - 2rem, 92rem);
+  }
+
+  .hero-backdrop-image {
+    object-position: center center;
+  }
+
+  @media (min-width: 640px) {
+    .landing-shell {
+      width: min(100% - 3rem, 92rem);
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .landing-shell {
+      width: min(100% - 4rem, 92rem);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .hero-backdrop-image {
+      object-position: center 34%;
+      transform: scale(1.05);
+      transform-origin: center;
+    }
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
