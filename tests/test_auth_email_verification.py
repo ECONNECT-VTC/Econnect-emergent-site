@@ -111,6 +111,8 @@ class TestRegisterEndpoint(unittest.IsolatedAsyncioTestCase):
 
         self.assertIn("message", result)
         self.assertIn("email", result)
+        self.assertTrue(result["activation_email_sent"])
+        self.assertIn("Veuillez consulter votre email", result["message"])
         # Ensure email_verified defaults to False
         inserted_doc = mock_users_coll.insert_one.call_args[0][0]
         self.assertFalse(inserted_doc["email_verified"])
