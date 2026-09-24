@@ -18,7 +18,7 @@ describe('API config resolution', () => {
     const { API_URL, API_URL_SOURCE } = require('./config');
 
     expect(API_URL).toBe('https://api.example.com');
-    expect(API_URL_SOURCE).toBe('configured');
+    expect(API_URL_SOURCE).toBe('build-config');
   });
 
   it('normalizes configured API values that already end with /api', () => {
@@ -27,6 +27,16 @@ describe('API config resolution', () => {
     const { API_URL } = require('./config');
 
     expect(API_URL).toBe('https://api.example.com');
+  });
+
+  it('prefers runtime API configuration before build-time values', () => {
+    process.env = { ...ORIGINAL_ENV, REACT_APP_API_URL: 'https://build.example.com' };
+    window.__ECONNECT_CONFIG__ = { API_URL: 'https://runtime.example.com/api' };
+
+    const { API_URL, API_URL_SOURCE } = require('./config');
+
+    expect(API_URL).toBe('https://runtime.example.com');
+    expect(API_URL_SOURCE).toBe('runtime-config');
   });
 
   it('falls back to the current origin outside localhost', () => {

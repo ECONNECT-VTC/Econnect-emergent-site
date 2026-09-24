@@ -22,15 +22,19 @@ const getFallbackApiUrl = () => {
   return isLocalHostname(window.location.hostname) ? 'http://localhost:8000' : window.location.origin;
 };
 
-const configuredApiUrl =
-  getRuntimeApiUrl() ||
+const runtimeApiUrl = getRuntimeApiUrl();
+const buildTimeApiUrl =
   normalizeApiBase(process.env.REACT_APP_API_URL) ||
   normalizeApiBase(process.env.REACT_APP_BACKEND_URL) ||
   normalizeApiBase(process.env.VITE_API_URL);
 
+const configuredApiUrl = runtimeApiUrl || buildTimeApiUrl;
+
 export const API_URL = configuredApiUrl || getFallbackApiUrl();
-export const API_URL_SOURCE = configuredApiUrl
-  ? 'configured'
+export const API_URL_SOURCE = runtimeApiUrl
+  ? 'runtime-config'
+  : buildTimeApiUrl
+    ? 'build-config'
   : (
     typeof window !== 'undefined' && isLocalHostname(window.location.hostname)
       ? 'localhost-fallback'
