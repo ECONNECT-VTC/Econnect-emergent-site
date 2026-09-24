@@ -10,12 +10,17 @@ const normalizeApiBase = (value) => {
 const normalizePhone = (value) => {
   const trimmedValue = trimValue(value);
   if (!trimmedValue) return '';
+  const digitsOnly = trimmedValue.replace(/\D/g, '');
+
+  if (/^0\d{9}$/.test(digitsOnly)) {
+    return `+33${digitsOnly.slice(1)}`;
+  }
 
   if (trimmedValue.startsWith('+')) {
     return `+${trimmedValue.slice(1).replace(/\D/g, '')}`;
   }
 
-  return trimmedValue.replace(/\D/g, '');
+  return digitsOnly;
 };
 
 const formatPhoneDisplay = (value) => {

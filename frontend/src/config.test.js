@@ -110,4 +110,18 @@ describe('API config resolution', () => {
     expect(WHATSAPP_PHONE).toBe('33753418833');
     expect(CONTACT_PHONE_SOURCE).toBe('runtime-config');
   });
+
+  it('normalizes french domestic contact numbers to the shared international display format', () => {
+    process.env = {
+      ...ORIGINAL_ENV,
+      REACT_APP_CONTACT_PHONE: '0753418833',
+    };
+
+    const { CONTACT_PHONE, CONTACT_PHONE_DISPLAY, WHATSAPP_PHONE, CONTACT_PHONE_SOURCE } = require('./config');
+
+    expect(CONTACT_PHONE).toBe('+33753418833');
+    expect(CONTACT_PHONE_DISPLAY).toBe('+33 7 53 41 88 33');
+    expect(WHATSAPP_PHONE).toBe('33753418833');
+    expect(CONTACT_PHONE_SOURCE).toBe('build-config');
+  });
 });
