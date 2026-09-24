@@ -75,7 +75,7 @@ const Services = () => {
 
   return (
     <section id="services" className="pt-12 pb-10 md:pt-16 md:pb-14 bg-[#0A0A0A]" data-testid="services-section">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
+      <div className="app-shell">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}

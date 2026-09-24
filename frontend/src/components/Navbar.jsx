@@ -57,7 +57,7 @@ const Navbar = () => {
       data-testid="navbar"
     >
       <div className="border-b border-white/5 bg-[#050505]/85">
-        <div className="landing-shell mx-auto hidden items-center justify-between py-2.5 text-xs uppercase tracking-[0.28em] text-[#C7B588] md:flex">
+        <div className="landing-shell hidden items-center justify-between py-2.5 text-xs uppercase tracking-[0.28em] text-[#C7B588] md:flex">
           <span>Service chauffeur privé premium</span>
           <div className="flex items-center gap-6">
             <span className="inline-flex items-center gap-2">
@@ -68,66 +68,68 @@ const Navbar = () => {
         </div>
       </div>
 
-      <nav className="landing-shell mx-auto flex items-center justify-between gap-4 py-3.5 sm:gap-5 md:py-5 lg:py-6">
-        <a href="#accueil" className="flex items-center" data-testid="logo">
+      <nav className="landing-shell flex items-center justify-between gap-4 py-3.5 sm:gap-5 md:py-5 lg:gap-6 lg:py-6">
+        <a href="#accueil" className="flex shrink-0 items-center" data-testid="logo">
           <span className="rounded-[28px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-3.5 py-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.28)] sm:px-5 sm:py-3.5">
             <LogoDisplay className="h-[34px] w-[128px] sm:h-[46px] sm:w-[176px] md:h-[58px] md:w-[226px] xl:h-[62px] xl:w-[244px]" priority />
           </span>
         </a>
 
-        <div className="hidden items-center gap-9 rounded-full border border-white/8 bg-[#111111]/85 px-8 py-4 lg:flex xl:gap-11 xl:px-9">
-          {navLinks.map((link) => (
-            <a
-              key={link.key}
-              href={link.href}
-              className={`${
-                link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#CFCFCF]'
-              } text-[0.95rem] uppercase tracking-[0.22em] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[1rem]`}
-              data-testid={`nav-link-${link.key}`}
-            >
-              {t(link.key)}
-            </a>
-          ))}
+        <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
+          <div className="flex min-w-0 items-center gap-6 rounded-full border border-white/8 bg-[#111111]/85 px-6 py-4 xl:gap-8 xl:px-8">
+            {navLinks.map((link) => (
+              <a
+                key={link.key}
+                href={link.href}
+                className={`${
+                  link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#CFCFCF]'
+                } whitespace-nowrap text-[0.88rem] uppercase tracking-[0.18em] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.95rem]`}
+                data-testid={`nav-link-${link.key}`}
+              >
+                {t(link.key)}
+              </a>
+            ))}
 
-          <div
-            className="relative"
-            onMouseEnter={() => setIsGammeOpen(true)}
-            onMouseLeave={() => setIsGammeOpen(false)}
-          >
-            <button
-              className="flex items-center gap-1 text-[0.95rem] uppercase tracking-[0.22em] text-[#CFCFCF] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[1rem]"
-              data-testid="nav-link-gamme"
+            <div
+              className="relative"
+              onMouseEnter={() => setIsGammeOpen(true)}
+              onMouseLeave={() => setIsGammeOpen(false)}
             >
-              {t('gamme')} <CaretDown size={14} className={`transition-transform duration-200 ${isGammeOpen ? 'rotate-180' : ''}`} />
-            </button>
+              <button
+                className="flex items-center gap-1 whitespace-nowrap text-[0.88rem] uppercase tracking-[0.18em] text-[#CFCFCF] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.95rem]"
+                data-testid="nav-link-gamme"
+              >
+                {t('gamme')} <CaretDown size={14} className={`transition-transform duration-200 ${isGammeOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-            <AnimatePresence>
-              {isGammeOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.18 }}
-                  className="absolute top-full left-0 mt-3 w-52 rounded-2xl overflow-hidden shadow-xl"
-                  style={{ background: '#111111', border: '1px solid rgba(212,175,55,0.18)' }}
-                >
-                  {GAMME_ITEMS.map((item) => (
-                    <a
-                      key={item.key}
-                      href={item.href}
-                      className="block px-4 py-3 text-sm transition-colors duration-200 hover:bg-[#1A1A1A] text-[#D4AF37]"
-                      onClick={() => setIsGammeOpen(false)}
-                    >
-                      {t(item.key)}
-                    </a>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <AnimatePresence>
+                {isGammeOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.18 }}
+                    className="absolute top-full left-0 mt-3 w-52 overflow-hidden rounded-2xl shadow-xl"
+                    style={{ background: '#111111', border: '1px solid rgba(212,175,55,0.18)' }}
+                  >
+                    {GAMME_ITEMS.map((item) => (
+                      <a
+                        key={item.key}
+                        href={item.href}
+                        className="block px-4 py-3 text-sm text-[#D4AF37] transition-colors duration-200 hover:bg-[#1A1A1A]"
+                        onClick={() => setIsGammeOpen(false)}
+                      >
+                        {t(item.key)}
+                      </a>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 
-        <div className="hidden items-center gap-3.5 md:flex lg:gap-4">
+        <div className="hidden shrink-0 items-center gap-3 md:flex lg:gap-4">
           <LanguageDropdown />
 
           <a

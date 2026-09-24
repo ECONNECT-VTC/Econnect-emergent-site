@@ -82,6 +82,12 @@ h1, h2, h3, h4, h5, h6 {
 
 @layer components {
   .landing-shell {
+    margin-inline: auto;
+    width: min(100% - 2rem, 92rem);
+  }
+
+  .app-shell {
+    margin-inline: auto;
     width: min(100% - 2rem, 92rem);
   }
 
@@ -90,13 +96,15 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   @media (min-width: 640px) {
-    .landing-shell {
+    .landing-shell,
+    .app-shell {
       width: min(100% - 3rem, 92rem);
     }
   }
 
   @media (min-width: 1280px) {
-    .landing-shell {
+    .landing-shell,
+    .app-shell {
       width: min(100% - 4rem, 92rem);
     }
   }

@@ -491,7 +491,7 @@ const BookingSection = () => {
 
   return (
     <section id="reserver" className="pt-20 pb-10 md:pt-24 md:pb-14 bg-[#141414]" data-testid="booking-section">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
+      <div className="app-shell">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
