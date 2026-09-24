@@ -24,23 +24,45 @@ const getFallbackApiUrl = () => {
   return isLocalHostname(window.location.hostname) ? 'http://localhost:8000' : window.location.origin;
 };
 
-const runtimeApiUrl = getRuntimeApiUrl();
 const buildTimeApiUrl =
   normalizeApiBase(processEnv?.REACT_APP_API_URL) ||
   normalizeApiBase(processEnv?.REACT_APP_BACKEND_URL) ||
   normalizeApiBase(processEnv?.VITE_API_URL);
 
-const configuredApiUrl = runtimeApiUrl || buildTimeApiUrl;
+export let API_URL = '';
+export let API_URL_SOURCE = 'same-origin-fallback';
 
-export const API_URL = configuredApiUrl || getFallbackApiUrl();
-export const API_URL_SOURCE = runtimeApiUrl
+const syncApiConfig = () => {
+  const runtimeApiUrl = getRuntimeApiUrl();
+  const configuredApiUrl = runtimeApiUrl || buildTimeApiUrl;
+  API_URL = configuredApiUrl || getFallbackApiUrl();
+  API_URL_SOURCE = runtimeApiUrl
   ? 'runtime-config'
   : buildTimeApiUrl
     ? 'build-config'
-  : (
-    typeof window !== 'undefined' && isLocalHostname(window.location.hostname)
-      ? 'localhost-fallback'
-      : 'same-origin-fallback'
-  );
+    : (
+      typeof window !== 'undefined' && isLocalHostname(window.location.hostname)
+        ? 'localhost-fallback'
+        : 'same-origin-fallback'
+    );
+};
 
-export default API_URL;
+if (typeof window !== 'undefined') {
+  const descriptor = Object.getOwnPropertyDescriptor(window, '__ECONNECT_CONFIG__');
+  if (!descriptor || descriptor.configurable) {
+    let runtimeConfig = window.__ECONNECT_CONFIG__;
+    Object.defineProperty(window, '__ECONNECT_CONFIG__', {
+      configurable: true,
+      enumerable: true,
+      get: () => runtimeConfig,
+      set: (value) => {
+        runtimeConfig = value;
+        syncApiConfig();
+      },
+    });
+  }
+}
+
+syncApiConfig();
+
+export { API_URL as default };
