@@ -235,6 +235,14 @@ class AdminBookingCreate(BaseModel):
     payment_method: Optional[str] = None
     payment_status: Optional[str] = None
 
+class ManualPaymentRecord(BaseModel):
+    amount: float
+    paid_at: datetime
+    admin_id: Optional[str] = None
+    admin_name: Optional[str] = None
+    admin_email: Optional[str] = None
+    note: Optional[str] = None
+
 class BookingResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str
@@ -283,6 +291,8 @@ class BookingResponse(BaseModel):
     stripe_payment_intent_id: Optional[str] = None
     paid_amount: Optional[float] = None
     paid_currency: Optional[str] = None
+    remaining_amount: Optional[float] = None
+    manual_payments: Optional[List[ManualPaymentRecord]] = None
     payment_mode: Optional[str] = None
     created_at: datetime
     assigned_at: Optional[datetime] = None
@@ -299,6 +309,10 @@ class BookingCheckoutResponse(BaseModel):
 
 class BookingPaymentConfirmationRequest(BaseModel):
     session_id: str
+
+class BookingManualPaymentUpdate(BaseModel):
+    amount: float
+    note: Optional[str] = None
 
 class BookingPaymentConfirmationResponse(BaseModel):
     verified: bool
@@ -950,6 +964,7 @@ PAYMENT_METHOD_LABELS = {
 }
 PAYMENT_STATUS_LABELS = {
     "pending": "À payer",
+    "partially_paid": "Paiement partiel",
     "paid": "Payée",
     "failed": "Paiement échoué",
     "refunded": "Remboursée",
@@ -998,12 +1013,17 @@ def normalize_payment_status_code(value: Any) -> Optional[str]:
     normalized = ''.join(
         char for char in unicodedata.normalize("NFD", source) if unicodedata.category(char) != "Mn"
     )
+    normalized_key = normalized.replace("-", "_").replace(" ", "_")
     if normalized in {"paid", "payee", "paye"}:
         return "paid"
     if normalized in {"pending", "due", "a payer", "a_payer", "unpaid"}:
         return "pending"
+    if normalized_key in {"partially_paid", "partial_paid", "partiellement_paye", "partiellement_payee", "paiement_partiel"}:
+        return "partially_paid"
     if normalized in PAYMENT_STATUS_LABELS:
         return normalized
+    if normalized_key in PAYMENT_STATUS_LABELS:
+        return normalized_key
     return None
 
 def get_payment_method_label(value: Any, fallback: Any = None) -> str:
@@ -1013,6 +1033,68 @@ def get_payment_method_label(value: Any, fallback: Any = None) -> str:
 def get_payment_status_label(value: Any, default: str = "N/A") -> str:
     code = normalize_payment_status_code(value)
     return PAYMENT_STATUS_LABELS.get(code, default)
+
+def normalize_manual_payments(value: Any) -> List[dict]:
+    normalized_payments = []
+    for entry in value or []:
+        if not isinstance(entry, dict):
+            continue
+        try:
+            amount = round_amount(float(entry.get("amount")))
+        except (TypeError, ValueError):
+            continue
+        if amount <= 0:
+            continue
+        normalized_payments.append({
+            "amount": amount,
+            "paid_at": entry.get("paid_at"),
+            "admin_id": entry.get("admin_id"),
+            "admin_name": entry.get("admin_name"),
+            "admin_email": entry.get("admin_email"),
+            "note": entry.get("note"),
+        })
+    return normalized_payments
+
+def resolve_client_paid_amount(booking: Optional[dict]) -> Optional[float]:
+    if not booking:
+        return None
+    paid_amount = booking.get("paid_amount")
+    if paid_amount is None:
+        manual_payments = normalize_manual_payments(booking.get("manual_payments"))
+        if manual_payments:
+            paid_amount = sum(payment.get("amount", 0.0) for payment in manual_payments)
+    if paid_amount is None and normalize_payment_status_code(booking.get("payment_status")) == "paid":
+        paid_amount = booking.get("estimated_price")
+    if paid_amount is None:
+        return None
+    try:
+        return round_amount(float(paid_amount))
+    except (TypeError, ValueError):
+        return None
+
+def compute_client_remaining_amount(booking: Optional[dict]) -> Optional[float]:
+    if not booking or booking.get("estimated_price") is None:
+        return None
+    try:
+        estimated_price = round_amount(float(booking.get("estimated_price")))
+    except (TypeError, ValueError):
+        return None
+    paid_amount = resolve_client_paid_amount(booking) or 0.0
+    return round_amount(max(estimated_price - paid_amount, 0.0))
+
+def enrich_booking_payment_tracking(booking: Optional[dict]) -> Optional[dict]:
+    if not booking:
+        return booking
+    booking["payment_status"] = normalize_payment_status_code(booking.get("payment_status")) or "pending"
+    booking["payment_method"] = normalize_payment_method_code(booking.get("payment_method"), fallback=booking.get("notes"))
+    booking["manual_payments"] = normalize_manual_payments(booking.get("manual_payments"))
+    paid_amount = resolve_client_paid_amount(booking)
+    if paid_amount is not None:
+        booking["paid_amount"] = paid_amount
+    remaining_amount = compute_client_remaining_amount(booking)
+    if remaining_amount is not None:
+        booking["remaining_amount"] = remaining_amount
+    return booking
 
 async def get_document_driver_profile(booking: dict) -> Optional[dict]:
     if bool(booking.get("fulfilled_by_admin")) or not booking.get("driver_id"):
@@ -3792,6 +3874,7 @@ def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_catego
         "stripe_payment_intent_id": None,
         "paid_amount": None,
         "paid_currency": None,
+        "manual_payments": [],
         "driver_id": None,
         "driver_name": None,
         "driver_display_name": None,
@@ -4403,8 +4486,7 @@ async def get_all_bookings(request: Request, status: Optional[str] = None, inclu
     bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     for booking in bookings:
         booking["status"] = normalize_booking_status(booking.get("status"))
-        booking["payment_method"] = normalize_payment_method_code(booking.get("payment_method"), fallback=booking.get("notes"))
-        booking["payment_status"] = normalize_payment_status_code(booking.get("payment_status")) or "pending"
+        enrich_booking_payment_tracking(booking)
     return [BookingResponse(**b) for b in bookings]
 
 @api_router.get("/admin/bookings/{booking_id}", response_model=BookingResponse)
@@ -4413,8 +4495,7 @@ async def get_admin_booking_detail(booking_id: str, request: Request):
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    booking["payment_method"] = normalize_payment_method_code(booking.get("payment_method"), fallback=booking.get("notes"))
-    booking["payment_status"] = normalize_payment_status_code(booking.get("payment_status")) or "pending"
+    enrich_booking_payment_tracking(booking)
     return BookingResponse(**booking)
 
 @api_router.post("/admin/bookings/{booking_id}/assign-self")
@@ -4644,6 +4725,7 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "stripe_payment_intent_id": None,
         "paid_amount": booking.estimated_price if payment_status == "paid" else None,
         "paid_currency": "eur" if payment_status == "paid" else None,
+        "manual_payments": [],
         "driver_id": None,
         "driver_name": None,
         "driver_display_name": None,
@@ -4670,6 +4752,7 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         _send_admin_booking_notification(booking_doc, is_guest=is_guest, payment_mode=payment_mode)
     )
 
+    enrich_booking_payment_tracking(booking_doc)
     return BookingResponse(**booking_doc)
 
 @api_router.put("/admin/bookings/{booking_id}/assign")
@@ -4743,6 +4826,59 @@ async def update_booking_commission(booking_id: str, payload: BookingCommissionU
         {"$set": {"commission_override": payload.commission_override}}
     )
     return {"message": "Commission ajustée", "commission_override": payload.commission_override}
+
+@api_router.post("/admin/bookings/{booking_id}/payment-received", response_model=BookingResponse)
+async def record_admin_booking_payment(booking_id: str, payload: BookingManualPaymentUpdate, request: Request):
+    admin = await require_admin(request)
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if payload.amount <= 0:
+        raise HTTPException(status_code=400, detail="Le montant reçu doit être supérieur à 0")
+    if normalize_booking_status(booking.get("status")) not in {"COMPLETED", "INVOICED", "PAID"}:
+        raise HTTPException(status_code=400, detail="Le paiement client ne peut être enregistré qu'après une course terminée")
+
+    try:
+        total_amount = round_amount(float(booking.get("estimated_price")))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Le total de la facture client est indisponible")
+    if total_amount <= 0:
+        raise HTTPException(status_code=400, detail="Le total de la facture client est invalide")
+
+    current_paid_amount = resolve_client_paid_amount(booking) or 0.0
+    received_amount = round_amount(float(payload.amount))
+    if received_amount <= 0:
+        raise HTTPException(status_code=400, detail="Le montant reçu doit être supérieur à 0")
+
+    new_paid_amount = round_amount(current_paid_amount + received_amount)
+    if new_paid_amount > total_amount:
+        raise HTTPException(status_code=400, detail=f"Le paiement dépasse le solde restant ({round_amount(total_amount - current_paid_amount):.2f} €)")
+
+    paid_at = datetime.now(timezone.utc)
+    payment_status = "paid" if new_paid_amount >= total_amount else "partially_paid"
+    manual_payments = normalize_manual_payments(booking.get("manual_payments"))
+    note = payload.note.strip() if isinstance(payload.note, str) and payload.note.strip() else None
+    manual_payments.append({
+        "amount": received_amount,
+        "paid_at": paid_at,
+        "admin_id": admin.get("id"),
+        "admin_name": admin.get("name"),
+        "admin_email": admin.get("email"),
+        "note": note,
+    })
+
+    update_data = {
+        "paid_amount": total_amount if payment_status == "paid" else new_paid_amount,
+        "paid_currency": booking.get("paid_currency") or "EUR",
+        "payment_status": payment_status,
+        "payment_completed_at": paid_at if payment_status == "paid" else None,
+        "manual_payments": manual_payments,
+    }
+    await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
+
+    updated_booking = {**booking, **update_data}
+    enrich_booking_payment_tracking(updated_booking)
+    return BookingResponse(**updated_booking)
 
 @api_router.put("/admin/bookings/{booking_id}/cancellation")
 async def handle_booking_cancellation(booking_id: str, payload: BookingCancellationDecision, request: Request):
@@ -4897,11 +5033,22 @@ async def admin_update_booking(booking_id: str, payload: dict, request: Request)
         normalized_payment_status = normalize_payment_status_code(update_data.get("payment_status")) or "pending"
         update_data["payment_status"] = normalized_payment_status
         resolved_estimated_price = update_data.get("estimated_price", booking.get("estimated_price"))
-        update_data["payment_completed_at"] = datetime.now(timezone.utc) if normalized_payment_status == "paid" else None
-        update_data["paid_amount"] = resolved_estimated_price if normalized_payment_status == "paid" else None
-        update_data["paid_currency"] = "eur" if normalized_payment_status == "paid" else None
+        if normalized_payment_status == "paid":
+            update_data["payment_completed_at"] = datetime.now(timezone.utc)
+            update_data["paid_amount"] = resolved_estimated_price
+            update_data["paid_currency"] = "eur"
+        elif normalized_payment_status == "partially_paid":
+            update_data["payment_completed_at"] = None
+            update_data["paid_amount"] = booking.get("paid_amount")
+            update_data["paid_currency"] = booking.get("paid_currency") or "eur"
+        else:
+            update_data["payment_completed_at"] = None
+            update_data["paid_amount"] = None
+            update_data["paid_currency"] = None
     await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
-    return await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    enrich_booking_payment_tracking(updated_booking)
+    return updated_booking
 
 @api_router.get("/admin/disposition-rates")
 async def get_disposition_rates(request: Request):

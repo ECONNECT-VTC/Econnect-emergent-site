@@ -191,6 +191,109 @@ class TestCourseWorkflow(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(context.exception.status_code, 400)
         self.assertEqual(context.exception.detail, "La facture n'est disponible qu'après une course terminée")
 
+    async def test_record_admin_manual_partial_payment_updates_remaining_amount(self):
+        await self.bookings.insert_one({
+            "id": "course_manual_partial",
+            "client_name": "Client Test",
+            "client_email": "client@test.com",
+            "pickup_address": "Paris",
+            "dropoff_address": "Lyon",
+            "pickup_date": "24/09/2026",
+            "pickup_time": "10:00",
+            "transfer_type": "simple",
+            "status": "COMPLETED",
+            "payment_status": "pending",
+            "estimated_price": 150.0,
+            "paid_amount": None,
+            "manual_payments": [],
+            "created_at": server.datetime.now(server.timezone.utc),
+        })
+
+        with patch.object(server, "db", self.fake_db), patch.object(
+            server, "require_admin", AsyncMock(return_value={"id": "admin_1", "name": "Admin Test", "email": "admin@test.com"})
+        ):
+            updated = await server.record_admin_booking_payment(
+                "course_manual_partial",
+                server.BookingManualPaymentUpdate(amount=40, note="Acompte"),
+                request=object(),
+            )
+
+        stored = await self.bookings.find_one({"id": "course_manual_partial"})
+        self.assertEqual(updated.payment_status, "partially_paid")
+        self.assertEqual(updated.paid_amount, 40.0)
+        self.assertEqual(updated.remaining_amount, 110.0)
+        self.assertEqual(stored["status"], "COMPLETED")
+        self.assertEqual(len(stored["manual_payments"]), 1)
+        self.assertEqual(stored["manual_payments"][0]["note"], "Acompte")
+
+    async def test_record_admin_manual_payment_can_complete_invoice(self):
+        paid_at = server.datetime.now(server.timezone.utc)
+        await self.bookings.insert_one({
+            "id": "course_manual_paid",
+            "client_name": "Client Test",
+            "client_email": "client@test.com",
+            "pickup_address": "Paris",
+            "dropoff_address": "Lyon",
+            "pickup_date": "24/09/2026",
+            "pickup_time": "10:00",
+            "transfer_type": "simple",
+            "status": "INVOICED",
+            "payment_status": "partially_paid",
+            "estimated_price": 150.0,
+            "paid_amount": 40.0,
+            "manual_payments": [{
+                "amount": 40.0,
+                "paid_at": paid_at,
+                "admin_id": "admin_0",
+            }],
+            "created_at": server.datetime.now(server.timezone.utc),
+        })
+
+        with patch.object(server, "db", self.fake_db), patch.object(
+            server, "require_admin", AsyncMock(return_value={"id": "admin_1", "name": "Admin Test", "email": "admin@test.com"})
+        ):
+            updated = await server.record_admin_booking_payment(
+                "course_manual_paid",
+                server.BookingManualPaymentUpdate(amount=110),
+                request=object(),
+            )
+
+        stored = await self.bookings.find_one({"id": "course_manual_paid"})
+        self.assertEqual(updated.payment_status, "paid")
+        self.assertEqual(updated.paid_amount, 150.0)
+        self.assertEqual(updated.remaining_amount, 0.0)
+        self.assertIsNotNone(updated.payment_completed_at)
+        self.assertEqual(len(stored["manual_payments"]), 2)
+
+    async def test_record_admin_manual_payment_rejects_non_positive_amount(self):
+        await self.bookings.insert_one({
+            "id": "course_manual_invalid",
+            "client_name": "Client Test",
+            "client_email": "client@test.com",
+            "pickup_address": "Paris",
+            "dropoff_address": "Lyon",
+            "pickup_date": "24/09/2026",
+            "pickup_time": "10:00",
+            "transfer_type": "simple",
+            "status": "COMPLETED",
+            "payment_status": "pending",
+            "estimated_price": 90.0,
+            "created_at": server.datetime.now(server.timezone.utc),
+        })
+
+        with patch.object(server, "db", self.fake_db), patch.object(
+            server, "require_admin", AsyncMock(return_value={"id": "admin_1"})
+        ):
+            with self.assertRaises(server.HTTPException) as context:
+                await server.record_admin_booking_payment(
+                    "course_manual_invalid",
+                    server.BookingManualPaymentUpdate(amount=0),
+                    request=object(),
+                )
+
+        self.assertEqual(context.exception.status_code, 400)
+        self.assertEqual(context.exception.detail, "Le montant reçu doit être supérieur à 0")
+
 
 if __name__ == "__main__":
     unittest.main()

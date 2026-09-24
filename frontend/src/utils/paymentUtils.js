@@ -6,6 +6,7 @@ export const PAYMENT_METHOD_OPTIONS = [
 
 export const PAYMENT_STATUS_OPTIONS = [
   { value: 'pending', label: 'À payer' },
+  { value: 'partially_paid', label: 'Paiement partiel' },
   { value: 'paid', label: 'Payée' },
 ];
 
@@ -28,8 +29,12 @@ export const normalizeEditablePaymentStatus = (value) => {
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
+  const normalized = raw.replace(/[\s-]+/g, '_');
 
   if (raw === 'paid' || raw === 'payee' || raw === 'paye') return 'paid';
+  if (['partially_paid', 'partial_paid', 'partiellement_paye', 'partiellement_payee', 'paiement_partiel'].includes(normalized)) {
+    return 'partially_paid';
+  }
   // Legacy admin bookings were stored with "not_required"; expose them as unpaid in the
   // edit form so operators can explicitly re-save the new supported statuses.
   if (['pending', 'due', 'a payer', 'a_payer', 'not_required', ''].includes(raw)) return 'pending';
@@ -47,6 +52,9 @@ export const formatPaymentStatusLabel = (value) => {
     .trim();
 
   if (normalized === 'paid' || normalized === 'payee' || normalized === 'paye') return 'Payée';
+  if (normalized === 'partially_paid' || normalized === 'partiellement_paye' || normalized === 'partiellement_payee' || normalized === 'paiement_partiel') {
+    return 'Paiement partiel';
+  }
   if (normalized === 'refunded') return 'Remboursée';
   if (normalized === 'partially_refunded') return 'Partiellement remboursée';
   if (normalized === 'failed') return 'Paiement échoué';
