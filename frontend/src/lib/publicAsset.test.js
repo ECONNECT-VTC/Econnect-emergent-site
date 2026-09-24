@@ -11,7 +11,7 @@ describe('getPublicAssetUrl', () => {
     delete process.env.PUBLIC_URL;
 
     expect(getPublicAssetUrl('/photo/logo-cropped.png')).toBe('/photo/logo-cropped.png');
-    expect(getPublicAssetUrl('photo/logo-cropped.png')).toBe('/photo/logo-cropped.png');
+    expect(getPublicAssetUrl('photo/logo-cropped.png')).toBe('photo/logo-cropped.png');
   });
 
   it('prefixes relative public assets with the configured public url', () => {

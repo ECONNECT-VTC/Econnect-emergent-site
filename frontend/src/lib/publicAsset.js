@@ -13,6 +13,10 @@ export const getPublicAssetUrl = (assetPath = '') => {
     return assetPath;
   }
 
+  if (!assetPath.startsWith('/')) {
+    return assetPath;
+  }
+
   const normalizedPath = assetPath.replace(/^\/+/, '');
   const publicUrl = process.env.PUBLIC_URL || '';
 
