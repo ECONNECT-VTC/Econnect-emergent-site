@@ -4067,68 +4067,80 @@ async def _mark_booking_paid(session: dict) -> Tuple[Optional[dict], bool]:
     if not booking_id:
         return None, False
 
-    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
-    if not booking:
-        return None, False
-
     if not _is_paid_checkout_session(session):
+        booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         return booking, False
 
     payment_intent_id = _stripe_value(session, "payment_intent")
-    if booking.get("payment_status") == "paid":
-        return booking, False
-    if (
-        payment_intent_id
-        and booking.get("stripe_payment_intent_id") == payment_intent_id
-        and booking.get("payment_status") == "partially_paid"
-    ):
-        return booking, False
-
     paid_amount = _stripe_amount_to_float(_stripe_value(session, "amount_total"))
-    estimated_price = booking.get("estimated_price")
-    try:
-        resolved_estimated_price = round_amount(float(estimated_price)) if estimated_price is not None else None
-    except (TypeError, ValueError):
-        resolved_estimated_price = None
-    current_paid_amount = resolve_client_paid_amount(booking) or 0.0
-    cumulative_paid_amount = round_amount(current_paid_amount + (paid_amount or 0.0))
-    if resolved_estimated_price is not None:
-        cumulative_paid_amount = min(cumulative_paid_amount, resolved_estimated_price)
+    for _ in range(3):
+        booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+        if not booking:
+            return None, False
 
-    is_deposit_payment = _is_deposit_payment_method(booking.get("payment_method"))
-    payment_status = "paid"
-    stored_paid_amount = cumulative_paid_amount
-    payment_completed_at = datetime.now(timezone.utc)
-    if (
-        is_deposit_payment
-        and cumulative_paid_amount is not None
-        and resolved_estimated_price is not None
-        and cumulative_paid_amount < resolved_estimated_price
-    ):
-        payment_status = "partially_paid"
-        payment_completed_at = None
+        if booking.get("payment_status") == "paid":
+            return booking, False
+        if (
+            payment_intent_id
+            and booking.get("stripe_payment_intent_id") == payment_intent_id
+            and booking.get("payment_status") == "partially_paid"
+        ):
+            return booking, False
 
-    update_result = await db.bookings.update_one(
-        {"id": booking_id, "payment_status": {"$ne": "paid"}},
-        {"$set": {
-            "payment_status": payment_status,
-            "status": "QUOTE_ACCEPTED",
-            "payment_completed_at": payment_completed_at,
-            "stripe_checkout_session_id": _stripe_value(session, "id"),
-            "stripe_payment_intent_id": payment_intent_id,
-            "paid_amount": stored_paid_amount,
-            "paid_currency": (_stripe_value(session, "currency") or "eur").upper(),
-        }}
-    )
-    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
-    if update_result.modified_count == 0:
-        return booking, False
+        estimated_price = booking.get("estimated_price")
+        try:
+            resolved_estimated_price = round_amount(float(estimated_price)) if estimated_price is not None else None
+        except (TypeError, ValueError):
+            resolved_estimated_price = None
+        current_paid_amount = resolve_client_paid_amount(booking) or 0.0
+        cumulative_paid_amount = round_amount(current_paid_amount + (paid_amount or 0.0))
+        if resolved_estimated_price is not None:
+            cumulative_paid_amount = min(cumulative_paid_amount, resolved_estimated_price)
 
-    enrich_booking_payment_tracking(booking)
+        is_deposit_payment = _is_deposit_payment_method(booking.get("payment_method"))
+        payment_status = "paid"
+        stored_paid_amount = cumulative_paid_amount
+        payment_completed_at = datetime.now(timezone.utc)
+        if (
+            is_deposit_payment
+            and cumulative_paid_amount is not None
+            and resolved_estimated_price is not None
+            and cumulative_paid_amount < resolved_estimated_price
+        ):
+            payment_status = "partially_paid"
+            payment_completed_at = None
 
-    if booking and booking.get("client_email"):
-        await send_booking_confirmation_to_client(booking)
-    return booking, True
+        update_result = await db.bookings.update_one(
+            {
+                "id": booking_id,
+                "payment_status": booking.get("payment_status"),
+                "paid_amount": booking.get("paid_amount"),
+                "stripe_payment_intent_id": booking.get("stripe_payment_intent_id"),
+            },
+            {"$set": {
+                "payment_status": payment_status,
+                "status": "QUOTE_ACCEPTED",
+                "payment_completed_at": payment_completed_at,
+                "stripe_checkout_session_id": _stripe_value(session, "id"),
+                "stripe_payment_intent_id": payment_intent_id,
+                "paid_amount": stored_paid_amount,
+                "paid_currency": (_stripe_value(session, "currency") or "eur").upper(),
+            }}
+        )
+        booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+        if update_result.modified_count == 0:
+            continue
+
+        enrich_booking_payment_tracking(booking)
+
+        if booking and booking.get("client_email"):
+            await send_booking_confirmation_to_client(booking)
+        return booking, True
+
+    latest_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if latest_booking:
+        enrich_booking_payment_tracking(latest_booking)
+    return latest_booking, False
 
 
 @api_router.post("/bookings/{booking_id}/confirm-payment", response_model=BookingPaymentConfirmationResponse)
