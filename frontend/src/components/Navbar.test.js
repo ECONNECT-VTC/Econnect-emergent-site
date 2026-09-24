@@ -19,7 +19,7 @@ jest.mock('@/contexts/LanguageContext', () => ({
 }), { virtual: true });
 
 jest.mock('@/components/LanguageDropdown', () => () => <div data-testid="lang-dropdown">Langues</div>, { virtual: true });
-jest.mock('@/components/LogoDisplay', () => () => <div data-testid="logo-display">Logo</div>, { virtual: true });
+jest.mock('@/components/LogoDisplay', () => ({ className }) => <div data-testid="logo-display" className={className}>Logo</div>, { virtual: true });
 
 jest.mock('framer-motion', () => {
   const React = require('react');
@@ -80,5 +80,22 @@ describe('Navbar mobile menu', () => {
 
     expect(container.querySelector('[data-testid="mobile-menu"]')).toBeNull();
     expect(document.body.style.overflow).toBe('');
+  });
+
+  it('keeps the enlarged landing desktop framing classes on the navbar shell and CTA', async () => {
+    await act(async () => {
+      root.render(<Navbar />);
+    });
+
+    const navbar = container.querySelector('[data-testid="navbar"]');
+    const reserveCta = container.querySelector('[data-testid="cta-reserver"]');
+    const logoDisplay = container.querySelector('[data-testid="logo-display"]');
+
+    expect(navbar).not.toBeNull();
+    expect(reserveCta).not.toBeNull();
+    expect(logoDisplay).not.toBeNull();
+    expect(navbar.querySelector('nav').className).toContain('landing-shell');
+    expect(reserveCta.className).toContain('lg:px-7');
+    expect(logoDisplay.className).toContain('md:h-[58px]');
   });
 });
