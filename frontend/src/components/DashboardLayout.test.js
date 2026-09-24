@@ -111,4 +111,20 @@ describe('DashboardLayout mobile drawer', () => {
     expect(document.body.style.overflow).toBe('');
     expect(container.textContent).toContain('Contenu');
   });
+
+  it('uses the shared app shell for top bar and page content framing', async () => {
+    await act(async () => {
+      root.render(
+        <DashboardLayout title="Mon espace">
+          <div>Contenu</div>
+        </DashboardLayout>
+      );
+    });
+
+    const headerShell = container.querySelector('header > .app-shell');
+    const contentShell = container.querySelector('main .app-shell');
+
+    expect(headerShell).not.toBeNull();
+    expect(contentShell).not.toBeNull();
+  });
 });

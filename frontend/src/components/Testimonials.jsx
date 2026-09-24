@@ -47,7 +47,7 @@ const Testimonials = () => {
 
   return (
     <section className="pt-24 pb-12 md:pt-32 md:pb-16 bg-[#141414]" data-testid="testimonials-section">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
+      <div className="app-shell">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}

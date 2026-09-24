@@ -16,7 +16,7 @@ const Footer = () => {
 
   return (
     <footer id="contact" className="py-24 bg-[#0A0A0A] border-t border-white/5" data-testid="footer">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
+      <div className="app-shell">
         <div className="mb-16 grid grid-cols-1 gap-10 md:grid-cols-4 md:gap-12">
           {/* Brand */}
           <div className="md:col-span-2">

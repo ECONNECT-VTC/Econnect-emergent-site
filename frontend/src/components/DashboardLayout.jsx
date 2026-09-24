@@ -132,8 +132,8 @@ const DashboardLayout = ({ children, title }) => {
       {/* Main content */}
       <div className="min-w-0 flex-1 lg:ml-64">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 bg-[#0A0A0A]/80 backdrop-blur-lg border-b border-white/10">
-          <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0A0A0A]/80 backdrop-blur-lg">
+          <div className="app-shell flex items-center justify-between gap-3 py-4">
             <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -160,11 +160,12 @@ const DashboardLayout = ({ children, title }) => {
         </header>
 
         {/* Page content */}
-        <main className="min-w-0 px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <main className="min-w-0 py-4 sm:py-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
+            className="app-shell"
           >
             {children}
           </motion.div>
