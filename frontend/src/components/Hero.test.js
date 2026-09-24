@@ -75,9 +75,13 @@ describe('Hero responsive layout', () => {
     const reserveCta = container.querySelector('[data-testid="hero-cta-reserver"]');
     const backgroundImage = container.querySelector('img[alt="Luxury car at night"]');
 
-    expect(heroSection?.className).toContain('lg:min-h-[105vh]');
-    expect(heroTitle?.className).toContain('text-[clamp(3.15rem,8vw,7.25rem)]');
-    expect(reserveCta?.className).toContain('lg:min-w-[15rem]');
-    expect(backgroundImage?.className).toContain('hero-backdrop-image');
+    expect(heroSection).not.toBeNull();
+    expect(heroTitle).not.toBeNull();
+    expect(reserveCta).not.toBeNull();
+    expect(backgroundImage).not.toBeNull();
+    expect(heroSection.className).toContain('lg:min-h-[105vh]');
+    expect(heroTitle.className).toContain('text-[clamp(3.15rem,8vw,7.25rem)]');
+    expect(reserveCta.className).toContain('lg:min-w-[15rem]');
+    expect(backgroundImage.className).toContain('hero-backdrop-image');
   });
 });

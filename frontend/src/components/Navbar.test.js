@@ -91,8 +91,11 @@ describe('Navbar mobile menu', () => {
     const reserveCta = container.querySelector('[data-testid="cta-reserver"]');
     const logoDisplay = container.querySelector('[data-testid="logo-display"]');
 
-    expect(navbar.querySelector('nav')?.className).toContain('landing-shell');
-    expect(reserveCta?.className).toContain('lg:px-7');
-    expect(logoDisplay?.className).toContain('md:h-[58px]');
+    expect(navbar).not.toBeNull();
+    expect(reserveCta).not.toBeNull();
+    expect(logoDisplay).not.toBeNull();
+    expect(navbar.querySelector('nav').className).toContain('landing-shell');
+    expect(reserveCta.className).toContain('lg:px-7');
+    expect(logoDisplay.className).toContain('md:h-[58px]');
   });
 });
