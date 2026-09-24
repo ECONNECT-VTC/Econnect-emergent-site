@@ -134,6 +134,24 @@ def normalize_booking_status(status: Optional[str]) -> Optional[str]:
         return status
     return LEGACY_STATUS_MAP.get(str(status).lower(), status)
 
+
+def build_status_match_query(status: Optional[str]) -> Optional[dict]:
+    normalized_status = normalize_booking_status(status)
+    if not normalized_status:
+        return None
+
+    accepted_values = {normalized_status}
+    for legacy_status, canonical_status in LEGACY_STATUS_MAP.items():
+        if canonical_status == normalized_status:
+            accepted_values.add(legacy_status)
+
+    pattern = "|".join(sorted(re.escape(value) for value in accepted_values if value))
+    return {"$regex": f"^(?:{pattern})$", "$options": "i"} if pattern else None
+
+
+def build_driver_role_query() -> dict:
+    return {"$regex": "^(?:driver|chauffeur)$", "$options": "i"}
+
 # ==================== MODELS ====================
 
 class UserBase(BaseModel):
@@ -450,12 +468,22 @@ CATEGORY_NAME_ALIASES = {
 
 
 def serialize_vehicle_category(category: dict) -> VehicleCategory:
+    normalized_name = str(category.get("name") or "").strip()
+    if not normalized_name:
+        raise ValueError("Vehicle category name is required")
+
+    normalized_slug = unicodedata.normalize("NFKD", normalized_name).encode("ASCII", "ignore").decode("ASCII")
+    normalized_slug = re.sub(r"[^a-zA-Z0-9]+", "-", normalized_slug).strip("-").lower()
+    category_id = str(category.get("id") or normalized_slug).strip()
+    if not category_id:
+        raise ValueError("Vehicle category id is required")
+
     return VehicleCategory(
-        id=category["id"],
-        name=category["name"],
-        description=category["description"],
-        price_per_km=category["price_per_km"],
-        min_fare=category["min_fare"],
+        id=category_id,
+        name=normalized_name,
+        description=str(category.get("description") or ""),
+        price_per_km=float(category.get("price_per_km") or 0),
+        min_fare=float(category.get("min_fare") or 0),
         has_wifi=category.get("has_wifi"),
         max_passengers=category.get("max_passengers"),
         max_luggage=category.get("max_luggage"),
@@ -471,6 +499,127 @@ def normalize_category_name(category_name: Optional[str]) -> Optional[str]:
     normalized = unicodedata.normalize("NFKD", category_name).encode("ASCII", "ignore").decode("ASCII")
     normalized = normalized.strip().lower()
     return CATEGORY_NAME_ALIASES.get(normalized, category_name)
+
+
+async def ensure_default_vehicle_categories() -> None:
+    existing_categories = await db.vehicle_categories.count_documents({})
+    if existing_categories == 0:
+        default_categories = [
+            {
+                "id": str(uuid.uuid4()),
+                "name": "Berline",
+                "description": "Confort et elegance pour vos trajets quotidiens. Mercedes Classe E, BMW Serie 5.",
+                "price_per_km": 2.50,
+                "min_fare": 25.00,
+                "has_wifi": True,
+                "max_passengers": 4,
+                "max_luggage": 2,
+                "image_url": "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=400",
+                "is_active": True,
+                "order": 1
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "name": "Van",
+                "description": "Ideal pour les groupes jusqu'a 7 personnes. Mercedes Classe V, Volkswagen Caravelle.",
+                "price_per_km": 3.00,
+                "min_fare": 35.00,
+                "has_wifi": False,
+                "max_passengers": 7,
+                "max_luggage": 5,
+                "image_url": "https://images.unsplash.com/photo-1559416523-140ddc3d238c?w=400",
+                "is_active": True,
+                "order": 2
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "name": "Luxe",
+                "description": "Experience premium avec vehicules haut de gamme. Mercedes Classe S, BMW Serie 7.",
+                "price_per_km": 4.00,
+                "min_fare": 50.00,
+                "has_wifi": True,
+                "max_passengers": 4,
+                "max_luggage": 3,
+                "image_url": "https://images.unsplash.com/photo-1563720360172-67b8f3dce741?w=400",
+                "is_active": True,
+                "order": 3
+            },
+            {
+                "id": str(uuid.uuid4()),
+                "name": "Green",
+                "description": "Vehicules electriques et hybrides pour un transport eco-responsable. Tesla Model S, Mercedes EQS.",
+                "price_per_km": 2.80,
+                "min_fare": 30.00,
+                "has_wifi": True,
+                "max_passengers": 4,
+                "max_luggage": 2,
+                "image_url": "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=400",
+                "is_active": True,
+                "order": 4
+            }
+        ]
+        await db.vehicle_categories.insert_many(default_categories)
+        logger.info("Default vehicle categories created")
+        return
+
+    categories = await db.vehicle_categories.find(
+        {},
+        {
+            "_id": 0,
+            "id": 1,
+            "name": 1,
+            "has_wifi": 1,
+            "max_passengers": 1,
+            "max_luggage": 1,
+        },
+    ).to_list(100)
+    updated_categories = 0
+    for category in categories:
+        category_name = category.get("name") or ""
+        expected_metadata = DEFAULT_CATEGORY_METADATA.get(category_name)
+        legacy_metadata = LEGACY_CATEGORY_METADATA.get(category_name, {})
+        if not expected_metadata:
+            continue
+
+        fields_to_update = {}
+        for field_name, expected_value in expected_metadata.items():
+            current_value = category.get(field_name)
+            legacy_value = legacy_metadata.get(field_name)
+            should_update = current_value is None or current_value == legacy_value
+            if should_update and current_value != expected_value:
+                fields_to_update[field_name] = expected_value
+
+        if fields_to_update:
+            await db.vehicle_categories.update_one({"id": category["id"]}, {"$set": fields_to_update})
+            updated_categories += 1
+
+    if updated_categories:
+        logger.info("Backfilled vehicle category metadata for %s categories", updated_categories)
+
+
+def normalize_driver_document(driver_doc: dict) -> Optional[DriverResponse]:
+    if not driver_doc:
+        return None
+
+    normalized_role = str(driver_doc.get("role") or "driver").strip().lower()
+    if normalized_role not in {"driver", "chauffeur"}:
+        return None
+
+    normalized_driver = {
+        "id": str(driver_doc.get("id") or "").strip(),
+        "email": str(driver_doc.get("email") or "").strip(),
+        "name": str(driver_doc.get("name") or "").strip(),
+        "phone": str(driver_doc.get("phone") or "").strip(),
+        "role": "driver",
+        "vehicle_model": str(driver_doc.get("vehicle_model") or driver_doc.get("vehicle") or "").strip(),
+        "vehicle_plate": str(driver_doc.get("vehicle_plate") or driver_doc.get("plate") or "").strip(),
+        "is_available": bool(driver_doc.get("is_available", True)),
+        "created_at": driver_doc.get("created_at") or datetime.now(timezone.utc),
+    }
+    if not normalized_driver["id"] or not normalized_driver["email"] or not normalized_driver["name"]:
+        return None
+
+    return DriverResponse(**normalized_driver)
 
 
 def select_disposition_rate(rates: List[dict], requested_hours: float) -> Optional[dict]:
@@ -868,7 +1017,7 @@ def get_payment_status_label(value: Any, default: str = "N/A") -> str:
 async def get_document_driver_profile(booking: dict) -> Optional[dict]:
     if bool(booking.get("fulfilled_by_admin")) or not booking.get("driver_id"):
         return None
-    return await db.users.find_one({"id": booking.get("driver_id"), "role": "driver"}, {"_id": 0})
+    return await db.users.find_one({"id": booking.get("driver_id"), "role": build_driver_role_query()}, {"_id": 0})
 
 async def build_document_issuer_profile(booking: dict, settings: dict, driver: Optional[dict] = None) -> dict:
     """Build issuer details for generated documents.
@@ -4220,11 +4369,11 @@ async def get_admin_stats(request: Request):
             {"payment_status": {"$ne": "pending"}},
         ]
     })
-    assigned_bookings = await db.bookings.count_documents({"status": "ASSIGNED"})
-    completed_bookings = await db.bookings.count_documents({"status": "COMPLETED"})
+    assigned_bookings = await db.bookings.count_documents({"status": build_status_match_query("ASSIGNED")})
+    completed_bookings = await db.bookings.count_documents({"status": build_status_match_query("COMPLETED")})
     total_clients = await db.users.count_documents({"role": "client"})
-    total_drivers = await db.users.count_documents({"role": "driver"})
-    available_drivers = await db.users.count_documents({"role": "driver", "is_available": True})
+    total_drivers = await db.users.count_documents({"role": build_driver_role_query()})
+    available_drivers = await db.users.count_documents({"role": build_driver_role_query(), "is_available": True})
 
     return StatsResponse(
         total_bookings=total_bookings,
@@ -4243,7 +4392,7 @@ async def get_all_bookings(request: Request, status: Optional[str] = None, inclu
     query = {}
     normalized_status = normalize_booking_status(status) if status else None
     if normalized_status:
-        query["status"] = normalized_status
+        query["status"] = build_status_match_query(normalized_status)
     if not include_unpaid_pending:
         # Admin operational view: only courses in operational workflow (devis validé et après).
         if normalized_status in {"DRAFT", "QUOTE_SENT"}:
@@ -4253,6 +4402,7 @@ async def get_all_bookings(request: Request, status: Optional[str] = None, inclu
 
     bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     for booking in bookings:
+        booking["status"] = normalize_booking_status(booking.get("status"))
         booking["payment_method"] = normalize_payment_method_code(booking.get("payment_method"), fallback=booking.get("notes"))
         booking["payment_status"] = normalize_payment_status_code(booking.get("payment_status")) or "pending"
     return [BookingResponse(**b) for b in bookings]
@@ -4532,7 +4682,7 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     if normalize_booking_status(booking.get("status")) not in {"QUOTE_ACCEPTED", "ORDER_ISSUED"}:
         raise HTTPException(status_code=400, detail="La course doit être validée (devis accepté) avant assignation")
 
-    driver = await db.users.find_one({"id": assign_data.driver_id, "role": "driver"})
+    driver = await db.users.find_one({"id": assign_data.driver_id, "role": build_driver_role_query()})
     if not driver:
         raise HTTPException(status_code=404, detail="Chauffeur non trouvé")
 
@@ -4793,9 +4943,21 @@ async def get_public_disposition_rates():
 @api_router.get("/admin/drivers", response_model=List[DriverResponse])
 async def get_all_drivers(request: Request):
     await require_admin(request)
+    raw_drivers = await db.users.find({"role": build_driver_role_query()}, {"_id": 0, "password_hash": 0}).to_list(100)
+    drivers: List[DriverResponse] = []
+    for raw_driver in raw_drivers:
+        try:
+            normalized_driver = normalize_driver_document(raw_driver)
+        except Exception as exc:
+            logger.warning("Skipping malformed driver %s: %s", raw_driver.get("id"), exc)
+            continue
 
-    drivers = await db.users.find({"role": "driver"}, {"_id": 0, "password_hash": 0}).to_list(100)
-    return [DriverResponse(**d) for d in drivers]
+        if normalized_driver is None:
+            logger.warning("Skipping incomplete driver document %s", raw_driver.get("id"))
+            continue
+        drivers.append(normalized_driver)
+
+    return drivers
 
 @api_router.post("/admin/drivers", response_model=DriverResponse)
 async def create_driver(driver_data: DriverCreate, request: Request):
@@ -4831,7 +4993,7 @@ async def create_driver(driver_data: DriverCreate, request: Request):
 async def delete_driver(driver_id: str, request: Request):
     await require_admin(request)
 
-    result = await db.users.delete_one({"id": driver_id, "role": "driver"})
+    result = await db.users.delete_one({"id": driver_id, "role": build_driver_role_query()})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Chauffeur non trouvé")
 
@@ -4849,8 +5011,14 @@ async def get_all_clients(request: Request):
 @api_router.get("/vehicle-categories", response_model=List[VehicleCategory])
 async def get_vehicle_categories():
     """Get all active vehicle categories (public endpoint)"""
+    await ensure_default_vehicle_categories()
     categories = await db.vehicle_categories.find({"is_active": True}, {"_id": 0}).sort("order", 1).to_list(100)
-    serialized_categories = [serialize_vehicle_category(c) for c in categories]
+    serialized_categories = []
+    for category in categories:
+        try:
+            serialized_categories.append(serialize_vehicle_category(category))
+        except Exception as exc:
+            logger.warning("Skipping malformed vehicle category %s: %s", category.get("id"), exc)
     logger.debug(
         "Public vehicle categories response metadata: %s",
         [
@@ -4869,8 +5037,15 @@ async def get_vehicle_categories():
 async def get_all_vehicle_categories(request: Request):
     """Get all vehicle categories including inactive (admin only)"""
     await require_admin(request)
+    await ensure_default_vehicle_categories()
     categories = await db.vehicle_categories.find({}, {"_id": 0}).sort("order", 1).to_list(100)
-    return [serialize_vehicle_category(c) for c in categories]
+    serialized_categories = []
+    for category in categories:
+        try:
+            serialized_categories.append(serialize_vehicle_category(category))
+        except Exception as exc:
+            logger.warning("Skipping malformed admin vehicle category %s: %s", category.get("id"), exc)
+    return serialized_categories
 
 @api_router.post("/admin/vehicle-categories", response_model=VehicleCategory)
 async def create_vehicle_category(category: VehicleCategoryCreate, request: Request):
@@ -4982,7 +5157,14 @@ async def estimate_price(
     Calculate price estimates for all vehicle categories.
     Standard transfers are based on distance; disposition transfers use hourly rates.
     """
-    categories = await db.vehicle_categories.find({"is_active": True}, {"_id": 0}).sort("order", 1).to_list(100)
+    await ensure_default_vehicle_categories()
+    raw_categories = await db.vehicle_categories.find({"is_active": True}, {"_id": 0}).sort("order", 1).to_list(100)
+    categories = []
+    for category in raw_categories:
+        try:
+            categories.append(serialize_vehicle_category(category).model_dump())
+        except Exception as exc:
+            logger.warning("Skipping malformed estimate-price vehicle category %s: %s", category.get("id"), exc)
     multiplier = 2 if transfer_type == "retour" else 1
 
     if transfer_type == "disposition":
@@ -5057,7 +5239,7 @@ async def get_financial_stats(request: Request, driver_id: Optional[str] = None)
     await require_admin(request)
     settings = await get_commission_settings()
 
-    query = {"status": "COMPLETED", "estimated_price": {"$ne": None}}
+    query = {"status": build_status_match_query("COMPLETED"), "estimated_price": {"$ne": None}}
     if driver_id:
         query["driver_id"] = driver_id
 
@@ -5142,7 +5324,7 @@ async def get_completed_bookings_financial(request: Request):
     settings = await get_commission_settings()
 
     bookings = await db.bookings.find(
-        {"status": "COMPLETED", "estimated_price": {"$ne": None}},
+        {"status": build_status_match_query("COMPLETED"), "estimated_price": {"$ne": None}},
         {"_id": 0}
     ).sort("created_at", -1).to_list(1000)
 
@@ -5532,99 +5714,7 @@ async def startup_event():
     else:
         logger.info("ADMIN_EMAIL or ADMIN_PASSWORD not set – skipping admin bootstrap")
 
-    # Seed default vehicle categories if none exist
-    existing_categories = await db.vehicle_categories.count_documents({})
-    if existing_categories == 0:
-        default_categories = [
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Berline",
-                "description": "Confort et elegance pour vos trajets quotidiens. Mercedes Classe E, BMW Serie 5.",
-                "price_per_km": 2.50,
-                "min_fare": 25.00,
-                "has_wifi": True,
-                "max_passengers": 4,
-                "max_luggage": 2,
-                "image_url": "https://images.unsplash.com/photo-1555215695-3004980ad54e?w=400",
-                "is_active": True,
-                "order": 1
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Van",
-                "description": "Ideal pour les groupes jusqu'a 7 personnes. Mercedes Classe V, Volkswagen Caravelle.",
-                "price_per_km": 3.00,
-                "min_fare": 35.00,
-                "has_wifi": False,
-                "max_passengers": 7,
-                "max_luggage": 5,
-                "image_url": "https://images.unsplash.com/photo-1559416523-140ddc3d238c?w=400",
-                "is_active": True,
-                "order": 2
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Luxe",
-                "description": "Experience premium avec vehicules haut de gamme. Mercedes Classe S, BMW Serie 7.",
-                "price_per_km": 4.00,
-                "min_fare": 50.00,
-                "has_wifi": True,
-                "max_passengers": 4,
-                "max_luggage": 3,
-                "image_url": "https://images.unsplash.com/photo-1563720360172-67b8f3dce741?w=400",
-                "is_active": True,
-                "order": 3
-            },
-            {
-                "id": str(uuid.uuid4()),
-                "name": "Green",
-                "description": "Vehicules electriques et hybrides pour un transport eco-responsable. Tesla Model S, Mercedes EQS.",
-                "price_per_km": 2.80,
-                "min_fare": 30.00,
-                "has_wifi": True,
-                "max_passengers": 4,
-                "max_luggage": 2,
-                "image_url": "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=400",
-                "is_active": True,
-                "order": 4
-            }
-        ]
-        await db.vehicle_categories.insert_many(default_categories)
-        logger.info("Default vehicle categories created")
-    else:
-        categories = await db.vehicle_categories.find(
-            {},
-            {
-                "_id": 0,
-                "id": 1,
-                "name": 1,
-                "has_wifi": 1,
-                "max_passengers": 1,
-                "max_luggage": 1,
-            },
-        ).to_list(100)
-        updated_categories = 0
-        for category in categories:
-            category_name = category.get("name") or ""
-            expected_metadata = DEFAULT_CATEGORY_METADATA.get(category_name)
-            legacy_metadata = LEGACY_CATEGORY_METADATA.get(category_name, {})
-            if not expected_metadata:
-                continue
-
-            fields_to_update = {}
-            for field_name, expected_value in expected_metadata.items():
-                current_value = category.get(field_name)
-                legacy_value = legacy_metadata.get(field_name)
-                should_update = current_value is None or current_value == legacy_value
-                if should_update and current_value != expected_value:
-                    fields_to_update[field_name] = expected_value
-
-            if fields_to_update:
-                await db.vehicle_categories.update_one({"id": category["id"]}, {"$set": fields_to_update})
-                updated_categories += 1
-
-        if updated_categories:
-            logger.info("Backfilled vehicle category metadata for %s categories", updated_categories)
+    await ensure_default_vehicle_categories()
 
     existing_settings = await db.commission_settings.count_documents({})
     if existing_settings == 0:
