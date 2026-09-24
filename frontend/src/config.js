@@ -6,7 +6,7 @@ const normalizeApiBase = (value) => {
   return trimmedValue.replace(/\/+$/, '').replace(/\/api$/, '');
 };
 
-const processEnv = globalThis.process?.env;
+const getProcessEnv = () => globalThis.process?.env;
 
 const isLocalHostname = (hostname = '') => (
   hostname === 'localhost' ||
@@ -24,16 +24,18 @@ const getFallbackApiUrl = () => {
   return isLocalHostname(window.location.hostname) ? 'http://localhost:8000' : window.location.origin;
 };
 
-const buildTimeApiUrl =
-  normalizeApiBase(processEnv?.REACT_APP_API_URL) ||
-  normalizeApiBase(processEnv?.REACT_APP_BACKEND_URL) ||
-  normalizeApiBase(processEnv?.VITE_API_URL);
+const getBuildTimeApiUrl = () => (
+  normalizeApiBase(getProcessEnv()?.REACT_APP_API_URL) ||
+  normalizeApiBase(getProcessEnv()?.REACT_APP_BACKEND_URL) ||
+  normalizeApiBase(getProcessEnv()?.VITE_API_URL)
+);
 
 export let API_URL = '';
 export let API_URL_SOURCE = 'same-origin-fallback';
 
 const syncApiConfig = () => {
   const runtimeApiUrl = getRuntimeApiUrl();
+  const buildTimeApiUrl = getBuildTimeApiUrl();
   const configuredApiUrl = runtimeApiUrl || buildTimeApiUrl;
   API_URL = configuredApiUrl || getFallbackApiUrl();
   API_URL_SOURCE = runtimeApiUrl
