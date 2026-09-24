@@ -4,18 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import API_URL from '@/config';
+import { logApiError, parseApiError } from '../../utils/apiErrors';
 const formatAmount = (value) => `${(Number(value) || 0).toFixed(2)}€`;
 const MAX_RECENT_BOOKINGS = 50;
 
-const parseError = (error) => {
-  const detail = error?.response?.data?.detail;
-  if (!detail) return 'Erreur inconnue';
-  if (typeof detail === 'string') return detail;
-  if (Array.isArray(detail)) {
-    return detail.map((e) => `${e.loc?.slice(-1)[0] || 'champ'}: ${e.msg}`).join(' | ');
-  }
-  return 'Erreur inconnue';
-};
+const describeLoadFailure = (label, error) => `${label} : ${parseApiError(error, 'Erreur inconnue')}`;
 
 const AdminFinancialDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -32,26 +25,55 @@ const AdminFinancialDashboard = () => {
 
   const fetchData = useCallback(async (driverId = 'all') => {
     try {
+      setLoading(true);
+      setError('');
       const statsUrl = driverId !== 'all'
         ? `${API_URL}/api/admin/financial/stats?driver_id=${driverId}`
         : `${API_URL}/api/admin/financial/stats`;
 
-      const [statsRes, bookingsRes, driversRes] = await Promise.all([
+      const [statsRes, bookingsRes, driversRes] = await Promise.allSettled([
         axios.get(statsUrl, { withCredentials: true }),
         axios.get(`${API_URL}/api/admin/bookings?status=completed`, { withCredentials: true }),
         axios.get(`${API_URL}/api/admin/drivers`, { withCredentials: true })
       ]);
 
-      const fetchedBookings = bookingsRes.data || [];
+      const failures = [];
+      let fetchedBookings = [];
+
+      if (statsRes.status === 'fulfilled') {
+        setStats(statsRes.value.data);
+      } else {
+        setStats(null);
+        failures.push(describeLoadFailure('Statistiques financières', statsRes.reason));
+        logApiError('AdminFinancialDashboard.fetchData.stats', statsRes.reason);
+      }
+
+      if (bookingsRes.status === 'fulfilled') {
+        fetchedBookings = bookingsRes.value.data || [];
+      } else {
+        failures.push(describeLoadFailure('Réservations terminées', bookingsRes.reason));
+        logApiError('AdminFinancialDashboard.fetchData.bookings', bookingsRes.reason);
+      }
+
       const filtered = driverId === 'all'
         ? fetchedBookings
         : fetchedBookings.filter((b) => b.driver_id === driverId);
-
-      setStats(statsRes.data);
       setBookings(filtered.slice(0, MAX_RECENT_BOOKINGS));
-      setDrivers(driversRes.data || []);
+
+      if (driversRes.status === 'fulfilled') {
+        setDrivers(driversRes.value.data || []);
+      } else {
+        setDrivers([]);
+        failures.push(describeLoadFailure('Chauffeurs', driversRes.reason));
+        logApiError('AdminFinancialDashboard.fetchData.drivers', driversRes.reason);
+      }
+
+      if (failures.length > 0) {
+        setError(failures.join(' | '));
+      }
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible de charger les données financières'));
+      logApiError('AdminFinancialDashboard.fetchData', err);
     } finally {
       setLoading(false);
     }
@@ -89,7 +111,8 @@ const AdminFinancialDashboard = () => {
       setCommissionOverride('');
       fetchData(selectedDriver);
     } catch (err) {
-      setError(parseError(err));
+      setError(parseApiError(err, 'Impossible d’ajuster la commission'));
+      logApiError('AdminFinancialDashboard.saveCommissionOverride', err);
     } finally {
       setSaving(false);
     }

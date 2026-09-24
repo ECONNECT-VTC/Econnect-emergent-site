@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Envelope, Lock, ArrowLeft, CircleNotch } from '@phosphor-icons/react';
 import LanguageDropdown from '@/components/LanguageDropdown';
 import { getBookingCheckoutResumeState } from '@/utils/bookingCheckout';
+import PasswordInput from '../components/PasswordInput';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -134,9 +135,8 @@ const LoginPage = () => {
               <Label htmlFor="password" className="text-[#A1A1AA]">{t('loginPassword') || 'Mot de passe'}</Label>
               <div className="relative">
                 <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
-                <Input
+                <PasswordInput
                   id="password"
-                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
