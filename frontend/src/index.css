@@ -33,14 +33,18 @@
 
 html {
   scroll-behavior: smooth;
+  overflow-x: hidden;
 }
 
 html, body, #root {
+  width: 100%;
   max-width: 100%;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
+  min-width: 320px;
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -68,6 +72,11 @@ h1, h2, h3, h4, h5, h6 {
   video,
   canvas {
     max-width: 100%;
+  }
+
+  img {
+    display: block;
+    height: auto;
   }
 }
 

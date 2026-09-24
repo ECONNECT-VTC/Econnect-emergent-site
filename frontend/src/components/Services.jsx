@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Car, Clock, Airplane, Buildings } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
+import getPublicAssetUrl from '@/lib/publicAsset';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -109,7 +110,7 @@ const Services = () => {
               {/* Background Image */}
               <div className="absolute inset-0">
                 <img
-                  src={service.image}
+                  src={getPublicAssetUrl(service.image)}
                   alt={t(service.titleKey)}
                   className="service-card-img w-full h-full object-cover"
                 />

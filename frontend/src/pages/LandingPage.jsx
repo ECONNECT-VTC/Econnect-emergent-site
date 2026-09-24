@@ -10,7 +10,7 @@ import WhatsAppButton from "@/components/WhatsAppButton";
 
 const LandingPage = () => {
   return (
-    <div className="min-h-screen bg-[#0A0A0A]" data-testid="landing-page">
+    <div className="min-h-screen overflow-x-hidden bg-[#0A0A0A]" data-testid="landing-page">
       <Navbar />
       <Hero />
       <Services />

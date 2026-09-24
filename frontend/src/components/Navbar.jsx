@@ -57,7 +57,7 @@ const Navbar = () => {
       data-testid="navbar"
     >
       <div className="border-b border-white/5 bg-[#050505]/85">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 py-2 hidden md:flex items-center justify-between text-[11px] uppercase tracking-[0.28em] text-[#C7B588]">
+        <div className="mx-auto hidden max-w-7xl items-center justify-between px-4 py-2 text-[11px] uppercase tracking-[0.24em] text-[#C7B588] md:flex md:px-6 lg:px-10">
           <span>Service chauffeur privé premium</span>
           <div className="flex items-center gap-5">
             <span className="inline-flex items-center gap-2">
@@ -68,14 +68,14 @@ const Navbar = () => {
         </div>
       </div>
 
-      <nav className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 py-3 md:py-4 flex items-center justify-between gap-3 sm:gap-4">
+      <nav className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:gap-4 sm:px-6 md:py-4 lg:px-10">
         <a href="#accueil" className="flex items-center" data-testid="logo">
-          <span className="rounded-[22px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-3 py-2.5 shadow-[0_16px_40px_rgba(0,0,0,0.28)] sm:px-4 sm:py-3">
-            <LogoDisplay className="h-[34px] w-[122px] sm:h-[46px] sm:w-[172px] md:h-[56px] md:w-[220px]" priority />
+          <span className="rounded-[20px] border border-[#D4AF37]/20 bg-[#0E0E0E]/90 px-3 py-2 shadow-[0_16px_40px_rgba(0,0,0,0.28)] sm:px-4 sm:py-2.5">
+            <LogoDisplay className="h-[30px] w-[112px] sm:h-[40px] sm:w-[152px] md:h-[48px] md:w-[190px]" priority />
           </span>
         </a>
 
-        <div className="hidden lg:flex items-center gap-7 rounded-full border border-white/8 bg-[#111111]/85 px-6 py-3">
+        <div className="hidden items-center gap-6 rounded-full border border-white/8 bg-[#111111]/85 px-5 py-3 lg:flex">
           {navLinks.map((link) => (
             <a
               key={link.key}
