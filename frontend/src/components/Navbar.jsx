@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LanguageDropdown from '@/components/LanguageDropdown';
 import LogoDisplay from '@/components/LogoDisplay';
+import { CONTACT_PHONE, CONTACT_PHONE_DISPLAY } from '@/config';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -64,7 +65,7 @@ const Navbar = () => {
           <div className="flex items-center gap-6">
             <span className="inline-flex items-center gap-2">
               <Phone size={12} weight="fill" className="text-[#D4AF37]" />
-              +337 53 41 88 33
+              {CONTACT_PHONE_DISPLAY}
             </span>
           </div>
         </div>
@@ -213,12 +214,12 @@ const Navbar = () => {
                   </div>
                 </div>
                 <a
-                  href="tel:+33753418833"
+                  href={`tel:${CONTACT_PHONE}`}
                   className="inline-flex items-center gap-2 text-sm font-medium text-[#F3D67A]"
                   onClick={closeMobileMenu}
                 >
                   <Phone size={15} weight="fill" />
-                  +337 53 41 88 33
+                  {CONTACT_PHONE_DISPLAY}
                 </a>
               </div>
 

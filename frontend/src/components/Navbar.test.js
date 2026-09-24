@@ -20,6 +20,10 @@ jest.mock('@/contexts/LanguageContext', () => ({
 
 jest.mock('@/components/LanguageDropdown', () => () => <div data-testid="lang-dropdown">Langues</div>, { virtual: true });
 jest.mock('@/components/LogoDisplay', () => ({ className }) => <div data-testid="logo-display" className={className}>Logo</div>, { virtual: true });
+jest.mock('@/config', () => ({
+  CONTACT_PHONE: '+33753418833',
+  CONTACT_PHONE_DISPLAY: '+33 7 53 41 88 33',
+}), { virtual: true });
 
 jest.mock('framer-motion', () => {
   const React = require('react');

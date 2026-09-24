@@ -1,9 +1,10 @@
 import { WhatsappLogo } from '@phosphor-icons/react';
 import { motion } from 'framer-motion';
+import { WHATSAPP_PHONE } from '@/config';
 
 const WhatsAppButton = () => {
   const message = "Bonjour, je souhaite réserver un chauffeur VTC";
-  const whatsappUrl = `https://wa.me/33753418833?text=${encodeURIComponent(message)}`;
+  const whatsappUrl = `https://wa.me/${WHATSAPP_PHONE}?text=${encodeURIComponent(message)}`;
 
   return (
     <motion.a

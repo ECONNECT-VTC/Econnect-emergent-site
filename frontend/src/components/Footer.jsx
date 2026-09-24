@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Phone, Envelope, MapPin, InstagramLogo, FacebookLogo, LinkedinLogo } from '@phosphor-icons/react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LogoDisplay from '@/components/LogoDisplay';
+import { CONTACT_PHONE, CONTACT_PHONE_DISPLAY } from '@/config';
 
 const Footer = () => {
   const { t } = useLanguage();
@@ -74,8 +75,8 @@ const Footer = () => {
             <ul className="space-y-4">
               <li className="flex items-start gap-3">
                 <Phone size={20} className="text-[#D4AF37] mt-1" />
-                <a href="tel:+33753418833" className="text-[#A1A1AA] hover:text-[#D4AF37] transition-colors" data-testid="contact-phone">
-                  +33 753 41 88 33
+                <a href={`tel:${CONTACT_PHONE}`} className="text-[#A1A1AA] hover:text-[#D4AF37] transition-colors" data-testid="contact-phone">
+                  {CONTACT_PHONE_DISPLAY}
                 </a>
               </li>
               <li className="flex items-start gap-3">

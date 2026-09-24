@@ -17,6 +17,10 @@ jest.mock('@phosphor-icons/react', () => ({
   WhatsappLogo: () => null,
 }), { virtual: true });
 
+jest.mock('@/config', () => ({
+  WHATSAPP_PHONE: '33753418833',
+}), { virtual: true });
+
 describe('WhatsAppButton', () => {
   let container;
   let root;
