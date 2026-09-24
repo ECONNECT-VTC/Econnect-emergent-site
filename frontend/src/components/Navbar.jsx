@@ -63,10 +63,10 @@ const Navbar = () => {
         <div className="landing-shell hidden items-center justify-between py-3 text-[0.7rem] uppercase tracking-[0.32em] text-[#C7B588] md:flex lg:py-3.5">
           <span>Service chauffeur privé premium</span>
           <div className="flex items-center gap-6">
-            <span className="inline-flex items-center gap-2">
+            <a href={`tel:${CONTACT_PHONE}`} className="inline-flex items-center gap-2 transition-colors duration-300 hover:text-[#F3D67A]">
               <Phone size={12} weight="fill" className="text-[#D4AF37]" />
               {CONTACT_PHONE_DISPLAY}
-            </span>
+            </a>
           </div>
         </div>
       </div>
