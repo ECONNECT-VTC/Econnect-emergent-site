@@ -1,0 +1,254 @@
+import { useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Envelope, Lock, User, Phone, ArrowLeft, CircleNotch } from '@phosphor-icons/react';
+import { getBookingCheckoutResumeState } from '@/utils/bookingCheckout';
+
+const RegisterPage = () => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { register } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { lang = 'fr' } = useParams();
+  const resumeState = useMemo(
+    () => getBookingCheckoutResumeState(lang, location.state),
+    [lang, location.state]
+  );
+  const isBookingCheckoutResume = resumeState?.from?.hash === '#reserver';
+
+  const validatePassword = (pwd) => {
+    if (pwd.length < 10) return 'Le mot de passe doit contenir au moins 10 caractères';
+    if (!/[A-Z]/.test(pwd)) return 'Le mot de passe doit contenir au moins une lettre majuscule';
+    if (!/[a-z]/.test(pwd)) return 'Le mot de passe doit contenir au moins une lettre minuscule';
+    if (!/[^A-Za-z0-9]/.test(pwd)) return 'Le mot de passe doit contenir au moins un caractère spécial';
+    return null;
+  };
+
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  if (!role) {
+    setError("Veuillez sélectionner un type de compte");
+    return;
+  }
+
+  if (password !== confirmPassword) {
+    setError("Les mots de passe ne correspondent pas");
+    return;
+  }
+
+  if (password.length < 10) {
+    setError("Le mot de passe doit contenir au moins 10 caractères");
+    return;
+  }
+
+  try {
+    setLoading(true);
+    setError("");
+
+    await register(email, password, name, phone, role);
+
+    navigate("/verify-email");
+  } catch (error) {
+  console.error("REGISTER ERROR:", error.response?.data || error.message);
+  setError(
+    error.response?.data?.detail ||
+    error.response?.data?.message ||
+    error.message ||
+    "Erreur lors de l'inscription"
+  );
+} finally {
+    setLoading(false);
+  }
+  }; 
+  
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A] px-4 py-12 sm:px-6" data-testid="register-page">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md"
+      >
+        <div className="glass rounded-2xl p-5 sm:p-8">
+          {/* Back link */}
+          <Link to={`/${lang}`} className="inline-flex items-center text-[#A1A1AA] hover:text-[#D4AF37] mb-8 transition-colors">
+            <ArrowLeft size={20} className="mr-2" />
+            Retour à l'accueil
+          </Link>
+
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold font-['Cormorant_Garamond'] gold-text mb-2">
+              Inscription
+            </h1>
+            <p className="text-[#A1A1AA]">Créez votre compte</p>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6" data-testid="register-error">
+              {error}
+            </div>
+          )}
+
+          {isBookingCheckoutResume && (
+            <div className="mb-6 rounded-lg border border-[#D4AF37]/30 bg-[#D4AF37]/10 px-4 py-3 text-sm text-[#F3D67A]">
+              Créez votre compte pour récupérer votre profil puis reprendre automatiquement le paiement Stripe.
+            </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Role selection */}
+            <div className="space-y-2">
+              <Label className="text-[#A1A1AA]">Type de compte</Label>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4" data-testid="register-role">
+                <label className="flex min-h-11 items-center gap-2 cursor-pointer rounded-lg border border-white/10 px-3 py-2">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="client"
+                    checked={role === 'client'}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="accent-[#D4AF37]"
+                    data-testid="register-role-client"
+                  />
+                  <span className="text-[#A1A1AA]">Client</span>
+                </label>
+                <label className="flex min-h-11 items-center gap-2 cursor-pointer rounded-lg border border-white/10 px-3 py-2">
+                  <input
+                    type="radio"
+                    name="role"
+                    value="chauffeur"
+                    checked={role === 'chauffeur'}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="accent-[#D4AF37]"
+                    data-testid="register-role-chauffeur"
+                  />
+                  <span className="text-[#A1A1AA]">Chauffeur</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-[#A1A1AA]">Nom complet</Label>
+              <div className="relative">
+                <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
+                <Input
+                  id="name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Jean Dupont"
+                  required
+                  className="pl-10 bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
+                  data-testid="register-name"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-[#A1A1AA]">Email</Label>
+              <div className="relative">
+                <Envelope size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="votre@email.com"
+                  required
+                  className="pl-10 bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
+                  data-testid="register-email"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone" className="text-[#A1A1AA]">Téléphone</Label>
+              <div className="relative">
+                <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="06 12 34 56 78"
+                  className="pl-10 bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
+                  data-testid="register-phone"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password" className="text-[#A1A1AA]">Mot de passe</Label>
+              <div className="relative">
+                <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="pl-10 bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
+                  data-testid="register-password"
+                />
+              </div>
+              <p className="text-xs text-[#A1A1AA]" data-testid="register-password-hint">
+                Au moins 10 caractères, une majuscule, une minuscule et un caractère spécial
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword" className="text-[#A1A1AA]">Confirmer le mot de passe</Label>
+              <div className="relative">
+                <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="pl-10 bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
+                  data-testid="register-confirm-password"
+                />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6"
+              data-testid="register-submit"
+            >
+              {loading ? <CircleNotch size={20} className="animate-spin" /> : "S'inscrire"}
+            </Button>
+          </form>
+
+          {/* Login link */}
+          <p className="text-center mt-6 text-[#A1A1AA]">
+            Déjà un compte ?{' '}
+            <Link to={`/${lang}/login`} state={resumeState} className="text-[#D4AF37] hover:underline">
+              Se connecter
+            </Link>
+          </p>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+export default RegisterPage;

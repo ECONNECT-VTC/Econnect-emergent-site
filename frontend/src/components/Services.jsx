@@ -1,0 +1,163 @@
+import { motion } from 'framer-motion';
+import { Car, Clock, Airplane, Buildings } from '@phosphor-icons/react';
+import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/contexts/LanguageContext';
+import getPublicAssetUrl from '@/lib/publicAsset';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.15,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6, ease: 'easeOut' },
+  },
+};
+
+const Services = () => {
+  const { t } = useLanguage();
+
+  const services = [
+    {
+      id: 'trajets',
+      titleKey: 'trajetsPonctuels',
+      subtitleKey: 'trajetsPonctuelsSubtitle',
+      descKey: 'trajetsPonctuelsDesc',
+      icon: Car,
+      /*image: 'https://images.pexels.com/photos/15774577/pexels-photo-15774577.jpeg',*/
+      image:'/photo/trajet_instantane.png',
+      colSpan: 'md:col-span-6',
+      rowSpan: '',
+    },
+    {
+      id: 'disposition',
+      titleKey: 'miseDispositionTitle',
+      subtitleKey: 'miseDispositionSubtitle',
+      descKey: 'miseDispositionDesc',
+      icon: Clock,
+      /*image: 'https://images.pexels.com/photos/8425052/pexels-photo-8425052.jpeg',*/
+      image:'/photo/mise_a_dispo.png',
+      colSpan: 'md:col-span-6',
+      rowSpan: '',
+    },
+    {
+      id: 'transferts',
+      titleKey: 'transfertsTitle',
+      subtitleKey: 'transfertsSubtitle',
+      descKey: 'transfertsDesc',
+      icon: Airplane,
+      image:'/photo/transfert_aero.png',
+      /*image: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800',*/
+      colSpan: 'md:col-span-6',
+      rowSpan: '',
+    },
+    {
+      id: 'affaires',
+      titleKey: 'affairesTitle',
+      subtitleKey: 'affairesSubtitle',
+      descKey: 'affairesDesc',
+      icon: Buildings,
+      image:'/photo/affaire_event.jpg',
+      /*image: 'https://images.pexels.com/photos/3184465/pexels-photo-3184465.jpeg',*/
+      colSpan: 'md:col-span-6',
+      rowSpan: '',
+    },
+  ];
+
+  return (
+    <section id="services" className="pt-12 pb-10 md:pt-16 md:pb-14 bg-[#0A0A0A]" data-testid="services-section">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
+        {/* Section Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-10 md:mb-14"
+        >
+          <span className="text-[#D4AF37] text-xs sm:text-sm tracking-[0.24em] sm:tracking-[0.3em] uppercase">{t('nosServicesLabel')}</span>
+          <h2 className="mt-4 text-3xl font-bold tracking-tight font-['Cormorant_Garamond'] sm:text-4xl md:text-5xl" data-testid="services-title">
+            {t('servicesTitle1')}
+            <br />
+            <span className="gold-text">{t('servicesTitle2')}</span>
+          </h2>
+        </motion.div>
+
+        {/* Bento Grid */}
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: '-100px' }}
+          className="grid grid-cols-1 md:grid-cols-12 gap-6"
+        >
+          {services.map((service) => (
+            <motion.div
+              key={service.id}
+              variants={itemVariants}
+              className={`service-card group relative overflow-hidden rounded-2xl ${service.colSpan} ${service.rowSpan} min-h-[280px] md:min-h-[350px] card-glow transition-all duration-500`}
+              data-testid={`service-${service.id}`}
+            >
+              {/* Background Image */}
+              <div className="absolute inset-0">
+                <img
+                  src={getPublicAssetUrl(service.image)}
+                  alt={t(service.titleKey)}
+                  className="service-card-img w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/60 to-transparent" />
+              </div>
+
+              {/* Content */}
+              <div className="relative z-10 flex h-full flex-col justify-end p-5 sm:p-8">
+                <div className="mb-4">
+                  <service.icon size={40} weight="light" className="text-[#D4AF37]" />
+                </div>
+                <span className="text-[#D4AF37] text-xs tracking-widest uppercase mb-2">
+                  {t(service.subtitleKey)}
+                </span>
+                <h3 className="text-2xl md:text-3xl font-bold font-['Cormorant_Garamond'] mb-3">
+                  {t(service.titleKey)}
+                </h3>
+                <p className="text-[#A1A1AA] text-sm leading-relaxed mb-4 max-w-md">
+                  {t(service.descKey)}
+                </p>
+                {service.categoryKeys?.length ? (
+                  <div className="flex flex-wrap gap-2 mb-5 max-w-md">
+                    {service.categoryKeys.map((gammeKey) => (
+                      <span
+                        key={gammeKey}
+                        className="rounded-full border border-[#D4AF37]/30 bg-[#0A0A0A]/60 px-3 py-1 text-xs text-[#F5E7AF]"
+                      >
+                        {t(gammeKey)}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <Button
+                  asChild
+                  variant="outline"
+                  className="w-fit border-[#D4AF37]/50 text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#0A0A0A] transition-all duration-300"
+                  data-testid={`service-${service.id}-cta`}
+                >
+                  <a href="#reserver">{t('reserver')}</a>
+                </Button>
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
+      </div>
+    </section>
+  );
+};
+
+export default Services;

@@ -1,0 +1,70 @@
+{
+  "project_name": "Econnect VTC - Luxury Private Chauffeur",
+  "theme": "dark",
+  "archetype": "5 (Jewel & Luxury)",
+  "colors": {
+    "background_primary": "#0A0A0A",
+    "background_secondary": "#141414",
+    "background_tertiary": "#1E1E1E",
+    "primary": "#D4AF37",
+    "primary_hover": "#F0C74A",
+    "primary_foreground": "#0A0A0A",
+    "text_primary": "#FAFAFA",
+    "text_secondary": "#A1A1AA",
+    "border": "rgba(255,255,255,0.1)",
+    "glass_bg": "rgba(10, 10, 10, 0.6)",
+    "glass_border": "rgba(255, 255, 255, 0.08)"
+  },
+  "typography": {
+    "heading_font": "Cormorant Garamond",
+    "body_font": "Outfit",
+    "scales": {
+      "h1": "text-5xl md:text-6xl tracking-tighter leading-none",
+      "h2": "text-3xl md:text-4xl tracking-tight",
+      "h3": "text-xl md:text-2xl",
+      "body": "text-base md:text-lg leading-relaxed",
+      "small": "text-sm tracking-wide uppercase"
+    }
+  },
+  "layout_and_spacing": {
+    "philosophy": "Generous spacing, cinematic hero, bento grid for services.",
+    "container": "max-w-7xl mx-auto px-6 md:px-12",
+    "section_spacing": "py-24 md:py-32",
+    "grid_bento": "grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8",
+    "card_padding": "p-8 md:p-10"
+  },
+  "components_strategy": {
+    "navbar": "Glassmorphic header (backdrop-blur-xl bg-black/60) fixed at the top with a subtle bottom border. Must contain logo, links, and 'Réserver' CTA.",
+    "hero": "Full-height (min-h-[90vh]) cinematic section. Background image of luxury car at night with a heavy gradient overlay (black to transparent to black). Large heading, subtle subtitle.",
+    "booking_form": "Floating glassmorphic card placed either inside the hero or immediately below. Use Shadcn inputs with floating labels or dark-themed inputs. Includes: Date picker, Time select, Pickup, Dropoff, Transfer type.",
+    "services_bento": "Asymmetric bento grid. Trajets Ponctuels & Mise à disposition (col-span-12 md:col-span-6). Transferts Aéroports (tall card, row-span-2 md:col-span-4). Affaires & Événementiel (md:col-span-8). Hover effects with image zoom inside the card.",
+    "interactive_map": "React Leaflet integration with a dark-mode tile layer (e.g., CartoDB Dark Matter) showcasing coverage area or trip route.",
+    "why_choose_us": "Grid of 3-4 items with Phosphor icons in Gold, minimal text.",
+    "testimonials": "Clean, border-less cards with a subtle dark metallic texture or just solid #141414. Small gold star ratings.",
+    "whatsapp_cta": "Fixed bottom-right circular button with WhatsApp icon, pulsing animation, green brand color or gold.",
+    "footer": "Large padding (py-24). Big typography for brand name. Grid for links. Darker than background_primary if possible (or just #0A0A0A with a top border)."
+  },
+  "motion": {
+    "scroll": "Use Lenis for smooth scrolling.",
+    "reveals": "Framer motion for staggered fade-up on scroll.",
+    "hover": "Cards lift slightly (-translate-y-1) and borders glow slightly (border-white/20). Primary buttons have a subtle scale effect."
+  },
+  "media": {
+    "hero_background": "https://images.pexels.com/photos/18370955/pexels-photo-18370955.jpeg",
+    "chauffeur_about": "https://images.pexels.com/photos/15774577/pexels-photo-15774577.jpeg",
+    "service_transfer": "https://images.unsplash.com/photo-1771775751121-3091d79073d4",
+    "service_business": "https://images.pexels.com/photos/8425052/pexels-photo-8425052.jpeg",
+    "texture_dark_gold": "https://images.unsplash.com/photo-1761437855740-c894da924d79",
+    "logo_placeholder_text": "Econnect VTC"
+  },
+  "instructions_to_main_agent": [
+    "Install and setup @phosphor-icons/react and lenis for smooth scrolling.",
+    "Build the UI in React with Tailwind CSS. This is a dark theme luxury website; strictly avoid pure white backgrounds.",
+    "Use Shadcn UI for the Booking Form (Select, DatePicker/Calendar, Popover, Input, Button). Ensure Shadcn components are fully customized to the dark/gold theme. No default light borders.",
+    "For the map, use react-leaflet and leaflet with a dark tile provider like: https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png.",
+    "Implement the 'Trajets Ponctuels', 'Mise à Disposition', 'Transferts Gares & Aéroports', and 'Affaires & Événementiel' as the primary services using the bento grid strategy.",
+    "Include a 'WhatsApp' floating action button for direct contact.",
+    "Do NOT use raw HTML `<select>` or `<input type='date'>`. Use Shadcn variants.",
+    "Ensure all interactive elements have `data-testid` attributes."
+  ]
+}

@@ -1,0 +1,116 @@
+import { motion } from 'framer-motion';
+import { Phone, Envelope, MapPin, InstagramLogo, FacebookLogo, LinkedinLogo } from '@phosphor-icons/react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import LogoDisplay from '@/components/LogoDisplay';
+
+const Footer = () => {
+  const { t } = useLanguage();
+
+  const navLinks = [
+    { key: 'footerNavAccueil', href: '#accueil' },
+    { key: 'footerNavServices', href: '#services' },
+    { key: 'footerNavReserver', href: '#reserver' },
+    { key: 'footerNavApropos', href: '#apropos' },
+    { key: 'footerNavContact', href: '#contact' },
+  ];
+
+  return (
+    <footer id="contact" className="py-24 bg-[#0A0A0A] border-t border-white/5" data-testid="footer">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12">
+        <div className="mb-16 grid grid-cols-1 gap-10 md:grid-cols-4 md:gap-12">
+          {/* Brand */}
+          <div className="md:col-span-2">
+            <div className="mb-4 inline-flex rounded-2xl border border-[#D4AF37]/15 bg-[#101010] px-4 py-3">
+              <LogoDisplay className="h-[42px] w-[160px] sm:h-[50px] sm:w-[190px]" priority />
+            </div>
+            <p className="text-[#A1A1AA] max-w-md leading-relaxed mb-6">
+              {t('footerBrandDesc')}
+            </p>
+            <div className="flex gap-4">
+              <a
+                href="#"
+                className="w-10 h-10 rounded-full bg-[#141414] border border-white/10 flex items-center justify-center hover:bg-[#D4AF37] hover:border-[#D4AF37] transition-all duration-300 group"
+                data-testid="social-instagram"
+              >
+                <InstagramLogo size={20} className="text-[#A1A1AA] group-hover:text-[#0A0A0A]" />
+              </a>
+              <a
+                href="#"
+                className="w-10 h-10 rounded-full bg-[#141414] border border-white/10 flex items-center justify-center hover:bg-[#D4AF37] hover:border-[#D4AF37] transition-all duration-300 group"
+                data-testid="social-facebook"
+              >
+                <FacebookLogo size={20} className="text-[#A1A1AA] group-hover:text-[#0A0A0A]" />
+              </a>
+              <a
+                href="#"
+                className="w-10 h-10 rounded-full bg-[#141414] border border-white/10 flex items-center justify-center hover:bg-[#D4AF37] hover:border-[#D4AF37] transition-all duration-300 group"
+                data-testid="social-linkedin"
+              >
+                <LinkedinLogo size={20} className="text-[#A1A1AA] group-hover:text-[#0A0A0A]" />
+              </a>
+            </div>
+          </div>
+
+          {/* Quick Links */}
+          <div>
+            <h3 className="text-lg font-semibold mb-6 text-[#D4AF37]">{t('navigation')}</h3>
+            <ul className="space-y-3">
+              {navLinks.map((link) => (
+                <li key={link.key}>
+                  <a
+                    href={link.href}
+                    className="text-[#A1A1AA] hover:text-[#D4AF37] transition-colors"
+                  >
+                    {t(link.key)}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Contact Info */}
+          <div>
+            <h3 className="text-lg font-semibold mb-6 text-[#D4AF37]">{t('contact')}</h3>
+            <ul className="space-y-4">
+              <li className="flex items-start gap-3">
+                <Phone size={20} className="text-[#D4AF37] mt-1" />
+                <a href="tel:+33753418833" className="text-[#A1A1AA] hover:text-[#D4AF37] transition-colors" data-testid="contact-phone">
+                  +33 753 41 88 33
+                </a>
+              </li>
+              <li className="flex items-start gap-3">
+                <Envelope size={20} className="text-[#D4AF37] mt-1" />
+                <a href="mail:reservation@econnect-vtc.com" className="text-[#A1A1AA] hover:text-[#D4AF37] transition-colors" data-testid="contact-email">
+                  reservation@econnect-vtc.com
+                </a>
+              </li>
+              <li className="flex items-start gap-3">
+                <MapPin size={20} className="text-[#D4AF37] mt-1" />
+                <span className="text-[#A1A1AA]">
+                  Paris et Île-de-France
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Bottom Bar */}
+        <div className="flex flex-col items-start justify-between gap-4 border-t border-white/5 pt-8 text-left md:flex-row md:items-center">
+        <p className="text-sm text-[#A1A1AA]">
+            {t('copyright')}
+          </p>
+          <div className="flex flex-wrap gap-4 sm:gap-6">
+            <a href="#" className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
+              {t('mentionsLegales')}
+            </a>
+            <a href="#" className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
+              {t('politiqueConfidentialite')}
+            </a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+};
+
+export default Footer;
