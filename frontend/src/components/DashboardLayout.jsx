@@ -63,7 +63,7 @@ const DashboardLayout = ({ children, title }) => {
   }, [sidebarOpen]);
 
   return (
-    <div className="flex min-h-screen bg-[#0A0A0A]" data-testid="dashboard-layout">
+    <div className="flex min-h-screen overflow-x-hidden bg-[#0A0A0A]" data-testid="dashboard-layout">
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-50 w-[min(18rem,calc(100vw-1rem))] overflow-y-auto border-r border-white/10 bg-[#141414] transform transition-transform duration-300 lg:w-64 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
@@ -130,7 +130,7 @@ const DashboardLayout = ({ children, title }) => {
       )}
 
       {/* Main content */}
-      <div className="min-w-0 flex-1 lg:ml-64">
+      <div className="min-w-0 flex-1 overflow-x-hidden lg:ml-64">
         {/* Top bar */}
         <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0A0A0A]/80 backdrop-blur-lg">
           <div className="app-shell flex items-center justify-between gap-3 py-4">
@@ -160,7 +160,7 @@ const DashboardLayout = ({ children, title }) => {
         </header>
 
         {/* Page content */}
-        <main className="min-w-0 py-4 sm:py-6">
+        <main className="min-w-0 overflow-x-hidden py-4 sm:py-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

@@ -22,9 +22,9 @@ const Hero = () => {
           className="hero-backdrop-image h-full w-full object-cover"
         />
         {/* Gradient Overlays */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0A] via-transparent to-[#0A0A0A]" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0A0A0A]/80 via-transparent to-[#0A0A0A]/60" />
-        <div className="absolute inset-0 bg-[#0A0A0A]/40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#050505]/95 via-[#0A0A0A]/66 to-[#050505]/90" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#050505]/92 via-[#050505]/36 to-[#050505]/78" />
+        <div className="absolute inset-0 bg-[#050505]/48" data-testid="hero-contrast-overlay" />
       </div>
 
       {/* Content */}
@@ -43,7 +43,7 @@ const Hero = () => {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4 }}
-          className="mx-auto mb-6 max-w-[12ch] break-words text-[clamp(3.15rem,8vw,7.25rem)] font-bold font-['Cormorant_Garamond'] leading-[0.9] tracking-[-0.02em] md:max-w-[13ch] lg:mb-7"
+          className="mx-auto mb-6 max-w-[12ch] break-words text-[clamp(3.15rem,8vw,7.25rem)] font-bold font-['Cormorant_Garamond'] leading-[0.9] tracking-[-0.02em] drop-shadow-[0_10px_30px_rgba(0,0,0,0.75)] md:max-w-[13ch] lg:mb-7"
           data-testid="hero-title"
         >
           {t('heroTitle1')}
@@ -55,7 +55,7 @@ const Hero = () => {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.6 }}
-          className="mx-auto mb-8 max-w-4xl text-base text-[#D4D4D8] sm:text-lg md:mb-10 md:max-w-[52rem] md:text-xl lg:text-[1.35rem] lg:leading-relaxed"
+          className="mx-auto mb-8 max-w-4xl text-base text-[#E5E7EB] drop-shadow-[0_6px_18px_rgba(0,0,0,0.72)] sm:text-lg md:mb-10 md:max-w-[52rem] md:text-xl lg:text-[1.35rem] lg:leading-relaxed"
           data-testid="hero-subtitle"
         >
           {t('heroSubtitle')}
