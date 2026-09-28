@@ -92,13 +92,17 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .hero-backdrop-image {
-    object-position: center center;
+    object-position: center 42%;
   }
 
   @media (min-width: 640px) {
     .landing-shell,
     .app-shell {
       width: min(100% - 3rem, 92rem);
+    }
+
+    .hero-backdrop-image {
+      object-position: center 38%;
     }
   }
 

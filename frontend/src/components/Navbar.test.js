@@ -86,7 +86,7 @@ describe('Navbar mobile menu', () => {
     expect(document.body.style.overflow).toBe('');
   });
 
-  it('keeps the enlarged landing desktop framing classes on the navbar shell and CTA', async () => {
+  it('keeps the landing shell while preventing desktop logo and menu compression', async () => {
     await act(async () => {
       root.render(<Navbar />);
     });
@@ -101,9 +101,10 @@ describe('Navbar mobile menu', () => {
     expect(logoDisplay).not.toBeNull();
     expect(desktopPhoneLink).not.toBeNull();
     expect(navbar.querySelector('nav').className).toContain('landing-shell');
-    expect(navbar.querySelector('nav').className).toContain('lg:grid-cols-[auto,minmax(0,1fr),auto]');
-    expect(reserveCta.className).toContain('lg:px-8');
-    expect(logoDisplay.className).toContain('md:h-[62px]');
+    expect(navbar.querySelector('nav').className).toContain('flex-wrap');
+    expect(navbar.querySelector('nav').className).toContain('xl:grid-cols-[auto,minmax(0,1fr),auto]');
+    expect(reserveCta.className).toContain('2xl:px-8');
+    expect(logoDisplay.className).toContain('lg:h-[48px]');
   });
 
   it('opens the gamme dropdown via click and closes it when focus leaves', async () => {

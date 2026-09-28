@@ -123,8 +123,10 @@ describe('DashboardLayout mobile drawer', () => {
 
     const headerShell = container.querySelector('header > .app-shell');
     const contentShell = container.querySelector('main .app-shell');
+    const layout = container.querySelector('[data-testid="dashboard-layout"]');
 
     expect(headerShell).not.toBeNull();
     expect(contentShell).not.toBeNull();
+    expect(layout.className).toContain('overflow-x-hidden');
   });
 });

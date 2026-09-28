@@ -71,22 +71,22 @@ const Navbar = () => {
         </div>
       </div>
 
-      <nav className="landing-shell flex items-center justify-between gap-4 py-4 sm:gap-5 sm:py-5 md:py-6 lg:grid lg:grid-cols-[auto,minmax(0,1fr),auto] lg:items-center lg:gap-8 lg:py-7 xl:gap-10 xl:py-8">
-        <a href="#accueil" className="flex shrink-0 items-center" data-testid="logo">
-          <span className="rounded-[30px] border border-[#D4AF37]/20 bg-[#0E0E0E]/92 px-4 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.3)] sm:px-5 sm:py-3.5 md:px-6 md:py-4">
-            <LogoDisplay className="h-[34px] w-[128px] sm:h-[46px] sm:w-[176px] md:h-[62px] md:w-[236px] xl:h-[68px] xl:w-[260px]" priority />
+      <nav className="landing-shell flex flex-wrap items-center justify-between gap-x-4 gap-y-4 py-4 sm:gap-x-5 sm:gap-y-5 sm:py-5 md:py-6 lg:gap-y-5 xl:grid xl:grid-cols-[auto,minmax(0,1fr),auto] xl:items-center xl:gap-8 xl:py-7 2xl:gap-10 2xl:py-8">
+        <a href="#accueil" className="flex shrink-0 items-center self-center" data-testid="logo">
+          <span className="rounded-[28px] border border-[#D4AF37]/20 bg-[#0E0E0E]/92 px-3 py-2.5 shadow-[0_18px_48px_rgba(0,0,0,0.3)] sm:px-4 sm:py-3 lg:px-4 lg:py-3 xl:px-5 xl:py-3.5">
+            <LogoDisplay className="h-[32px] w-[120px] sm:h-[40px] sm:w-[152px] md:h-[44px] md:w-[168px] lg:h-[48px] lg:w-[182px] xl:h-[54px] xl:w-[208px]" priority />
           </span>
         </a>
 
-        <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
-          <div className="flex w-full max-w-[40rem] min-w-0 items-center justify-center gap-6 rounded-full border border-white/8 bg-[#111111]/88 px-7 py-[1.05rem] shadow-[0_18px_50px_rgba(0,0,0,0.28)] xl:max-w-[44rem] xl:gap-8 xl:px-9">
+        <div className="hidden min-w-0 items-center justify-center lg:order-3 lg:flex lg:basis-full xl:order-none xl:basis-auto xl:flex-1">
+          <div className="flex w-full min-w-0 items-center justify-center gap-4 rounded-[2rem] border border-white/8 bg-[#111111]/88 px-5 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.28)] xl:mx-auto xl:max-w-[39rem] xl:gap-6 xl:px-7 2xl:max-w-[42rem] 2xl:gap-7 2xl:px-8">
             {navLinks.map((link) => (
               <a
                 key={link.key}
                 href={link.href}
                 className={`${
                   link.key === 'contact' ? 'text-[#D4AF37]' : 'text-[#CFCFCF]'
-                } whitespace-nowrap text-[0.88rem] uppercase tracking-[0.2em] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.95rem]`}
+                } whitespace-nowrap text-[0.78rem] uppercase tracking-[0.18em] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.88rem] 2xl:text-[0.92rem]`}
                 data-testid={`nav-link-${link.key}`}
               >
                 {t(link.key)}
@@ -124,7 +124,7 @@ const Navbar = () => {
                 }}
                 aria-expanded={isGammeOpen}
                 aria-controls={isGammeOpen ? gammeMenuId : undefined}
-                className="flex items-center gap-1 whitespace-nowrap text-[0.88rem] uppercase tracking-[0.2em] text-[#CFCFCF] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.95rem]"
+                className="flex items-center gap-1 whitespace-nowrap text-[0.78rem] uppercase tracking-[0.18em] text-[#CFCFCF] transition-colors duration-300 hover:text-[#D4AF37] xl:text-[0.88rem] 2xl:text-[0.92rem]"
                 data-testid="nav-link-gamme"
               >
                 {t('gamme')} <CaretDown size={14} className={`transition-transform duration-200 ${isGammeOpen ? 'rotate-180' : ''}`} />
@@ -159,15 +159,15 @@ const Navbar = () => {
           </div>
         </div>
 
-        <div className="hidden shrink-0 items-center gap-3 md:flex lg:gap-4 xl:gap-5">
+        <div className="hidden shrink-0 items-center gap-2 self-center lg:flex xl:gap-3 2xl:gap-4">
           <LanguageDropdown
-            buttonClassName="rounded-full px-4 py-2 text-[0.9rem] lg:px-5 lg:py-2.5"
+            buttonClassName="rounded-full px-3.5 py-2 text-[0.88rem] xl:px-4 xl:py-2.5"
             menuClassName="mt-3"
           />
 
           <a
             href="#reserver"
-            className="rounded-full px-6 py-3 text-[0.95rem] font-semibold transition-all duration-300 hover:scale-105 lg:px-8 lg:py-3.5 lg:text-[1rem] xl:px-9"
+            className="rounded-full px-4 py-2.5 text-[0.88rem] font-semibold transition-all duration-300 hover:scale-105 xl:px-6 xl:py-3 xl:text-[0.95rem] 2xl:px-8 2xl:py-3.5 2xl:text-[1rem]"
             style={{ background: '#D4AF37', color: '#0A0A0A' }}
             data-testid="cta-reserver"
           >
@@ -176,14 +176,14 @@ const Navbar = () => {
 
           <Link
             to={`/${language}/login`}
-            className="rounded-full border border-[#D4AF37]/70 px-6 py-3 text-[0.95rem] font-semibold text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37] hover:text-[#232323] lg:px-8 lg:py-3.5 lg:text-[1rem] xl:px-9"
+            className="rounded-full border border-[#D4AF37]/70 px-4 py-2.5 text-[0.88rem] font-semibold text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37] hover:text-[#232323] xl:px-6 xl:py-3 xl:text-[0.95rem] 2xl:px-8 2xl:py-3.5 2xl:text-[1rem]"
             data-testid="btn-connexion"
           >
             {t('connexion')}
           </Link>
         </div>
 
-        <div className="md:hidden flex items-center gap-3">
+        <div className="flex items-center gap-3 lg:hidden">
           <button
             className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-[#111111]/90 text-[#FAFAFA] transition-colors hover:text-[#D4AF37]"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -202,7 +202,7 @@ const Navbar = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="md:hidden border-t border-[#D4AF37]/10 bg-[#090909]/98 backdrop-blur-xl"
+            className="lg:hidden border-t border-[#D4AF37]/10 bg-[#090909]/98 backdrop-blur-xl"
             data-testid="mobile-menu"
           >
             <div className="flex max-h-[calc(100dvh-5rem)] flex-col gap-4 overflow-y-auto px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:px-6 sm:pt-6">
