@@ -92,7 +92,7 @@ h1, h2, h3, h4, h5, h6 {
   }
 
   .hero-backdrop-image {
-    object-position: center 42%;
+    object-position: center center;
   }
 
   @media (min-width: 640px) {
@@ -101,9 +101,6 @@ h1, h2, h3, h4, h5, h6 {
       width: min(100% - 3rem, 92rem);
     }
 
-    .hero-backdrop-image {
-      object-position: center 38%;
-    }
   }
 
   @media (min-width: 1280px) {

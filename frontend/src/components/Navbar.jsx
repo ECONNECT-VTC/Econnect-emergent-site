@@ -60,7 +60,7 @@ const Navbar = () => {
       data-testid="navbar"
     >
       <div className="border-b border-white/5 bg-[#050505]/88">
-        <div className="landing-shell hidden items-center justify-between py-3 text-[0.7rem] uppercase tracking-[0.32em] text-[#C7B588] md:flex lg:py-3.5">
+        <div className="landing-shell hidden items-center justify-between py-2.5 text-[0.7rem] uppercase tracking-[0.32em] text-[#C7B588] md:flex lg:py-3">
           <span>Service chauffeur privé premium</span>
           <div className="flex items-center gap-6">
             <a href={`tel:${CONTACT_PHONE}`} className="inline-flex items-center gap-2 transition-colors duration-300 hover:text-[#F3D67A]">
@@ -71,15 +71,15 @@ const Navbar = () => {
         </div>
       </div>
 
-      <nav className="landing-shell flex flex-wrap items-center justify-between gap-x-4 gap-y-4 py-4 sm:gap-x-5 sm:gap-y-5 sm:py-5 md:py-6 lg:gap-y-5 xl:grid xl:grid-cols-[auto,minmax(0,1fr),auto] xl:items-center xl:gap-8 xl:py-7 2xl:gap-10 2xl:py-8">
+      <nav className="landing-shell flex flex-wrap items-center justify-between gap-x-4 gap-y-4 py-4 sm:gap-x-5 sm:gap-y-5 sm:py-5 md:py-6 lg:gap-y-5 xl:grid xl:grid-cols-[auto,minmax(0,1fr),auto] xl:items-center xl:gap-6 xl:py-4 2xl:gap-7 2xl:py-4">
         <a href="#accueil" className="flex shrink-0 items-center self-center" data-testid="logo">
-          <span className="rounded-[28px] border border-[#D4AF37]/20 bg-[#0E0E0E]/92 px-3 py-2.5 shadow-[0_18px_48px_rgba(0,0,0,0.3)] sm:px-4 sm:py-3 lg:px-4 lg:py-3 xl:px-5 xl:py-3.5">
-            <LogoDisplay className="h-[32px] w-[120px] sm:h-[40px] sm:w-[152px] md:h-[44px] md:w-[168px] lg:h-[48px] lg:w-[182px] xl:h-[54px] xl:w-[208px]" priority />
+          <span className="rounded-[28px] border border-[#D4AF37]/20 bg-[#0E0E0E]/92 px-3 py-2.5 shadow-[0_18px_48px_rgba(0,0,0,0.3)] sm:px-4 sm:py-3 lg:px-4 lg:py-3 xl:px-4 xl:py-2.5">
+            <LogoDisplay className="h-[32px] w-[120px] sm:h-[40px] sm:w-[152px] md:h-[44px] md:w-[168px] lg:h-[48px] lg:w-[182px] xl:h-[44px] xl:w-[168px] 2xl:h-[46px] 2xl:w-[176px]" priority />
           </span>
         </a>
 
         <div className="hidden min-w-0 items-center justify-center lg:order-3 lg:flex lg:basis-full xl:order-none xl:basis-auto xl:flex-1">
-          <div className="flex w-full min-w-0 items-center justify-center gap-4 rounded-[2rem] border border-white/8 bg-[#111111]/88 px-5 py-4 shadow-[0_18px_50px_rgba(0,0,0,0.28)] xl:mx-auto xl:max-w-[39rem] xl:gap-6 xl:px-7 2xl:max-w-[42rem] 2xl:gap-7 2xl:px-8">
+          <div className="flex w-full min-w-0 items-center justify-center gap-3 rounded-[2rem] border border-white/8 bg-[#111111]/88 px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.28)] xl:mx-auto xl:max-w-[34rem] xl:gap-4 xl:px-5 xl:py-2.5 2xl:max-w-[36rem] 2xl:gap-5 2xl:px-6">
             {navLinks.map((link) => (
               <a
                 key={link.key}
@@ -159,7 +159,7 @@ const Navbar = () => {
           </div>
         </div>
 
-        <div className="hidden shrink-0 items-center gap-2 self-center lg:flex xl:gap-3 2xl:gap-4">
+        <div className="hidden shrink-0 items-center gap-2 self-center lg:flex xl:gap-2.5 2xl:gap-3">
           <LanguageDropdown
             buttonClassName="rounded-full px-3.5 py-2 text-[0.88rem] xl:px-4 xl:py-2.5"
             menuClassName="mt-3"
@@ -167,7 +167,7 @@ const Navbar = () => {
 
           <a
             href="#reserver"
-            className="rounded-full px-4 py-2.5 text-[0.88rem] font-semibold transition-all duration-300 hover:scale-105 xl:px-6 xl:py-3 xl:text-[0.95rem] 2xl:px-8 2xl:py-3.5 2xl:text-[1rem]"
+            className="rounded-full px-4 py-2.5 text-[0.88rem] font-semibold transition-all duration-300 hover:scale-105 xl:px-5 xl:py-2.5 xl:text-[0.95rem] 2xl:px-6 2xl:py-3 2xl:text-[1rem]"
             style={{ background: '#D4AF37', color: '#0A0A0A' }}
             data-testid="cta-reserver"
           >
@@ -176,7 +176,7 @@ const Navbar = () => {
 
           <Link
             to={`/${language}/login`}
-            className="rounded-full border border-[#D4AF37]/70 px-4 py-2.5 text-[0.88rem] font-semibold text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37] hover:text-[#232323] xl:px-6 xl:py-3 xl:text-[0.95rem] 2xl:px-8 2xl:py-3.5 2xl:text-[1rem]"
+            className="rounded-full border border-[#D4AF37]/70 px-4 py-2.5 text-[0.88rem] font-semibold text-[#D4AF37] transition-all duration-300 hover:bg-[#D4AF37] hover:text-[#232323] xl:px-5 xl:py-2.5 xl:text-[0.95rem] 2xl:px-6 2xl:py-3 2xl:text-[1rem]"
             data-testid="btn-connexion"
           >
             {t('connexion')}
