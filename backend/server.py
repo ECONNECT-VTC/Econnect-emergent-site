@@ -4903,11 +4903,19 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     await generate_and_store_document(updated_booking, settings, "order")
 
     # Get client info
-    client = await db.users.find_one({"id": booking["client_id"]})
+    client = {}
+    if booking.get("client_id"):
+        client = await db.users.find_one({"id": booking.get("client_id")}) or {}
+    client = {
+        **client,
+        "name": client.get("name") or booking.get("client_name"),
+        "phone": client.get("phone") or booking.get("client_phone"),
+        "email": client.get("email") or booking.get("client_email"),
+    }
     order_download_url = f"{str(request.base_url).rstrip('/')}/api/driver/bookings/{booking_id}/order-pdf"
 
     # Send email notification to driver
-    await send_booking_notification_to_driver(driver, updated_booking, client or {}, order_download_url)
+    await send_booking_notification_to_driver(driver, updated_booking, client, order_download_url)
 
     return {"message": "Course assignée avec succès", "driver_name": driver["name"]}
 

@@ -282,6 +282,41 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
             await server.send_booking_notification_to_driver(driver, booking, client)
         self.assertEqual(send_email.await_args.kwargs["template_key"], email_service.TEMPLATE_KEY_DRIVER_ASSIGNED)
 
+    async def test_driver_assignment_uses_guest_booking_client_details(self):
+        booking = {
+            "id": "book-guest",
+            "client_id": None,
+            "client_name": "Client sans compte",
+            "client_phone": "0601020304",
+            "client_email": "guest@example.com",
+            "status": "QUOTE_ACCEPTED",
+            "pickup_date": "02/02/2026",
+            "pickup_time": "10:30",
+            "pickup_address": "Paris",
+            "dropoff_address": "CDG",
+            "transfer_type": "simple",
+        }
+        driver = {"id": "driver-1", "name": "Chauffeur", "email": "driver@example.com"}
+        bookings = SimpleNamespace(find_one=AsyncMock(return_value=booking), update_one=AsyncMock())
+        users = SimpleNamespace(find_one=AsyncMock(return_value=driver))
+
+        with patch.object(server, "db", SimpleNamespace(bookings=bookings, users=users)), patch.object(
+            server, "require_admin", AsyncMock()
+        ), patch.object(server, "get_commission_settings", AsyncMock(return_value={})), patch.object(
+            server, "generate_and_store_document", AsyncMock()
+        ), patch.object(server, "send_notification_email", AsyncMock(return_value=True)) as send_email:
+            await server.assign_booking_to_driver(
+                booking["id"],
+                server.AssignBooking(driver_id=driver["id"]),
+                SimpleNamespace(base_url="https://example.com/"),
+            )
+
+        users.find_one.assert_awaited_once()
+        params = send_email.await_args.kwargs["template_params"]
+        self.assertEqual(params["CLIENT_NAME"], booking["client_name"])
+        self.assertEqual(params["CLIENT_PHONE"], booking["client_phone"])
+        self.assertEqual(params["CLIENT_EMAIL"], booking["client_email"])
+
     async def test_refund_confirmation_uses_cancellation_template(self):
         booking = {
             "id": "book-3",
