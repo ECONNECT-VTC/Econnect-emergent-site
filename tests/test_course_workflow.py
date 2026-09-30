@@ -94,6 +94,50 @@ class TestCourseWorkflow(unittest.IsolatedAsyncioTestCase):
         updated = await self.bookings.find_one({"id": "course_1"})
         self.assertEqual(updated["status"], "QUOTE_SENT")
 
+    async def test_quote_email_failure_does_not_fail_quote_endpoint(self):
+        booking = {
+            "id": "course_quote_email",
+            "status": "DRAFT",
+            "client_email": "client@example.com",
+        }
+        await self.bookings.insert_one(booking)
+
+        with patch.object(server, "db", self.fake_db), patch.object(
+            server, "require_admin", AsyncMock(return_value={"id": "admin_1"})
+        ), patch.object(server, "get_commission_settings", AsyncMock(return_value={})), patch.object(
+            server, "generate_and_store_document", AsyncMock(return_value=(b"pdf", {}))
+        ), patch.object(
+            server, "send_quote_available_to_client", AsyncMock(side_effect=RuntimeError("email failed"))
+        ) as send_quote:
+            doc = await server.create_course_quote(booking["id"], request=object())
+
+        self.assertEqual(doc.type, "quote")
+        send_quote.assert_awaited_once()
+        updated = await self.bookings.find_one({"id": booking["id"]})
+        self.assertEqual(updated["status"], "QUOTE_SENT")
+
+    async def test_completion_email_failure_does_not_block_status_update_or_invoice(self):
+        booking = {"id": "course_completed_email", "status": "IN_PROGRESS"}
+        await self.bookings.insert_one(booking)
+
+        with patch.object(server, "db", self.fake_db), patch.object(
+            server, "get_current_user", AsyncMock(return_value={"id": "admin_1", "role": "admin"})
+        ), patch.object(
+            server,
+            "send_booking_completed_to_client",
+            AsyncMock(side_effect=RuntimeError("email failed")),
+        ), patch.object(server, "send_invoice_to_client", AsyncMock(return_value=True)) as send_invoice:
+            response = await server.update_course_status(
+                booking["id"],
+                server.BookingStatusUpdate(status="COMPLETED"),
+                request=object(),
+            )
+
+        self.assertEqual(response.status, "COMPLETED")
+        send_invoice.assert_awaited_once()
+        updated = await self.bookings.find_one({"id": booking["id"]})
+        self.assertEqual(updated["status"], "COMPLETED")
+
     async def test_create_order_form_requires_quote_accepted(self):
         booking = {"id": "course_2", "status": "QUOTE_SENT"}
         await self.bookings.insert_one(booking)
