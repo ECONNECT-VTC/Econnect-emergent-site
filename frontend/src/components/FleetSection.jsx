@@ -144,7 +144,7 @@ const FleetSection = () => {
             <Van size={16} weight="duotone" />
             <EnvelopeSimple size={16} weight="duotone" />
           </div>
-          <p className="text-sm md:text-[15px] leading-relaxed text-[#D0BC86]">
+          <p className="text-sm md:text-[0.9375rem] leading-relaxed text-[#D0BC86]">
             Pour toute demande de courses non classique : moto, autocar, bus, limousine, véhicule de collection, contactez-nous ou faites-nous une demande par mail.
           </p>
         </div>

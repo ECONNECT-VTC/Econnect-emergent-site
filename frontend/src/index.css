@@ -29,9 +29,20 @@
   --radius: 0.75rem;
   --gold: #D4AF37;
   --gold-light: #F0C74A;
+  /* Global UI scale: rem-based sizes (Tailwind spacing, text, widths) follow it. */
+  --ui-scale: 1;
+}
+
+/* Desktop renders ~10% more compact (equivalent to a 90% browser zoom).
+   Adjust the desktop scale factor here only; mobile/tablet stay at 1. */
+@media (min-width: 1024px) {
+  :root {
+    --ui-scale: 0.9;
+  }
 }
 
 html {
+  font-size: calc(100% * var(--ui-scale));
   scroll-behavior: smooth;
   overflow-x: hidden;
 }
