@@ -104,7 +104,7 @@ const Services = () => {
             <motion.div
               key={service.id}
               variants={itemVariants}
-              className={`service-card group relative overflow-hidden rounded-2xl ${service.colSpan} ${service.rowSpan} min-h-[280px] md:min-h-[350px] card-glow transition-all duration-500`}
+              className={`service-card group relative overflow-hidden rounded-2xl ${service.colSpan} ${service.rowSpan} min-h-[17.5rem] md:min-h-[21.875rem] card-glow transition-all duration-500`}
               data-testid={`service-${service.id}`}
             >
               {/* Background Image */}

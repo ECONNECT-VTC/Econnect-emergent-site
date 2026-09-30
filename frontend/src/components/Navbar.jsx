@@ -73,8 +73,8 @@ const Navbar = () => {
 
       <nav className="landing-shell flex flex-wrap items-center justify-between gap-x-4 gap-y-4 py-4 sm:gap-x-5 sm:gap-y-5 sm:py-5 md:py-6 lg:gap-y-5 xl:grid xl:grid-cols-[auto,minmax(0,1fr),auto] xl:items-center xl:gap-6 xl:py-4 2xl:gap-7 2xl:py-4">
         <a href="#accueil" className="flex shrink-0 items-center self-center" data-testid="logo">
-          <span className="rounded-[28px] border border-[#D4AF37]/20 bg-[#0E0E0E]/92 px-3 py-2.5 shadow-[0_18px_48px_rgba(0,0,0,0.3)] sm:px-4 sm:py-3 lg:px-4 lg:py-3 xl:px-4 xl:py-2.5">
-            <LogoDisplay className="h-[32px] w-[120px] sm:h-[40px] sm:w-[152px] md:h-[44px] md:w-[168px] lg:h-[48px] lg:w-[182px] xl:h-[44px] xl:w-[168px] 2xl:h-[46px] 2xl:w-[176px]" priority />
+          <span className="rounded-[1.75rem] border border-[#D4AF37]/20 bg-[#0E0E0E]/92 px-3 py-2.5 shadow-[0_18px_48px_rgba(0,0,0,0.3)] sm:px-4 sm:py-3 lg:px-4 lg:py-3 xl:px-4 xl:py-2.5">
+            <LogoDisplay className="h-[2rem] w-[7.5rem] sm:h-[2.5rem] sm:w-[9.5rem] md:h-[2.75rem] md:w-[10.5rem] lg:h-[3rem] lg:w-[11.375rem] xl:h-[2.75rem] xl:w-[10.5rem] 2xl:h-[2.875rem] 2xl:w-[11rem]" priority />
           </span>
         </a>
 

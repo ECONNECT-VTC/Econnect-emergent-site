@@ -45,7 +45,7 @@ const VEHICLE_CATEGORIES = VEHICLE_CATEGORY_CONFIG.map((category) => ({
   startingPrice: category.startingPrice,
 }));
 
-const BOOKING_PANEL_MIN_HEIGHT_CLASSES = 'min-h-[700px] sm:min-h-[800px] lg:min-h-[680px]';
+const BOOKING_PANEL_MIN_HEIGHT_CLASSES = 'min-h-[43.75rem] sm:min-h-[50rem] lg:min-h-[42.5rem]';
 const VEHICLE_CARD_IMAGE_BG_CLASS = 'bg-[#141414]';
 const DEPOSIT_PAYMENT_METHODS = new Set(['virement', 'cash']);
 

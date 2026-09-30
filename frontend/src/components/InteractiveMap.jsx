@@ -17,7 +17,7 @@ const InteractiveMap = () => {
   const parisPosition = [48.8566, 2.3522];
 
   return (
-    <div className="w-full h-full min-h-[420px] md:min-h-[500px] lg:min-h-[680px] rounded-2xl overflow-hidden border border-white/10" data-testid="interactive-map">
+    <div className="w-full h-full min-h-[26.25rem] md:min-h-[31.25rem] lg:min-h-[42.5rem] rounded-2xl overflow-hidden border border-white/10" data-testid="interactive-map">
       <MapContainer
         center={parisPosition}
         zoom={11}
