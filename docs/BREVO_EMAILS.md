@@ -25,7 +25,9 @@ Configurer dans l’hébergeur (jamais dans Git) :
 - `BREVO_TEMPLATE_CANCELLATION`
 - `BREVO_TEMPLATE_ADMIN_MESSAGE`
 
-> Les IDs de templates sont optionnels. Quand un ID est absent/invalide (non entier positif), le backend bascule automatiquement vers le HTML interne existant.
+> Les IDs de templates sont optionnels. Quand un ID est vide, absent ou invalide (non entier positif), le backend bascule automatiquement vers le HTML interne existant. Les emails devis disponible et course terminée sont donc envoyés même sans template Brevo configuré.
+
+> Un devis régénéré depuis le statut `DRAFT` peut déclencher un nouvel email ; une nouvelle génération depuis `QUOTE_SENT` ne renvoie pas le devis.
 
 ## 3) Correspondance templates ↔ événements métier
 
@@ -34,10 +36,10 @@ Configurer dans l’hébergeur (jamais dans Git) :
 | `BREVO_TEMPLATE_ACCOUNT_ACTIVATION` | Activation de compte |
 | `BREVO_TEMPLATE_PASSWORD_RESET` | Réinitialisation mot de passe |
 | `BREVO_TEMPLATE_BOOKING_CREATED` | Course créée pour un client existant |
-| `BREVO_TEMPLATE_QUOTE_AVAILABLE` | Devis disponible (réservé pour flux devis) |
+| `BREVO_TEMPLATE_QUOTE_AVAILABLE` | Devis disponible |
 | `BREVO_TEMPLATE_PAYMENT_CONFIRMED` | Paiement confirmé |
 | `BREVO_TEMPLATE_DRIVER_ASSIGNED` | Chauffeur/course assignée |
-| `BREVO_TEMPLATE_BOOKING_COMPLETED` | Course terminée (réservé) |
+| `BREVO_TEMPLATE_BOOKING_COMPLETED` | Course terminée |
 | `BREVO_TEMPLATE_INVOICE` | Facture disponible (PDF joint) |
 | `BREVO_TEMPLATE_CANCELLATION` | Annulation / remboursement |
 | `BREVO_TEMPLATE_ADMIN_MESSAGE` | Message administratif (invitation client) |
@@ -49,7 +51,9 @@ Syntaxe Brevo dans le template : `{{ params.CLIENT_NAME }}`.
 - **Activation compte**: `CLIENT_NAME`, `ACTIVATION_URL`, `ACTIVATION_EXPIRY_HOURS`
 - **Reset mot de passe**: `CLIENT_NAME`, `RESET_URL`, `RESET_EXPIRY_HOURS`
 - **Course créée (client)**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DISTANCE_KM`, `AMOUNT`, `PAYMENT_MODE`, `BOOKING_URL`
+- **Devis disponible**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `BOOKING_URL`
 - **Chauffeur assigné**: `CLIENT_NAME`, `CLIENT_PHONE`, `CLIENT_EMAIL`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `TRANSFER_TYPE`, `NOTES`, `ORDER_DOWNLOAD_URL`
+- **Course terminée**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `BOOKING_URL`
 - **Paiement confirmé**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `CURRENCY`, `BOOKING_URL`
 - **Facture**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `BOOKING_URL`
 - **Annulation / remboursement**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `REFUND_STATUS`, `REFUND_CURRENCY`, `STRIPE_REFUND_ID`, `BOOKING_URL`
@@ -59,9 +63,9 @@ Syntaxe Brevo dans le template : `{{ params.CLIENT_NAME }}`.
 
 Si aucun template Brevo n’est configuré pour un flux, l’email continue à partir du HTML généré par `build_email_html()` (comportement historique conservé).
 
-## 6) Pièces jointes (factures PDF)
+## 6) Pièces jointes (devis et factures PDF)
 
-Les factures restent envoyées en pièce jointe PDF via Brevo (base64 + nom de fichier).
+Les devis et les factures sont envoyés en pièce jointe PDF via Brevo (base64 + nom de fichier).
 
 ## 7) Procédure de test avant production
 
@@ -72,7 +76,9 @@ Les factures restent envoyées en pièce jointe PDF via Brevo (base64 + nom de f
    - activation compte ;
    - reset mot de passe ;
    - réservation créée ;
+   - devis disponible ;
    - paiement confirmé ;
+   - course terminée ;
    - facture PDF ;
    - annulation/remboursement.
 5. Vérifier la délivrabilité et les logs Brevo (sans données sensibles).

@@ -32,11 +32,13 @@ from email_service import (
     TEMPLATE_KEY_ACCOUNT_ACTIVATION,
     TEMPLATE_KEY_ADMIN_MESSAGE,
     TEMPLATE_KEY_BOOKING_CREATED,
+    TEMPLATE_KEY_BOOKING_COMPLETED,
     TEMPLATE_KEY_CANCELLATION,
     TEMPLATE_KEY_DRIVER_ASSIGNED,
     TEMPLATE_KEY_INVOICE,
     TEMPLATE_KEY_PASSWORD_RESET,
     TEMPLATE_KEY_PAYMENT_CONFIRMED,
+    TEMPLATE_KEY_QUOTE_AVAILABLE,
     send_brevo_transactional_email,
 )
 
@@ -3398,6 +3400,153 @@ async def send_booking_confirmation_to_client(booking: dict):
     )
 
 
+async def send_quote_available_to_client(booking: dict):
+    booking_id = booking.get("id")
+    client_email = booking.get("client_email")
+    if not booking_id or not client_email or booking.get("quote_email_sent_at"):
+        return False
+
+    try:
+        existing_flag = await db.bookings.find_one(
+            {"id": booking_id}, {"_id": 0, "quote_email_sent_at": 1}
+        )
+        if existing_flag and existing_flag.get("quote_email_sent_at"):
+            return False
+
+        settings = await get_commission_settings()
+        pdf_bytes, _ = await generate_and_store_document(booking, settings, "quote")
+        amount_raw = booking.get("estimated_price")
+        try:
+            amount_label = f"{float(amount_raw):.2f} €" if amount_raw is not None else "À définir"
+        except (TypeError, ValueError):
+            amount_label = "À définir"
+
+        safe_booking_id = html_escape(str(booking_id))
+        safe_pickup_date = html_escape(str(booking.get("pickup_date", "")))
+        safe_pickup_time = html_escape(str(booking.get("pickup_time", "")))
+        safe_pickup_address = html_escape(str(booking.get("pickup_address", "")))
+        safe_dropoff_address = html_escape(str(booking.get("dropoff_address", "")))
+        safe_amount = html_escape(amount_label)
+        booking_url = f"{FRONTEND_URL}/fr/client/bookings"
+
+        body_html = f"""
+<p style="margin: 0 0 12px 0;">Votre devis est prêt. Veuillez le consulter en pièce jointe et l'accepter depuis votre espace client.</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size: 14px; margin-bottom: 16px;">
+  <tr><td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Numéro</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_booking_id}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Date</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_pickup_date}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Heure</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_pickup_time}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Départ</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_pickup_address}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Arrivée</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_dropoff_address}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Montant</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_amount}</td></tr>
+</table>
+"""
+        html_content = build_email_html(
+            title="Votre devis Econnect VTC",
+            body_html=body_html,
+            cta_label="Voir mes réservations",
+            cta_url=booking_url,
+        )
+        sent = await send_notification_email(
+            client_email,
+            f"📄 Votre devis Econnect VTC #{str(booking_id)[:8].upper()}",
+            html_content,
+            attachment_bytes=pdf_bytes,
+            attachment_filename=f"devis-{str(booking_id)[:8].upper()}.pdf",
+            template_key=TEMPLATE_KEY_QUOTE_AVAILABLE,
+            template_params={
+                "CLIENT_NAME": booking.get("client_name", "Client"),
+                "BOOKING_ID": booking_id,
+                "PICKUP_DATE": booking.get("pickup_date"),
+                "PICKUP_TIME": booking.get("pickup_time"),
+                "PICKUP_ADDRESS": booking.get("pickup_address"),
+                "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+                "AMOUNT": amount_label,
+                "BOOKING_URL": booking_url,
+            },
+        )
+        if sent:
+            await db.bookings.update_one(
+                {"id": booking_id, "quote_email_sent_at": {"$exists": False}},
+                {"$set": {"quote_email_sent_at": datetime.now(timezone.utc)}},
+            )
+        return sent
+    except Exception as exc:
+        logger.error("Failed to send quote email for booking %s: %s", booking_id, exc)
+        return False
+
+
+async def send_booking_completed_to_client(booking: dict):
+    booking_id = booking.get("id")
+    client_email = booking.get("client_email")
+    if not booking_id or not client_email or booking.get("completed_email_sent_at"):
+        return False
+
+    try:
+        existing_flag = await db.bookings.find_one(
+            {"id": booking_id}, {"_id": 0, "completed_email_sent_at": 1}
+        )
+        if existing_flag and existing_flag.get("completed_email_sent_at"):
+            return False
+
+        safe_booking_id = html_escape(str(booking_id))
+        safe_pickup_date = html_escape(str(booking.get("pickup_date", "")))
+        safe_pickup_time = html_escape(str(booking.get("pickup_time", "")))
+        safe_pickup_address = html_escape(str(booking.get("pickup_address", "")))
+        safe_dropoff_address = html_escape(str(booking.get("dropoff_address", "")))
+        booking_url = f"{FRONTEND_URL}/fr/client/bookings"
+        body_html = f"""
+<p style="margin: 0 0 12px 0;">Merci d'avoir voyagé avec Econnect VTC. Votre course est terminée ; nous espérons que votre trajet s'est bien passé. Votre facture vous sera envoyée dans un email séparé. À très bientôt !</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size: 14px; margin-bottom: 16px;">
+  <tr><td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Numéro</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_booking_id}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Date</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_pickup_date}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Heure</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_pickup_time}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Départ</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_pickup_address}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Arrivée</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_dropoff_address}</td></tr>
+</table>
+"""
+        html_content = build_email_html(
+            title="Merci d'avoir voyagé avec Econnect VTC",
+            body_html=body_html,
+            cta_label="Voir mes réservations",
+            cta_url=booking_url,
+        )
+        sent = await send_notification_email(
+            client_email,
+            f"Merci d'avoir voyagé avec Econnect VTC – course #{str(booking_id)[:8].upper()}",
+            html_content,
+            template_key=TEMPLATE_KEY_BOOKING_COMPLETED,
+            template_params={
+                "CLIENT_NAME": booking.get("client_name", "Client"),
+                "BOOKING_ID": booking_id,
+                "PICKUP_DATE": booking.get("pickup_date"),
+                "PICKUP_TIME": booking.get("pickup_time"),
+                "PICKUP_ADDRESS": booking.get("pickup_address"),
+                "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+                "BOOKING_URL": booking_url,
+            },
+        )
+        if sent:
+            await db.bookings.update_one(
+                {"id": booking_id, "completed_email_sent_at": {"$exists": False}},
+                {"$set": {"completed_email_sent_at": datetime.now(timezone.utc)}},
+            )
+        return sent
+    except Exception as exc:
+        logger.error("Failed to send completion email for booking %s: %s", booking_id, exc)
+        return False
+
+
+async def notify_client_booking_completed(booking: dict):
+    try:
+        await send_booking_completed_to_client(booking)
+    except Exception as exc:
+        logger.error("Failed to send completion email for booking %s: %s", booking.get("id"), exc)
+    try:
+        await send_invoice_to_client(booking)
+    except Exception as exc:
+        logger.error("Failed to send invoice email for booking %s: %s", booking.get("id"), exc)
+
+
 async def send_invoice_to_client(booking: dict):
     booking_id = booking.get("id")
     client_email = booking.get("client_email")
@@ -3428,7 +3577,7 @@ async def send_invoice_to_client(booking: dict):
         safe_dropoff_address = html_escape(str(booking.get("dropoff_address", "")))
 
         body_html = f"""
-<p style="margin: 0 0 12px 0;">Votre course est terminée. Veuillez trouver votre facture en pièce jointe.</p>
+<p style="margin: 0 0 12px 0;">Veuillez trouver votre facture en pièce jointe.</p>
 <table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size: 14px; margin-bottom: 16px;">
   <tr><td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Numéro</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_booking_id}</td></tr>
   <tr><td style="padding: 6px 0; color: #A1A1AA;">Date</td><td style="padding: 6px 0; color: #FAFAFA;">{safe_pickup_date}</td></tr>
@@ -4318,7 +4467,10 @@ async def update_course_status(course_id: str, payload: BookingStatusUpdate, req
     if next_status == "COMPLETED" and previous_status != "COMPLETED":
         updated_booking = await db.bookings.find_one({"id": course_id}, {"_id": 0})
         if updated_booking:
-            await send_invoice_to_client(updated_booking)
+            try:
+                await notify_client_booking_completed(updated_booking)
+            except Exception as exc:
+                logger.error("Failed to notify client for completed booking %s: %s", course_id, exc)
 
     return CourseStatusUpdateResponse(message="Statut mis à jour", status=next_status)
 
@@ -4343,8 +4495,16 @@ async def create_course_quote(course_id: str, request: Request):
         created_by=admin.get("id"),
         url=f"/api/admin/quotes/{course_id}/pdf",
     )
-    await db.bookings.update_one({"id": course_id}, {"$set": {"status": "QUOTE_SENT"}})
+    quote_update = {"$set": {"status": "QUOTE_SENT"}}
+    if current_status == "DRAFT":
+        quote_update["$unset"] = {"quote_email_sent_at": ""}
+    await db.bookings.update_one({"id": course_id}, quote_update)
     await log_booking_status_transition(course_id, current_status, "QUOTE_SENT", admin.get("id"))
+    if booking.get("client_email"):
+        try:
+            await send_quote_available_to_client(booking)
+        except Exception as exc:
+            logger.error("Failed to send quote email for booking %s: %s", course_id, exc)
     return CourseDocumentResponse(**document)
 
 
@@ -4508,7 +4668,10 @@ async def update_booking_status_driver(booking_id: str, status_update: BookingSt
     if next_status == "COMPLETED" and normalize_booking_status(previous_status) != "COMPLETED":
         updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         if updated_booking:
-            await send_invoice_to_client(updated_booking)
+            try:
+                await notify_client_booking_completed(updated_booking)
+            except Exception as exc:
+                logger.error("Failed to notify client for completed booking %s: %s", booking_id, exc)
 
     return {"message": "Statut mis à jour", "status": next_status}
 
@@ -4677,7 +4840,10 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
     if next_status == "COMPLETED" and normalize_booking_status(previous_status) != "COMPLETED":
         updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         if updated_booking:
-            await send_invoice_to_client(updated_booking)
+            try:
+                await notify_client_booking_completed(updated_booking)
+            except Exception as exc:
+                logger.error("Failed to notify client for completed booking %s: %s", booking_id, exc)
 
     return {"message": "Statut mis à jour", "status": next_status}
 
@@ -5121,7 +5287,10 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
     if next_status == "COMPLETED" and normalize_booking_status(previous_status) != "COMPLETED":
         updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         if updated_booking:
-            await send_invoice_to_client(updated_booking)
+            try:
+                await notify_client_booking_completed(updated_booking)
+            except Exception as exc:
+                logger.error("Failed to notify client for completed booking %s: %s", booking_id, exc)
 
     return {"message": "Statut mis à jour", "status": next_status}
 

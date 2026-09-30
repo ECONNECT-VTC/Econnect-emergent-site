@@ -202,6 +202,121 @@ class TestBrevoTransport(unittest.IsolatedAsyncioTestCase):
 
 
 class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
+    def _booking_for_email(self):
+        return {
+            "id": "quote123456789",
+            "client_email": "client@example.com",
+            "client_name": "<Client & Test>",
+            "pickup_date": "10/06/2026",
+            "pickup_time": "10:00",
+            "pickup_address": "<Paris>",
+            "dropoff_address": "CDG",
+            "estimated_price": 120.0,
+        }
+
+    async def test_quote_and_completion_emails_use_templates_and_params(self):
+        sent_payloads = []
+        sdk = _make_brevo_sdk(sent_payloads)
+        bookings = SimpleNamespace(find_one=AsyncMock(return_value={}), update_one=AsyncMock())
+        with patch.object(server, "db", SimpleNamespace(bookings=bookings)), patch.object(
+            server, "get_commission_settings", AsyncMock(return_value={})
+        ), patch.object(
+            server, "generate_and_store_document", AsyncMock(return_value=(b"%PDF-test", {}))
+        ), patch.dict(
+            os.environ,
+            {
+                "BREVO_API_KEY": "brevo-test-key",
+                "BREVO_TEMPLATE_QUOTE_AVAILABLE": "3001",
+                "BREVO_TEMPLATE_BOOKING_COMPLETED": "3002",
+            },
+            clear=False,
+        ), patch.object(email_service, "sib_api_v3_sdk", sdk), patch.object(
+            email_service.asyncio, "to_thread", side_effect=lambda fn: fn()
+        ):
+            booking = self._booking_for_email()
+            self.assertTrue(await server.send_quote_available_to_client(booking))
+            self.assertTrue(await server.send_booking_completed_to_client(booking))
+
+        quote_payload, completed_payload = sent_payloads
+        self.assertEqual(quote_payload["template_id"], 3001)
+        self.assertEqual(
+            quote_payload["params"],
+            {
+                "CLIENT_NAME": "<Client & Test>",
+                "BOOKING_ID": booking["id"],
+                "PICKUP_DATE": booking["pickup_date"],
+                "PICKUP_TIME": booking["pickup_time"],
+                "PICKUP_ADDRESS": booking["pickup_address"],
+                "DROPOFF_ADDRESS": booking["dropoff_address"],
+                "AMOUNT": "120.00 €",
+                "BOOKING_URL": f"{server.FRONTEND_URL}/fr/client/bookings",
+            },
+        )
+        self.assertEqual(quote_payload["attachment"][0]["name"], "devis-QUOTE123.pdf")
+        self.assertEqual(completed_payload["template_id"], 3002)
+        self.assertEqual(
+            completed_payload["params"],
+            {
+                "CLIENT_NAME": "<Client & Test>",
+                "BOOKING_ID": booking["id"],
+                "PICKUP_DATE": booking["pickup_date"],
+                "PICKUP_TIME": booking["pickup_time"],
+                "PICKUP_ADDRESS": booking["pickup_address"],
+                "DROPOFF_ADDRESS": booking["dropoff_address"],
+                "BOOKING_URL": f"{server.FRONTEND_URL}/fr/client/bookings",
+            },
+        )
+        self.assertEqual(bookings.update_one.await_count, 2)
+
+    async def test_quote_and_completion_emails_fall_back_to_html_without_template_ids(self):
+        sent_payloads = []
+        sdk = _make_brevo_sdk(sent_payloads)
+        bookings = SimpleNamespace(find_one=AsyncMock(return_value={}), update_one=AsyncMock())
+        with patch.object(server, "db", SimpleNamespace(bookings=bookings)), patch.object(
+            server, "get_commission_settings", AsyncMock(return_value={})
+        ), patch.object(
+            server, "generate_and_store_document", AsyncMock(return_value=(b"%PDF-test", {}))
+        ), patch.dict(
+            os.environ,
+            {
+                "BREVO_API_KEY": "brevo-test-key",
+                "BREVO_TEMPLATE_QUOTE_AVAILABLE": "",
+                "BREVO_TEMPLATE_BOOKING_COMPLETED": "",
+            },
+            clear=False,
+        ), patch.object(email_service, "sib_api_v3_sdk", sdk), patch.object(
+            email_service.asyncio, "to_thread", side_effect=lambda fn: fn()
+        ):
+            booking = self._booking_for_email()
+            await server.send_quote_available_to_client(booking)
+            await server.send_booking_completed_to_client(booking)
+
+        self.assertNotIn("template_id", sent_payloads[0])
+        self.assertIn(
+            "Votre devis est prêt. Veuillez le consulter en pièce jointe",
+            sent_payloads[0]["html_content"],
+        )
+        self.assertIn("&lt;Paris&gt;", sent_payloads[0]["html_content"])
+        self.assertNotIn("template_id", sent_payloads[1])
+        self.assertIn("Merci d'avoir voyagé avec Econnect VTC", sent_payloads[1]["html_content"])
+        self.assertIn("&lt;Paris&gt;", sent_payloads[1]["html_content"])
+
+    async def test_quote_and_completion_emails_are_not_resent_when_already_sent(self):
+        booking = self._booking_for_email()
+        send_email = AsyncMock()
+        find_one = AsyncMock(
+            side_effect=[
+                {"quote_email_sent_at": "already-sent"},
+                {"completed_email_sent_at": "already-sent"},
+            ]
+        )
+        with patch.object(server, "send_notification_email", send_email), patch.object(
+            server, "db", SimpleNamespace(bookings=SimpleNamespace(find_one=find_one, update_one=AsyncMock()))
+        ):
+            self.assertFalse(await server.send_quote_available_to_client(booking))
+            self.assertFalse(await server.send_booking_completed_to_client(booking))
+        send_email.assert_not_awaited()
+
     async def test_send_invoice_to_client_uses_invoice_template(self):
         booking = {
             "id": "booking-12345678",
