@@ -63,9 +63,9 @@ Syntaxe Brevo dans le template : `{{ params.CLIENT_NAME }}`.
 
 Si aucun template Brevo n’est configuré pour un flux, l’email continue à partir du HTML généré par `build_email_html()` (comportement historique conservé).
 
-## 6) Pièces jointes (factures PDF)
+## 6) Pièces jointes (devis et factures PDF)
 
-Les factures restent envoyées en pièce jointe PDF via Brevo (base64 + nom de fichier).
+Les devis et les factures sont envoyés en pièce jointe PDF via Brevo (base64 + nom de fichier).
 
 ## 7) Procédure de test avant production
 
