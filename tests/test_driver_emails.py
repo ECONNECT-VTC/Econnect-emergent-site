@@ -299,6 +299,54 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(release_query[f"{pending}.token"], token)
         self.assertEqual(release_update, {"$unset": {pending: ""}})
 
+    async def test_in_flight_assignment_does_not_suppress_reassignment(self):
+        state = {"driver_id": "driver-1"}
+        pending = "client_driver_notified_driver_id_pending"
+        flag = "client_driver_notified_driver_id"
+
+        async def update_booking(query, update):
+            if query.get("driver_id") and query["driver_id"] != state["driver_id"]:
+                return SimpleNamespace(modified_count=0)
+            values = update.get("$set", {})
+            if pending in values:
+                if state.get(flag) == query[flag]["$ne"]:
+                    return SimpleNamespace(modified_count=0)
+                if pending in state and state[pending]["driver_id"] == query["driver_id"]:
+                    return SimpleNamespace(modified_count=0)
+                self.assertIn({f"{pending}.driver_id": {"$ne": query["driver_id"]}}, query["$or"])
+            if f"{pending}.token" in query:
+                if state.get(pending, {}).get("token") != query[f"{pending}.token"]:
+                    return SimpleNamespace(modified_count=0)
+            state.update(values)
+            for key in update.get("$unset", {}):
+                state.pop(key, None)
+            return SimpleNamespace(modified_count=1)
+
+        self.bookings.update_one.side_effect = update_booking
+        started, finish = asyncio.Event(), asyncio.Event()
+
+        async def send_email(*_args, **kwargs):
+            if kwargs["template_params"]["DRIVER_NAME"] == "Chauffeur":
+                started.set()
+                await finish.wait()
+            return True
+
+        with patch.object(server, "send_notification_email", AsyncMock(side_effect=send_email)) as send:
+            first = asyncio.create_task(server.send_driver_assigned_to_client(self.booking, self.driver))
+            try:
+                await asyncio.wait_for(started.wait(), timeout=2)
+                state["driver_id"] = "driver-2"
+                self.assertTrue(await server.send_driver_assigned_to_client(
+                    {**self.booking, "driver_id": "driver-2"},
+                    {**self.driver, "id": "driver-2", "name": "Second Chauffeur"},
+                ))
+            finally:
+                finish.set()
+                self.assertTrue(await first)
+            self.assertEqual(send.await_count, 2)
+        self.assertEqual(state[flag], "driver-2")
+        self.assertNotIn(pending, state)
+
     async def test_completion_notifications_isolate_both_recipients(self):
         for failing in ("notify_client_booking_completed", "send_driver_documents"):
             with self.subTest(failing=failing), patch.object(

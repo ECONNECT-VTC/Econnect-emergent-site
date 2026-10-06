@@ -3279,17 +3279,20 @@ async def claim_booking_email(booking_id: str, driver_id: str, flag: str, sent_v
     now = datetime.now(timezone.utc)
     claim_field = f"{flag}_pending"
     token = str(uuid.uuid4())
+    available_claims = [
+        {claim_field: {"$exists": False}},
+        {f"{claim_field}.claimed_at": {"$lt": now - timedelta(minutes=10)}},
+    ]
+    if sent_value is not None:
+        available_claims.append({f"{claim_field}.driver_id": {"$ne": driver_id}})
     result = await db.bookings.update_one(
         {
             "id": booking_id,
             "driver_id": driver_id,
             flag: {"$ne": sent_value} if sent_value is not None else {"$exists": False},
-            "$or": [
-                {claim_field: {"$exists": False}},
-                {f"{claim_field}.claimed_at": {"$lt": now - timedelta(minutes=10)}},
-            ],
+            "$or": available_claims,
         },
-        {"$set": {claim_field: {"token": token, "claimed_at": now}}},
+        {"$set": {claim_field: {"token": token, "claimed_at": now, "driver_id": driver_id}}},
     )
     return token if result.modified_count == 1 else None
 
