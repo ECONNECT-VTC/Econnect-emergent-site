@@ -3017,6 +3017,10 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
 
 # ==================== EMAIL SERVICE ====================
 
+def booking_short_reference(booking_id) -> str:
+    return str(booking_id or "").strip()[:6].upper() or "INCONNU"
+
+
 def get_logo_url() -> str:
     """Return the absolute public URL for the Econnect VTC logo."""
     return f"{FRONTEND_URL.rstrip('/')}/photo/logo.png"
@@ -3337,6 +3341,7 @@ async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
         params = {
             "CLIENT_NAME": booking.get("client_name") or "-",
             "BOOKING_ID": booking_id,
+            "BOOKING_REFERENCE": booking_short_reference(booking_id),
             "PICKUP_DATE": booking.get("pickup_date") or "-",
             "PICKUP_TIME": booking.get("pickup_time") or "-",
             "PICKUP_ADDRESS": booking.get("pickup_address") or "-",
@@ -3355,7 +3360,7 @@ async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
         rows = "".join(
             f"<tr><td>{label}</td><td>{html_escape(str(params[key]))}</td></tr>"
             for label, key in (
-                ("Client", "CLIENT_NAME"), ("Référence", "BOOKING_ID"),
+                ("Client", "CLIENT_NAME"), ("Référence", "BOOKING_REFERENCE"),
                 ("Date", "PICKUP_DATE"), ("Heure", "PICKUP_TIME"),
                 ("Départ", "PICKUP_ADDRESS"), ("Arrivée", "DROPOFF_ADDRESS"),
                 ("Chauffeur", "DRIVER_NAME"), ("Téléphone", "DRIVER_PHONE"),
@@ -3370,7 +3375,7 @@ async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
         )
         sent = await send_notification_email(
             booking["client_email"],
-            f"🚗 Votre chauffeur est assigné – course #{str(booking_id)[:8].upper()}",
+            f"🚗 Votre chauffeur est assigné – course #{booking_short_reference(booking_id)}",
             html_content,
             template_key=TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT,
             template_params=params,
@@ -3478,7 +3483,7 @@ async def send_booking_confirmation_to_client(booking: dict):
     paid_amount = booking.get("paid_amount") if booking.get("paid_amount") is not None else booking.get("estimated_price")
     amount_label = f"{float(paid_amount):.2f} €" if paid_amount is not None else "Montant indisponible"
     currency = (booking.get("paid_currency") or "EUR").upper()
-    subject = f"✅ Confirmation de réservation #{booking.get('id', '')[:8].upper()} - Econnect VTC"
+    subject = f"✅ Confirmation de réservation #{booking_short_reference(booking.get('id'))} - Econnect VTC"
 
     body_html = f"""
 <p style="margin: 0 0 12px 0;">Votre paiement a bien été confirmé. Merci pour votre réservation.</p>
@@ -3565,10 +3570,10 @@ async def send_quote_available_to_client(booking: dict):
         )
         sent = await send_notification_email(
             client_email,
-            f"📄 Votre devis Econnect VTC #{str(booking_id)[:8].upper()}",
+            f"📄 Votre devis Econnect VTC #{booking_short_reference(booking_id)}",
             html_content,
             attachment_bytes=pdf_bytes,
-            attachment_filename=f"devis-{str(booking_id)[:8].upper()}.pdf",
+            attachment_filename=f"devis-{booking_short_reference(booking_id)}.pdf",
             template_key=TEMPLATE_KEY_QUOTE_AVAILABLE,
             template_params={
                 "CLIENT_NAME": booking.get("client_name", "Client"),
@@ -3629,7 +3634,7 @@ async def send_booking_completed_to_client(booking: dict):
         )
         sent = await send_notification_email(
             client_email,
-            f"Merci d'avoir voyagé avec Econnect VTC – course #{str(booking_id)[:8].upper()}",
+            f"Merci d'avoir voyagé avec Econnect VTC – course #{booking_short_reference(booking_id)}",
             html_content,
             template_key=TEMPLATE_KEY_BOOKING_COMPLETED,
             template_params={
@@ -3702,7 +3707,7 @@ async def send_driver_documents(booking: dict):
             booking.get("commission_override"),
             bool(booking.get("fulfilled_by_admin")),
         )
-        reference = str(booking_id)[:8].upper()
+        reference = booking_short_reference(booking_id)
         documents = (
             ("driver", "facture-chauffeur", "Facture chauffeur"),
             ("commission", "facture-commission", "Facture de commission"),
@@ -3715,6 +3720,7 @@ async def send_driver_documents(booking: dict):
         params = {
             "DRIVER_NAME": driver.get("name") or "-",
             "BOOKING_ID": booking_id,
+            "BOOKING_REFERENCE": reference,
             "PICKUP_DATE": booking.get("pickup_date") or "-",
             "PICKUP_TIME": booking.get("pickup_time") or "-",
             "PICKUP_ADDRESS": booking.get("pickup_address") or "-",
@@ -3726,7 +3732,7 @@ async def send_driver_documents(booking: dict):
         details = "".join(
             f"<tr><td>{label}</td><td>{html_escape(str(params[key]))}</td></tr>"
             for label, key in (
-                ("Référence", "BOOKING_ID"), ("Date", "PICKUP_DATE"),
+                ("Référence", "BOOKING_REFERENCE"), ("Date", "PICKUP_DATE"),
                 ("Heure", "PICKUP_TIME"), ("Départ", "PICKUP_ADDRESS"),
                 ("Arrivée", "DROPOFF_ADDRESS"), ("Montant versé", "AMOUNT"),
             )
@@ -3811,10 +3817,10 @@ async def send_invoice_to_client(booking: dict):
 
         sent = await send_notification_email(
             client_email,
-            f"📄 Votre facture Econnect VTC #{str(booking_id)[:8].upper()}",
+            f"📄 Votre facture Econnect VTC #{booking_short_reference(booking_id)}",
             html_content,
             attachment_bytes=pdf_bytes,
-            attachment_filename=f"facture-{str(booking_id)[:8].upper()}.pdf",
+            attachment_filename=f"facture-{booking_short_reference(booking_id)}.pdf",
             template_key=TEMPLATE_KEY_INVOICE,
             template_params={
                 "CLIENT_NAME": booking.get("client_name", "Client"),
@@ -3842,7 +3848,7 @@ async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
     if not booking.get("client_email"):
         return
 
-    booking_reference = str(booking.get("id") or "").strip()[:8].upper() or "INCONNU"
+    booking_reference = booking_short_reference(booking.get("id"))
     refund_amount = refund_trace.get("refund_amount")
     refund_currency = (refund_trace.get("refund_currency") or booking.get("paid_currency") or "EUR").upper()
     amount_label = f"{float(refund_amount):.2f} {refund_currency}" if refund_amount is not None else "Montant indisponible"
@@ -4377,7 +4383,7 @@ async def create_booking_checkout(booking: BookingCheckoutCreate, request: Reque
                     "currency": "eur",
                     "unit_amount": unit_amount,
                     "product_data": {
-                        "name": f"Réservation VTC #{booking_doc['id'][:8].upper()}",
+                        "name": f"Réservation VTC #{booking_short_reference(booking_doc['id'])}",
                         "description": f"{booking_doc['pickup_address']} → {booking_doc['dropoff_address']}"
                     },
                 }

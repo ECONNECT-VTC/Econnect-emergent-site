@@ -61,6 +61,21 @@ def _make_brevo_sdk(sent_payloads, raise_exception=None):
     )
 
 
+class TestBookingShortReference(unittest.TestCase):
+    def test_reference_normalizes_and_truncates_display_only(self):
+        for booking_id, expected in (
+            ("abcdef123456", "ABCDEF"),
+            ("  abcdef123456 \n", "ABCDEF"),
+            ("ab-c", "AB-C"),
+            (12345678, "123456"),
+            (None, "INCONNU"),
+            ("", "INCONNU"),
+            (" \t\n", "INCONNU"),
+        ):
+            with self.subTest(booking_id=booking_id):
+                self.assertEqual(server.booking_short_reference(booking_id), expected)
+
+
 class TestBrevoTransport(unittest.IsolatedAsyncioTestCase):
     async def test_send_notification_email_html_fallback_without_template(self):
         sent_payloads = []
@@ -252,8 +267,13 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
                 "BOOKING_URL": f"{server.FRONTEND_URL}/fr/client/bookings",
             },
         )
-        self.assertEqual(quote_payload["attachment"][0]["name"], "devis-QUOTE123.pdf")
+        self.assertEqual(quote_payload["subject"], "📄 Votre devis Econnect VTC #QUOTE1")
+        self.assertEqual(quote_payload["attachment"][0]["name"], "devis-QUOTE1.pdf")
         self.assertEqual(completed_payload["template_id"], 3002)
+        self.assertEqual(
+            completed_payload["subject"],
+            "Merci d'avoir voyagé avec Econnect VTC – course #QUOTE1",
+        )
         self.assertEqual(
             completed_payload["params"],
             {
@@ -339,7 +359,9 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(sent)
         self.assertEqual(send_email.await_args.kwargs["template_key"], email_service.TEMPLATE_KEY_INVOICE)
-        self.assertIn("BOOKING_ID", send_email.await_args.kwargs["template_params"])
+        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_ID"], booking["id"])
+        self.assertEqual(send_email.await_args.args[1], "📄 Votre facture Econnect VTC #BOOKIN")
+        self.assertEqual(send_email.await_args.kwargs["attachment_filename"], "facture-BOOKIN.pdf")
 
     async def test_activation_email_uses_account_activation_template(self):
         tokens = SimpleNamespace(insert_one=AsyncMock())
@@ -367,7 +389,7 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
 
     async def test_payment_confirmation_uses_payment_template(self):
         booking = {
-            "id": "book-1",
+            "id": "abcdef123456",
             "client_email": "client@example.com",
             "client_name": "Client",
             "pickup_date": "01/01/2026",
@@ -380,6 +402,11 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
         with patch.object(server, "send_notification_email", AsyncMock(return_value=True)) as send_email:
             await server.send_booking_confirmation_to_client(booking)
         self.assertEqual(send_email.await_args.kwargs["template_key"], email_service.TEMPLATE_KEY_PAYMENT_CONFIRMED)
+        self.assertEqual(
+            send_email.await_args.args[1],
+            "✅ Confirmation de réservation #ABCDEF - Econnect VTC",
+        )
+        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_ID"], booking["id"])
 
     async def test_driver_assignment_uses_driver_template(self):
         booking = {
@@ -434,7 +461,7 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
 
     async def test_refund_confirmation_uses_cancellation_template(self):
         booking = {
-            "id": "book-3",
+            "id": "abcdef123456",
             "client_email": "client@example.com",
             "client_name": "Client",
             "pickup_date": "03/03/2026",
@@ -447,6 +474,11 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
         with patch.object(server, "send_notification_email", AsyncMock(return_value=True)) as send_email:
             await server.send_refund_confirmation_to_client(booking, refund_trace)
         self.assertEqual(send_email.await_args.kwargs["template_key"], email_service.TEMPLATE_KEY_CANCELLATION)
+        self.assertEqual(
+            send_email.await_args.args[1],
+            "💸 Remboursement effectué - Réservation #ABCDEF - Econnect VTC",
+        )
+        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_ID"], booking["id"])
 
 
 if __name__ == "__main__":

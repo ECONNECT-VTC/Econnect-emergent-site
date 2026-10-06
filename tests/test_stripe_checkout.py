@@ -128,7 +128,7 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
              patch.object(server, "STRIPE_SECRET_KEY", "sk_test_123"), \
              patch.object(server, "STRIPE_PUBLISHABLE_KEY", "pk_test_123"), \
              patch.object(server, "get_current_user", AsyncMock(return_value={"id": "u1", "name": "Client", "email": "client@test.com"})), \
-             patch.object(server.stripe.checkout.Session, "create", return_value={"id": "cs_test_1", "url": "https://checkout.stripe.test/1"}):
+             patch.object(server.stripe.checkout.Session, "create", return_value={"id": "cs_test_1", "url": "https://checkout.stripe.test/1"}) as create_session:
             result = await server.create_booking_checkout(payload, request=object())
 
         self.assertEqual(result.session_id, "cs_test_1")
@@ -137,6 +137,12 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
         created_booking = next(iter(bookings.docs.values()))
         self.assertEqual(created_booking["payment_status"], "pending")
         self.assertEqual(created_booking["stripe_checkout_session_id"], "cs_test_1")
+        create_kwargs = create_session.call_args.kwargs
+        self.assertEqual(
+            create_kwargs["line_items"][0]["price_data"]["product_data"]["name"],
+            f"Réservation VTC #{created_booking['id'][:6].upper()}",
+        )
+        self.assertEqual(create_kwargs["metadata"]["booking_id"], created_booking["id"])
 
     async def test_create_booking_checkout_uses_20_percent_deposit_for_transfer_payments(self):
         bookings = InMemoryBookingsCollection()
