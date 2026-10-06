@@ -63,7 +63,7 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["template_id"], 4001)
         self.assertEqual(payload["params"], {
             "CLIENT_NAME": "<Client & Test>",
-            "BOOKING_ID": "abcdef123456",
+            "BOOKING_ID": "ABCDEF",
             "BOOKING_REFERENCE": "ABCDEF",
             "PICKUP_DATE": "2026-10-12",
             "PICKUP_TIME": "09:30",
@@ -177,7 +177,7 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["subject"], "📎 Vos documents – course #ABCDEF")
         self.assertEqual(payload["template_id"], 4002)
         self.assertEqual(payload["params"], {
-            "DRIVER_NAME": "Chauffeur", "BOOKING_ID": "abcdef123456",
+            "DRIVER_NAME": "Chauffeur", "BOOKING_ID": "ABCDEF",
             "BOOKING_REFERENCE": "ABCDEF",
             "PICKUP_DATE": "2026-10-12", "PICKUP_TIME": "09:30",
             "PICKUP_ADDRESS": "<Paris>", "DROPOFF_ADDRESS": "CDG",

@@ -4,6 +4,7 @@ import axios from 'axios';
 import { CheckCircle, CircleNotch, EnvelopeSimple, Receipt, WarningCircle } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import { clearBookingCheckoutDraft, confirmBookingPayment } from '@/utils/bookingCheckout';
+import { formatBookingReference } from '../utils/bookingReference';
 
 const BookingPaymentSuccess = () => {
   const { lang = 'fr' } = useParams();
@@ -70,7 +71,7 @@ const BookingPaymentSuccess = () => {
 
         {booking && (
           <div className="space-y-2 rounded-xl border border-[#D4AF37]/20 bg-[#1E1E1E] p-5 text-sm text-[#C7B588]">
-            <p><span className="text-[#A1A1AA]">Réservation :</span> #{booking.id}</p>
+            <p><span className="text-[#A1A1AA]">Réservation :</span> #{formatBookingReference(booking.id)}</p>
             <p><span className="text-[#A1A1AA]">Trajet :</span> {booking.pickup_address} → {booking.dropoff_address}</p>
             <p><span className="text-[#A1A1AA]">Date :</span> {booking.pickup_date} à {booking.pickup_time}</p>
             <p><span className="text-[#A1A1AA]">{booking.payment_status === 'partially_paid' ? 'Acompte payé :' : 'Montant payé :'}</span> {Number(booking.paid_amount ?? booking.estimated_price ?? 0).toFixed(2)} €</p>

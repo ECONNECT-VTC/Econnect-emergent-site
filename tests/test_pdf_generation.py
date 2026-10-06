@@ -2,7 +2,8 @@
 import sys
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
 from pathlib import Path
 
 # Add backend directory to path so we can import helpers without the full FastAPI app
@@ -61,6 +62,30 @@ SAMPLE_SETTINGS = {
 
 
 class TestGenerateFinancialPDF(unittest.TestCase):
+
+    def test_booking_reference_is_distinct_from_financial_document_number(self):
+        booking = {**SAMPLE_BOOKING, "id": "aBcDeF123456"}
+        for document_type in ("quote", "invoice", "order", "driver", "commission", "activity"):
+            with self.subTest(document_type=document_type), patch.object(
+                server.canvas.Canvas, "drawString"
+            ) as draw_string, patch.object(
+                server.canvas.Canvas, "drawRightString"
+            ) as draw_right_string:
+                pdf = generate_financial_pdf(booking, SAMPLE_SETTINGS, document_type, "000123")
+                self._assert_valid_pdf(pdf, document_type)
+                texts = [
+                    str(call.args[2])
+                    for method in (draw_string, draw_right_string)
+                    for call in method.call_args_list
+                ]
+                self.assertTrue(any("ABCDEF" in text for text in texts))
+                self.assertFalse(any(booking["id"] in text for text in texts))
+                if document_type == "order":
+                    self.assertIn("Référence : ABCDEF", texts)
+                    self.assertNotIn("Référence : 000123", texts)
+                else:
+                    self.assertIn("Référence course : ABCDEF", texts)
+                    self.assertTrue(any("N° 000123" in text for text in texts))
 
     def _assert_valid_pdf(self, pdf_bytes: bytes, doc_type: str):
         self.assertIsInstance(pdf_bytes, bytes, f"{doc_type}: result should be bytes")
@@ -711,6 +736,74 @@ class TestGenerateFinancialPDF(unittest.TestCase):
         self.assertIn("Mode de paiement :", captured_strings)
         self.assertIn("Bagages / options :", captured_strings)
         self.assertGreaterEqual(captured_strings.count("N/A"), 5)
+
+
+class TestBookingDocumentReferences(unittest.IsolatedAsyncioTestCase):
+    async def test_document_storage_preserves_full_booking_id_and_sequential_number(self):
+        booking = {**SAMPLE_BOOKING, "id": "aBcDeF123456"}
+        invoices = SimpleNamespace(find_one=AsyncMock(return_value=None), insert_one=AsyncMock())
+        sequence = AsyncMock(return_value="000123")
+        with patch.object(server, "db", SimpleNamespace(invoices=invoices)), patch.object(
+            server, "get_document_driver_profile", AsyncMock(return_value=None)
+        ), patch.object(
+            server, "build_document_issuer_profile", AsyncMock(return_value={})
+        ), patch.object(server, "get_next_sequential_number", sequence), patch.object(
+            server, "generate_financial_pdf", return_value=b"%PDF-test"
+        ) as generate_pdf:
+            _, metadata = await server.generate_and_store_document(booking, SAMPLE_SETTINGS, "invoice")
+            self.assertEqual(metadata["booking_id"], booking["id"])
+            self.assertEqual(metadata["invoice_number"], "000123")
+            invoices.insert_one.assert_awaited_once_with(metadata)
+            self.assertEqual(generate_pdf.call_args.args[0]["id"], booking["id"])
+            self.assertEqual(generate_pdf.call_args.args[3], "000123")
+            invoices.find_one.assert_awaited_with(
+                {"booking_id": booking["id"], "type": "invoice"}, {"_id": 0}
+            )
+            invoices.find_one.return_value = metadata
+            _, existing = await server.generate_and_store_document(booking, SAMPLE_SETTINGS, "invoice")
+            self.assertEqual(existing, metadata)
+            self.assertEqual(generate_pdf.call_args.args[3], "000123")
+            sequence.assert_awaited_once()
+            invoices.insert_one.assert_awaited_once()
+
+    async def test_all_booking_pdf_downloads_use_reference_filenames_and_full_id_lookups(self):
+        booking = {
+            **SAMPLE_BOOKING, "id": "aBcDeF123456", "driver_id": "driver-1",
+            "client_id": "client-1", "status": "COMPLETED",
+        }
+        expected = {
+            "/driver/bookings/{booking_id}/order-pdf": ("order", "bon-de-commande"),
+            "/admin/quotes/{booking_id}/pdf": ("quote", "devis-client"),
+            "/admin/invoices/{booking_id}/pdf": ("invoice", "facture-client"),
+            "/admin/invoices/{booking_id}/driver-pdf": ("driver", "facture-chauffeur"),
+            "/admin/invoices/{booking_id}/commission-pdf": ("commission", "facture-commission"),
+            "/admin/invoices/{booking_id}/activity-pdf": ("activity", "releve-activite"),
+            "/admin/orders/{booking_id}/pdf": ("order", "bon-de-commande"),
+            "/driver/invoices/{booking_id}/pdf": ("driver", "facture-chauffeur"),
+            "/driver/invoices/{booking_id}/order-pdf": ("order", "bon-commande"),
+            "/driver/invoices/{booking_id}/commission-pdf": ("commission", "facture-commission"),
+            "/driver/invoices/{booking_id}/activity-pdf": ("activity", "releve-activite"),
+            "/client/invoices/{booking_id}/pdf": ("invoice", "facture"),
+        }
+        routes = {route.path.removeprefix("/api"): route for route in server.api_router.routes}
+        bookings = SimpleNamespace(find_one=AsyncMock(return_value=booking))
+        with patch.object(server, "db", SimpleNamespace(bookings=bookings)), patch.object(
+            server, "require_admin", AsyncMock()
+        ), patch.object(server, "require_driver", AsyncMock(return_value={"id": "driver-1"})), patch.object(
+            server, "get_current_user", AsyncMock(return_value={"id": "client-1", "role": "client"})
+        ), patch.object(
+            server, "get_commission_settings", AsyncMock(return_value=SAMPLE_SETTINGS)
+        ), patch.object(
+            server, "generate_and_store_document", AsyncMock(return_value=(b"%PDF-test", {}))
+        ) as generate_document:
+            for path, (document_type, filename_prefix) in expected.items():
+                with self.subTest(path=path):
+                    response = await routes[path].endpoint(booking["id"], SimpleNamespace())
+                    self.assertEqual(response.body, b"%PDF-test")
+                    self.assertEqual(response.headers["content-disposition"],
+                                     f"attachment; filename={filename_prefix}-ABCDEF.pdf")
+                    bookings.find_one.assert_awaited_with({"id": booking["id"]}, {"_id": 0})
+                    generate_document.assert_awaited_with(booking, SAMPLE_SETTINGS, document_type)
 
 
 if __name__ == "__main__":

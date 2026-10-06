@@ -77,7 +77,8 @@ describe('BookingPaymentSuccess', () => {
     expect(mockClearBookingCheckoutDraft).toHaveBeenCalledTimes(1);
     expect(mockConfirmBookingPayment).toHaveBeenCalledWith('booking_1', 'cs_test_1');
     expect(container.textContent).toContain('Paiement confirmé');
-    expect(container.textContent).toContain('#booking_1');
+    expect(container.textContent).toContain('Réservation : #BOOKIN');
+    expect(container.textContent).not.toContain('booking_1');
     expect(mockLink).toHaveBeenCalledWith(expect.objectContaining({
       'data-testid': 'booking-success-home',
       to: { pathname: '/fr', hash: '#reserver' },
