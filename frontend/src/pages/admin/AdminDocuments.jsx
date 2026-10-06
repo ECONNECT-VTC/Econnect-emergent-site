@@ -99,7 +99,7 @@ const AdminDocuments = () => {
           <div key={row.id} className="rounded-xl border border-white/10 bg-[#141414] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="font-mono text-xs text-[#D4AF37]">{row.id ? `${row.id.slice(0, 8)}…` : '—'}</p>
+                <p className="font-mono text-xs text-[#D4AF37]">{row.id ? row.id.trim().slice(0, 6).toUpperCase() : '—'}</p>
                 <p className="mt-1 text-sm font-semibold">{row.client_name}</p>
                 <p className="text-sm text-[#A1A1AA]">{row.driver_name || 'Chauffeur non assigné'}</p>
               </div>
@@ -150,7 +150,7 @@ const AdminDocuments = () => {
           <tbody>
             {!loading && rows.map((row) => (
               <tr key={row.id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                <td className="py-3 font-mono text-[#D4AF37] text-xs">{row.id ? `${row.id.slice(0, 8)}…` : '—'}</td>
+                <td className="py-3 font-mono text-[#D4AF37] text-xs">{row.id ? row.id.trim().slice(0, 6).toUpperCase() : '—'}</td>
                 <td>{row.client_name}</td>
                 <td>{row.driver_name || '—'}</td>
                 <td className="text-xs text-[#A1A1AA]">

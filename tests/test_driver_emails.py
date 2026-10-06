@@ -59,11 +59,12 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await server.send_driver_assigned_to_client(self.booking, self.driver))
         payload = self.payloads[0]
         self.assertEqual(payload["to"], [{"email": "guest@example.com"}])
-        self.assertEqual(payload["subject"], "🚗 Votre chauffeur est assigné – course #ABCDEF12")
+        self.assertEqual(payload["subject"], "🚗 Votre chauffeur est assigné – course #ABCDEF")
         self.assertEqual(payload["template_id"], 4001)
         self.assertEqual(payload["params"], {
             "CLIENT_NAME": "<Client & Test>",
             "BOOKING_ID": "abcdef123456",
+            "BOOKING_REFERENCE": "ABCDEF",
             "PICKUP_DATE": "2026-10-12",
             "PICKUP_TIME": "09:30",
             "PICKUP_ADDRESS": "<Paris>",
@@ -102,6 +103,8 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertIn("&lt;Paris&gt;", html)
         self.assertIn("<td>-</td>", html)
         self.assertIn("Voir mes réservations", html)
+        self.assertIn("<td>Référence</td><td>ABCDEF</td>", html)
+        self.assertNotIn(self.booking["id"], html)
 
     async def test_admin_self_assignment_uses_updated_fleet_and_contact_without_role_labels(self):
         admin = {"id": "staff-1", "name": "Oumar Administrateur", "phone": "0600000000",
@@ -171,17 +174,18 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(await server.send_driver_documents(self.booking))
         payload = self.payloads[0]
         self.assertEqual(payload["to"], [{"email": "driver@example.com"}])
-        self.assertEqual(payload["subject"], "📎 Vos documents – course #ABCDEF12")
+        self.assertEqual(payload["subject"], "📎 Vos documents – course #ABCDEF")
         self.assertEqual(payload["template_id"], 4002)
         self.assertEqual(payload["params"], {
             "DRIVER_NAME": "Chauffeur", "BOOKING_ID": "abcdef123456",
+            "BOOKING_REFERENCE": "ABCDEF",
             "PICKUP_DATE": "2026-10-12", "PICKUP_TIME": "09:30",
             "PICKUP_ADDRESS": "<Paris>", "DROPOFF_ADDRESS": "CDG",
             "AMOUNT": "72.00 €", "DASHBOARD_URL": f"{server.FRONTEND_URL}/fr/driver",
         })
         self.assertEqual([item["name"] for item in payload["attachment"]], [
-            "facture-chauffeur-ABCDEF12.pdf", "facture-commission-ABCDEF12.pdf",
-            "releve-activite-ABCDEF12.pdf",
+            "facture-chauffeur-ABCDEF.pdf", "facture-commission-ABCDEF.pdf",
+            "releve-activite-ABCDEF.pdf",
         ])
         for item in payload["attachment"]:
             self.assertEqual(b64decode(item["content"]), b"%PDF-test")
@@ -209,6 +213,8 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("Bon de commande", html)
         self.assertIn("&lt;Paris&gt;", html)
         self.assertIn("&lt;Chauffeur&gt;", html)
+        self.assertIn("<td>Référence</td><td>ABCDEF</td>", html)
+        self.assertNotIn(self.booking["id"], html)
         self.assertEqual(len(self.payloads[0]["attachment"]), 3)
 
     async def test_documents_skip_admin_and_dedup_in_memory_or_database(self):

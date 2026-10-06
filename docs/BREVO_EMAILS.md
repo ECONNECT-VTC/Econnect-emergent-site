@@ -57,13 +57,15 @@ Syntaxe Brevo dans le template : `{{ params.CLIENT_NAME }}`.
 - **Course créée (client)**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DISTANCE_KM`, `AMOUNT`, `PAYMENT_MODE`, `BOOKING_URL`
 - **Devis disponible**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `BOOKING_URL`
 - **Chauffeur assigné**: `CLIENT_NAME`, `CLIENT_PHONE`, `CLIENT_EMAIL`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `TRANSFER_TYPE`, `NOTES`, `ORDER_DOWNLOAD_URL`
-- **Chauffeur assigné (client)**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DRIVER_NAME`, `DRIVER_PHONE`, `VEHICLE_MODEL`, `VEHICLE_PLATE`, `BOOKING_URL`
-- **Documents chauffeur**: `DRIVER_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `DASHBOARD_URL`
+- **Chauffeur assigné (client)**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DRIVER_NAME`, `DRIVER_PHONE`, `VEHICLE_MODEL`, `VEHICLE_PLATE`, `BOOKING_URL`
+- **Documents chauffeur**: `DRIVER_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `DASHBOARD_URL`
 - **Course terminée**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `BOOKING_URL`
 - **Paiement confirmé**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `CURRENCY`, `BOOKING_URL`
 - **Facture**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `BOOKING_URL`
 - **Annulation / remboursement**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `REFUND_STATUS`, `REFUND_CURRENCY`, `STRIPE_REFUND_ID`, `BOOKING_URL`
 - **Message administratif**: `CLIENT_NAME`, `CLIENT_EMAIL`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DISTANCE_KM`, `AMOUNT`, `REGISTER_URL`
+
+Pour « Chauffeur assigné (client) » et « Documents chauffeur », `BOOKING_ID` reste l'identifiant complet pour compatibilité. Utiliser `{{ params.BOOKING_REFERENCE }}` pour la ligne « Référence » et les objets `🚗 Votre chauffeur est assigné – course #{{ params.BOOKING_REFERENCE }}` et `📎 Vos documents – course #{{ params.BOOKING_REFERENCE }}` : cette référence contient les six premiers caractères de l'identifiant, en majuscules.
 
 ## 5) Fallback HTML
 
@@ -78,15 +80,16 @@ Une réservation d'envoi atomique (`<marqueur>_pending`) empêche les envois con
 ## 6) Pièces jointes (devis et factures PDF)
 
 Les devis et les factures sont envoyés en pièce jointe PDF via Brevo (base64 + nom de fichier).
+Leurs noms sont `devis-<ID6>.pdf` et `facture-<ID6>.pdf`.
 
 À la clôture, le chauffeur reçoit uniquement ces trois documents dans un seul email :
-- `facture-chauffeur-<ID8>.pdf` (`driver`) ;
-- `facture-commission-<ID8>.pdf` (`commission`) ;
-- `releve-activite-<ID8>.pdf` (`activity`).
+- `facture-chauffeur-<ID6>.pdf` (`driver`) ;
+- `facture-commission-<ID6>.pdf` (`commission`) ;
+- `releve-activite-<ID6>.pdf` (`activity`).
 
 Le bon de commande (`order`) n'est pas joint à cet email ni listé dans son HTML de repli. Il reste accessible via l'email d'affectation et l'espace chauffeur ; les routes de téléchargement sont inchangées.
 
-`ID8` désigne les huit premiers caractères de la référence en majuscules. `AMOUNT` est le montant versé au chauffeur après commission (`driver_earning`), au format `72.00 €`. `DASHBOARD_URL` mène à `/fr/driver`.
+`ID6` désigne les six premiers caractères de l'identifiant de réservation en majuscules. `AMOUNT` est le montant versé au chauffeur après commission (`driver_earning`), au format `72.00 €`. `DASHBOARD_URL` mène à `/fr/driver`.
 
 Cet email n'est pas envoyé pour les courses `fulfilled_by_admin` : elles n'ont pas de commission et ne concernent pas un compte chauffeur. Les emails client de fin de course et de facture restent envoyés. Les PDF sont joints par le backend lors d'un envoi réel, pas par le bouton « Envoyer un test » de Brevo.
 

@@ -71,7 +71,7 @@ const DriverInvoiceSection = () => {
           <div key={inv.booking_id} className="rounded-xl border border-white/10 bg-[#141414] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="font-mono text-xs text-[#D4AF37]">{inv.booking_id ? `${inv.booking_id.slice(0, 8)}…` : '—'}</p>
+                <p className="font-mono text-xs text-[#D4AF37]">{inv.booking_id ? inv.booking_id.trim().slice(0, 6).toUpperCase() : '—'}</p>
                 <p className="mt-1 text-sm font-semibold">{inv.client_name}</p>
               </div>
               <p className="text-sm text-[#A1A1AA]">{inv.pickup_date} {inv.pickup_time}</p>
@@ -122,7 +122,7 @@ const DriverInvoiceSection = () => {
           <tbody>
             {!loading && filtered.map((inv) => (
               <tr key={inv.booking_id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                <td className="py-3 font-mono text-[#D4AF37] text-xs">{inv.booking_id ? `${inv.booking_id.slice(0, 8)}…` : '—'}</td>
+                <td className="py-3 font-mono text-[#D4AF37] text-xs">{inv.booking_id ? inv.booking_id.trim().slice(0, 6).toUpperCase() : '—'}</td>
                 <td>{inv.client_name}</td>
                 <td className="text-xs text-[#A1A1AA]">
                   {inv.pickup_address}<br />
