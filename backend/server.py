@@ -35,6 +35,8 @@ from email_service import (
     TEMPLATE_KEY_BOOKING_COMPLETED,
     TEMPLATE_KEY_CANCELLATION,
     TEMPLATE_KEY_DRIVER_ASSIGNED,
+    TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT,
+    TEMPLATE_KEY_DRIVER_DOCUMENTS,
     TEMPLATE_KEY_INVOICE,
     TEMPLATE_KEY_PASSWORD_RESET,
     TEMPLATE_KEY_PAYMENT_CONFIRMED,
@@ -3257,6 +3259,7 @@ async def send_notification_email(
     template_key: Optional[str] = None,
     template_id: Optional[int] = None,
     template_params: Optional[dict] = None,
+    attachments: Optional[List[Tuple[str, bytes]]] = None,
 ):
     """Send transactional email via Brevo with HTML fallback."""
     return await send_brevo_transactional_email(
@@ -3268,7 +3271,79 @@ async def send_notification_email(
         template_key=template_key,
         template_id=template_id,
         template_params=template_params,
+        attachments=attachments,
     )
+
+
+async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
+    booking_id = booking.get("id")
+    driver_id = booking.get("driver_id")
+    if not booking_id or not driver_id or not booking.get("client_email"):
+        return False
+    if booking.get("client_driver_notified_driver_id") == driver_id:
+        return False
+
+    try:
+        existing = await db.bookings.find_one(
+            {"id": booking_id}, {"_id": 0, "client_driver_notified_driver_id": 1}
+        )
+        if existing and existing.get("client_driver_notified_driver_id") == driver_id:
+            return False
+
+        vehicle_model = " ".join(
+            str(value) for value in (driver_info.get("vehicle_brand"), driver_info.get("vehicle_model"))
+            if value
+        ) or "-"
+        params = {
+            "CLIENT_NAME": booking.get("client_name") or "-",
+            "BOOKING_ID": booking_id,
+            "PICKUP_DATE": booking.get("pickup_date") or "-",
+            "PICKUP_TIME": booking.get("pickup_time") or "-",
+            "PICKUP_ADDRESS": booking.get("pickup_address") or "-",
+            "DROPOFF_ADDRESS": booking.get("dropoff_address") or "-",
+            "DRIVER_NAME": driver_info.get("name") or "-",
+            "DRIVER_PHONE": driver_info.get("phone") or "-",
+            "VEHICLE_MODEL": vehicle_model,
+            "VEHICLE_PLATE": driver_info.get("vehicle_plate") or "-",
+            "BOOKING_URL": f"{FRONTEND_URL}/fr/client/bookings",
+        }
+        if booking.get("fulfilled_by_admin"):
+            # Internal role labels must not appear in the client-facing details.
+            for key in ("DRIVER_NAME", "VEHICLE_MODEL", "VEHICLE_PLATE"):
+                params[key] = re.sub(r"\badmin\w*\b", "", str(params[key]), flags=re.IGNORECASE).strip() or "-"
+
+        rows = "".join(
+            f"<tr><td>{label}</td><td>{html_escape(str(params[key]))}</td></tr>"
+            for label, key in (
+                ("Client", "CLIENT_NAME"), ("Référence", "BOOKING_ID"),
+                ("Date", "PICKUP_DATE"), ("Heure", "PICKUP_TIME"),
+                ("Départ", "PICKUP_ADDRESS"), ("Arrivée", "DROPOFF_ADDRESS"),
+                ("Chauffeur", "DRIVER_NAME"), ("Téléphone", "DRIVER_PHONE"),
+                ("Véhicule", "VEHICLE_MODEL"), ("Immatriculation", "VEHICLE_PLATE"),
+            )
+        )
+        html_content = build_email_html(
+            title="Votre chauffeur est assigné",
+            body_html=f"<p>Votre chauffeur est prêt à vous accompagner.</p><table>{rows}</table>",
+            cta_label="Voir mes réservations",
+            cta_url=params["BOOKING_URL"],
+        )
+        sent = await send_notification_email(
+            booking["client_email"],
+            f"🚗 Votre chauffeur est assigné – course #{str(booking_id)[:8].upper()}",
+            html_content,
+            template_key=TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT,
+            template_params=params,
+        )
+        if sent:
+            await db.bookings.update_one(
+                {"id": booking_id, "driver_id": driver_id},
+                {"$set": {"client_driver_notified_driver_id": driver_id}},
+            )
+        return sent
+    except Exception as exc:
+        logger.error("Failed to send driver assignment email for booking %s (%s)", booking_id, exc.__class__.__name__)
+        return False
 
 
 async def send_booking_notification_to_driver(driver: dict, booking: dict, client: dict, order_download_url: Optional[str] = None):
@@ -3545,6 +3620,96 @@ async def notify_client_booking_completed(booking: dict):
         await send_invoice_to_client(booking)
     except Exception as exc:
         logger.error("Failed to send invoice email for booking %s: %s", booking.get("id"), exc)
+
+
+async def notify_booking_completed(booking: dict):
+    for notifier in (notify_client_booking_completed, send_driver_documents):
+        try:
+            await notifier(booking)
+        except Exception as exc:
+            logger.error("Failed to send completion notifications for booking %s (%s)", booking.get("id"), exc.__class__.__name__)
+
+
+async def send_driver_documents(booking: dict):
+    booking_id = booking.get("id")
+    driver_id = booking.get("driver_id")
+    if not booking_id or not driver_id or booking.get("fulfilled_by_admin") or booking.get("driver_documents_email_sent_at"):
+        return False
+
+    try:
+        existing = await db.bookings.find_one(
+            {"id": booking_id}, {"_id": 0, "driver_documents_email_sent_at": 1}
+        )
+        if existing and existing.get("driver_documents_email_sent_at"):
+            return False
+        driver = await db.users.find_one({"id": driver_id, "role": build_driver_role_query()})
+        if not driver or not driver.get("email"):
+            return False
+
+        settings = await get_commission_settings()
+        breakdown = compute_financial_breakdown(
+            booking["estimated_price"],
+            settings["commission_rate"],
+            get_client_tva_rate_for_booking(booking),
+            settings["tva_commission_rate"],
+            booking.get("commission_override"),
+            bool(booking.get("fulfilled_by_admin")),
+        )
+        reference = str(booking_id)[:8].upper()
+        documents = (
+            ("driver", "facture-chauffeur", "Facture chauffeur"),
+            ("commission", "facture-commission", "Facture de commission"),
+            ("activity", "releve-activite", "Relevé d'activité"),
+            ("order", "bon-de-commande", "Bon de commande"),
+        )
+        attachments = []
+        for document_type, filename, _ in documents:
+            pdf_bytes, _ = await generate_and_store_document(booking, settings, document_type)
+            attachments.append((f"{filename}-{reference}.pdf", pdf_bytes))
+        params = {
+            "DRIVER_NAME": driver.get("name") or "-",
+            "BOOKING_ID": booking_id,
+            "PICKUP_DATE": booking.get("pickup_date") or "-",
+            "PICKUP_TIME": booking.get("pickup_time") or "-",
+            "PICKUP_ADDRESS": booking.get("pickup_address") or "-",
+            "DROPOFF_ADDRESS": booking.get("dropoff_address") or "-",
+            "AMOUNT": f"{breakdown['driver_earning']:.2f} €",
+            "DASHBOARD_URL": f"{FRONTEND_URL}/fr/driver",
+        }
+        document_list = "".join(f"<li>{label}</li>" for _, _, label in documents)
+        details = "".join(
+            f"<tr><td>{label}</td><td>{html_escape(str(params[key]))}</td></tr>"
+            for label, key in (
+                ("Référence", "BOOKING_ID"), ("Date", "PICKUP_DATE"),
+                ("Heure", "PICKUP_TIME"), ("Départ", "PICKUP_ADDRESS"),
+                ("Arrivée", "DROPOFF_ADDRESS"), ("Montant versé", "AMOUNT"),
+            )
+        )
+        html_content = build_email_html(
+            title="Vos documents de course",
+            body_html=f"<p>Bonjour {html_escape(str(params['DRIVER_NAME']))},</p>"
+                      f"<p>Veuillez trouver vos documents PDF en pièce jointe :</p><ul>{document_list}</ul>"
+                      f"<table>{details}</table>",
+            cta_label="Voir mon espace chauffeur",
+            cta_url=params["DASHBOARD_URL"],
+        )
+        sent = await send_notification_email(
+            driver["email"],
+            f"📎 Vos documents – course #{reference}",
+            html_content,
+            attachments=attachments,
+            template_key=TEMPLATE_KEY_DRIVER_DOCUMENTS,
+            template_params=params,
+        )
+        if sent:
+            await db.bookings.update_one(
+                {"id": booking_id, "driver_documents_email_sent_at": {"$exists": False}},
+                {"$set": {"driver_documents_email_sent_at": datetime.now(timezone.utc)}},
+            )
+        return sent
+    except Exception as exc:
+        logger.error("Failed to send driver documents for booking %s (%s)", booking_id, exc.__class__.__name__)
+        return False
 
 
 async def send_invoice_to_client(booking: dict):
@@ -4468,7 +4633,7 @@ async def update_course_status(course_id: str, payload: BookingStatusUpdate, req
         updated_booking = await db.bookings.find_one({"id": course_id}, {"_id": 0})
         if updated_booking:
             try:
-                await notify_client_booking_completed(updated_booking)
+                await notify_booking_completed(updated_booking)
             except Exception as exc:
                 logger.error("Failed to notify client for completed booking %s: %s", course_id, exc)
 
@@ -4669,7 +4834,7 @@ async def update_booking_status_driver(booking_id: str, status_update: BookingSt
         updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         if updated_booking:
             try:
-                await notify_client_booking_completed(updated_booking)
+                await notify_booking_completed(updated_booking)
             except Exception as exc:
                 logger.error("Failed to notify client for completed booking %s: %s", booking_id, exc)
 
@@ -4810,6 +4975,14 @@ async def admin_assign_self(booking_id: str, request: Request, body: AdminAssign
         {"$set": update_fields}
     )
     updated = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    await send_driver_assigned_to_client(updated, {
+        "name": updated.get("driver_display_name") or admin.get("name"),
+        "phone": admin.get("phone"),
+        "email": admin.get("email"),
+        "vehicle_brand": updated.get("admin_vehicle_brand"),
+        "vehicle_model": updated.get("admin_vehicle_model"),
+        "vehicle_plate": updated.get("admin_vehicle_plate"),
+    })
     return BookingResponse(**updated)
 
 
@@ -4841,7 +5014,7 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
         updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         if updated_booking:
             try:
-                await notify_client_booking_completed(updated_booking)
+                await notify_booking_completed(updated_booking)
             except Exception as exc:
                 logger.error("Failed to notify client for completed booking %s: %s", booking_id, exc)
 
@@ -5081,6 +5254,7 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     order_download_url = f"{str(request.base_url).rstrip('/')}/api/driver/bookings/{booking_id}/order-pdf"
 
     # Send email notification to driver
+    await send_driver_assigned_to_client(updated_booking, driver)
     await send_booking_notification_to_driver(driver, updated_booking, client, order_download_url)
 
     return {"message": "Course assignée avec succès", "driver_name": driver["name"]}
@@ -5288,7 +5462,7 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
         updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
         if updated_booking:
             try:
-                await notify_client_booking_completed(updated_booking)
+                await notify_booking_completed(updated_booking)
             except Exception as exc:
                 logger.error("Failed to notify client for completed booking %s: %s", booking_id, exc)
 

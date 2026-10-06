@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from base64 import b64encode
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     import sib_api_v3_sdk
@@ -22,6 +22,8 @@ TEMPLATE_KEY_BOOKING_CREATED = "booking_created"
 TEMPLATE_KEY_QUOTE_AVAILABLE = "quote_available"
 TEMPLATE_KEY_PAYMENT_CONFIRMED = "payment_confirmed"
 TEMPLATE_KEY_DRIVER_ASSIGNED = "driver_assigned"
+TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT = "driver_assigned_client"
+TEMPLATE_KEY_DRIVER_DOCUMENTS = "driver_documents"
 TEMPLATE_KEY_BOOKING_COMPLETED = "booking_completed"
 TEMPLATE_KEY_INVOICE = "invoice"
 TEMPLATE_KEY_CANCELLATION = "cancellation"
@@ -34,6 +36,8 @@ BREVO_TEMPLATE_ENV_BY_KEY = {
     TEMPLATE_KEY_QUOTE_AVAILABLE: "BREVO_TEMPLATE_QUOTE_AVAILABLE",
     TEMPLATE_KEY_PAYMENT_CONFIRMED: "BREVO_TEMPLATE_PAYMENT_CONFIRMED",
     TEMPLATE_KEY_DRIVER_ASSIGNED: "BREVO_TEMPLATE_DRIVER_ASSIGNED",
+    TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT: "BREVO_TEMPLATE_DRIVER_ASSIGNED_CLIENT",
+    TEMPLATE_KEY_DRIVER_DOCUMENTS: "BREVO_TEMPLATE_DRIVER_DOCUMENTS",
     TEMPLATE_KEY_BOOKING_COMPLETED: "BREVO_TEMPLATE_BOOKING_COMPLETED",
     TEMPLATE_KEY_INVOICE: "BREVO_TEMPLATE_INVOICE",
     TEMPLATE_KEY_CANCELLATION: "BREVO_TEMPLATE_CANCELLATION",
@@ -81,6 +85,7 @@ async def send_brevo_transactional_email(
     template_key: Optional[str] = None,
     template_id: Optional[int] = None,
     template_params: Optional[Dict[str, Any]] = None,
+    attachments: Optional[List[Tuple[str, bytes]]] = None,
 ) -> bool:
     brevo_api_key = os.environ.get("BREVO_API_KEY")
     sender_email = os.environ.get("BREVO_SENDER_EMAIL", "noreply@econnect-vtc.com")
@@ -108,9 +113,14 @@ async def send_brevo_transactional_email(
     else:
         payload["html_content"] = html_content
 
+    email_attachments = list(attachments or [])
     if attachment_bytes:
-        filename = attachment_filename or "document.pdf"
-        payload["attachment"] = [{"content": b64encode(attachment_bytes).decode(), "name": filename}]
+        email_attachments.insert(0, (attachment_filename or "document.pdf", attachment_bytes))
+    if email_attachments:
+        payload["attachment"] = [
+            {"content": b64encode(content).decode(), "name": filename}
+            for filename, content in email_attachments
+        ]
 
     def _send_sync() -> bool:
         configuration = sib_api_v3_sdk.Configuration()
