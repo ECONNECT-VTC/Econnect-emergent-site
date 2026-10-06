@@ -1223,6 +1223,7 @@ async def get_next_sequential_number() -> str:
     return str(seq).zfill(6)
 
 def generate_financial_pdf(booking: dict, settings: dict, document_type: str, document_number: str) -> bytes:
+    booking_reference = booking_short_reference(booking.get("id"))
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
@@ -1576,6 +1577,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.setFont("Helvetica", 9)
         c.drawString(box_x + 14, box_top - 36, f"Date : {now_str}")
         c.drawString(box_x + 14, box_top - 50, f"{secondary_date_label} : {due_date}")
+        c.drawString(box_x + 14, box_top - 64, f"Référence course : {booking_reference}")
 
         sections_top = box_top - box_h - 22
         box_width = (width - 80 - 16) / 2
@@ -1875,6 +1877,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.drawString(box_x + 14, box_top - 36, f"Type : Commission")
         c.drawString(box_x + 14, box_top - 50, f"Date : {now_str}")
         c.drawString(box_x + 14, box_top - 64, f"Échéance : {due_date}")
+        c.drawString(box_x + 14, box_top - 78, f"Référence course : {booking_reference}")
 
         sections_top = box_top - box_h - 22
         box_width = (width - 80 - 16) / 2
@@ -2131,6 +2134,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.setFont("Helvetica", 9)
         c.drawString(act_box_x + 14, act_box_top - 44, "Type : Activité")
         c.drawString(act_box_x + 14, act_box_top - 58, f"Date : {now_str_act}")
+        c.drawString(act_box_x + 14, act_box_top - 72, f"Référence course : {booking_reference}")
 
         # Party boxes: SOCIETE EMETTRICE / SOCIETE PARTENAIRE
         act_sections_top = act_box_top - act_box_h - 22
@@ -2379,7 +2383,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         c.setFont("Helvetica-Bold", 18)
         c.drawString(320, header_y + 65, title)
         c.setFont("Helvetica", 9.5)
-        c.drawString(320, header_y + 47, f"Référence : {document_number}")
+        c.drawString(320, header_y + 47, f"Référence : {booking_reference}")
         c.drawString(320, header_y + 31, f"Réservation créée : {reservation_datetime}")
 
         current_y = header_y - 18
@@ -2521,6 +2525,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     set_fill(MID_GREY)
     c.setFont("Helvetica", 10)
     c.drawRightString(width - 36, header_bot + 36, f"N° {document_number}")
+    c.drawRightString(width - 36, header_bot + 18, f"Référence course : {booking_reference}")
 
     # Gold separator line under header
     set_stroke(GOLD)
@@ -3340,7 +3345,7 @@ async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
         ) or "-"
         params = {
             "CLIENT_NAME": booking.get("client_name") or "-",
-            "BOOKING_ID": booking_id,
+            "BOOKING_ID": booking_short_reference(booking_id),
             "BOOKING_REFERENCE": booking_short_reference(booking_id),
             "PICKUP_DATE": booking.get("pickup_date") or "-",
             "PICKUP_TIME": booking.get("pickup_time") or "-",
@@ -3395,7 +3400,8 @@ async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
 
 async def send_booking_notification_to_driver(driver: dict, booking: dict, client: dict, order_download_url: Optional[str] = None):
     """Send notification to driver when a booking is assigned"""
-    subject = f"🚗 Nouvelle course assignée - {booking['pickup_date']} à {booking['pickup_time']}"
+    reference = booking_short_reference(booking.get("id"))
+    subject = f"🚗 Nouvelle course assignée #{reference} - {booking['pickup_date']} à {booking['pickup_time']}"
 
     notes_row = (
         f"<tr><td style='padding: 6px 0; color: #A1A1AA; font-size: 13px;'>Notes</td>"
@@ -3424,6 +3430,7 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
 <h2 style="margin: 0 0 12px 0; font-size: 16px; color: #FAFAFA;">Détails de la course</h2>
 <table cellpadding="0" cellspacing="0" border="0" width="100%"
        style="font-size: 14px; margin-bottom: 16px;">
+  <tr><td style="padding: 6px 0; color: #A1A1AA;">Référence</td><td style="padding: 6px 0; color: #FAFAFA;">{html_escape(reference)}</td></tr>
   <tr>
     <td style="padding: 6px 0; color: #A1A1AA; width: 40%;">&#128197; Date</td>
     <td style="padding: 6px 0; color: #FAFAFA;">{booking['pickup_date']}</td>
@@ -3467,7 +3474,8 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
             "CLIENT_NAME": client.get("name", "N/A"),
             "CLIENT_PHONE": client.get("phone", "N/A"),
             "CLIENT_EMAIL": client.get("email", "N/A"),
-            "BOOKING_ID": booking.get("id"),
+            "BOOKING_ID": booking_short_reference(booking.get("id")),
+            "BOOKING_REFERENCE": booking_short_reference(booking.get("id")),
             "PICKUP_DATE": booking.get("pickup_date"),
             "PICKUP_TIME": booking.get("pickup_time"),
             "PICKUP_ADDRESS": booking.get("pickup_address"),
@@ -3488,7 +3496,7 @@ async def send_booking_confirmation_to_client(booking: dict):
     body_html = f"""
 <p style="margin: 0 0 12px 0;">Votre paiement a bien été confirmé. Merci pour votre réservation.</p>
 <table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size: 14px; margin-bottom: 16px;">
-  <tr><td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Numéro</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('id')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Numéro</td><td style="padding: 6px 0; color: #FAFAFA;">{html_escape(booking_short_reference(booking.get('id')))}</td></tr>
   <tr><td style="padding: 6px 0; color: #A1A1AA;">Date</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_date')}</td></tr>
   <tr><td style="padding: 6px 0; color: #A1A1AA;">Heure</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_time')}</td></tr>
   <tr><td style="padding: 6px 0; color: #A1A1AA;">Départ</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_address')}</td></tr>
@@ -3510,7 +3518,8 @@ async def send_booking_confirmation_to_client(booking: dict):
         template_key=TEMPLATE_KEY_PAYMENT_CONFIRMED,
         template_params={
             "CLIENT_NAME": booking.get("client_name", "Client"),
-            "BOOKING_ID": booking.get("id"),
+            "BOOKING_ID": booking_short_reference(booking.get("id")),
+            "BOOKING_REFERENCE": booking_short_reference(booking.get("id")),
             "PICKUP_DATE": booking.get("pickup_date"),
             "PICKUP_TIME": booking.get("pickup_time"),
             "PICKUP_ADDRESS": booking.get("pickup_address"),
@@ -3543,7 +3552,7 @@ async def send_quote_available_to_client(booking: dict):
         except (TypeError, ValueError):
             amount_label = "À définir"
 
-        safe_booking_id = html_escape(str(booking_id))
+        safe_booking_id = html_escape(booking_short_reference(booking_id))
         safe_pickup_date = html_escape(str(booking.get("pickup_date", "")))
         safe_pickup_time = html_escape(str(booking.get("pickup_time", "")))
         safe_pickup_address = html_escape(str(booking.get("pickup_address", "")))
@@ -3577,7 +3586,8 @@ async def send_quote_available_to_client(booking: dict):
             template_key=TEMPLATE_KEY_QUOTE_AVAILABLE,
             template_params={
                 "CLIENT_NAME": booking.get("client_name", "Client"),
-                "BOOKING_ID": booking_id,
+                "BOOKING_ID": booking_short_reference(booking_id),
+                "BOOKING_REFERENCE": booking_short_reference(booking_id),
                 "PICKUP_DATE": booking.get("pickup_date"),
                 "PICKUP_TIME": booking.get("pickup_time"),
                 "PICKUP_ADDRESS": booking.get("pickup_address"),
@@ -3610,7 +3620,7 @@ async def send_booking_completed_to_client(booking: dict):
         if existing_flag and existing_flag.get("completed_email_sent_at"):
             return False
 
-        safe_booking_id = html_escape(str(booking_id))
+        safe_booking_id = html_escape(booking_short_reference(booking_id))
         safe_pickup_date = html_escape(str(booking.get("pickup_date", "")))
         safe_pickup_time = html_escape(str(booking.get("pickup_time", "")))
         safe_pickup_address = html_escape(str(booking.get("pickup_address", "")))
@@ -3639,7 +3649,8 @@ async def send_booking_completed_to_client(booking: dict):
             template_key=TEMPLATE_KEY_BOOKING_COMPLETED,
             template_params={
                 "CLIENT_NAME": booking.get("client_name", "Client"),
-                "BOOKING_ID": booking_id,
+                "BOOKING_ID": booking_short_reference(booking_id),
+                "BOOKING_REFERENCE": booking_short_reference(booking_id),
                 "PICKUP_DATE": booking.get("pickup_date"),
                 "PICKUP_TIME": booking.get("pickup_time"),
                 "PICKUP_ADDRESS": booking.get("pickup_address"),
@@ -3719,7 +3730,7 @@ async def send_driver_documents(booking: dict):
             attachments.append((f"{filename}-{reference}.pdf", pdf_bytes))
         params = {
             "DRIVER_NAME": driver.get("name") or "-",
-            "BOOKING_ID": booking_id,
+            "BOOKING_ID": reference,
             "BOOKING_REFERENCE": reference,
             "PICKUP_DATE": booking.get("pickup_date") or "-",
             "PICKUP_TIME": booking.get("pickup_time") or "-",
@@ -3790,7 +3801,7 @@ async def send_invoice_to_client(booking: dict):
         except (TypeError, ValueError):
             amount_ttc = 0.0
 
-        safe_booking_id = html_escape(str(booking.get("id", "")))
+        safe_booking_id = html_escape(booking_short_reference(booking_id))
         safe_pickup_date = html_escape(str(booking.get("pickup_date", "")))
         safe_pickup_time = html_escape(str(booking.get("pickup_time", "")))
         safe_pickup_address = html_escape(str(booking.get("pickup_address", "")))
@@ -3824,7 +3835,8 @@ async def send_invoice_to_client(booking: dict):
             template_key=TEMPLATE_KEY_INVOICE,
             template_params={
                 "CLIENT_NAME": booking.get("client_name", "Client"),
-                "BOOKING_ID": booking.get("id"),
+                "BOOKING_ID": booking_short_reference(booking_id),
+                "BOOKING_REFERENCE": booking_short_reference(booking_id),
                 "PICKUP_DATE": booking.get("pickup_date"),
                 "PICKUP_TIME": booking.get("pickup_time"),
                 "PICKUP_ADDRESS": booking.get("pickup_address"),
@@ -3863,7 +3875,7 @@ async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
     body_html = f"""
 <p style="margin: 0 0 12px 0;">Votre réservation a été annulée et votre remboursement Stripe a bien été déclenché.</p>
 <table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size: 14px; margin-bottom: 16px;">
-  <tr><td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Numéro</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('id')}</td></tr>
+  <tr><td style="padding: 6px 0; color: #A1A1AA; width: 40%;">Numéro</td><td style="padding: 6px 0; color: #FAFAFA;">{html_escape(booking_reference)}</td></tr>
   <tr><td style="padding: 6px 0; color: #A1A1AA;">Date</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_date')}</td></tr>
   <tr><td style="padding: 6px 0; color: #A1A1AA;">Heure</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_time')}</td></tr>
   <tr><td style="padding: 6px 0; color: #A1A1AA;">Départ</td><td style="padding: 6px 0; color: #FAFAFA;">{booking.get('pickup_address')}</td></tr>
@@ -3887,7 +3899,8 @@ async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
         template_key=TEMPLATE_KEY_CANCELLATION,
         template_params={
             "CLIENT_NAME": booking.get("client_name", "Client"),
-            "BOOKING_ID": booking.get("id"),
+            "BOOKING_ID": booking_reference,
+            "BOOKING_REFERENCE": booking_reference,
             "PICKUP_DATE": booking.get("pickup_date"),
             "PICKUP_TIME": booking.get("pickup_time"),
             "PICKUP_ADDRESS": booking.get("pickup_address"),
@@ -4864,7 +4877,7 @@ async def download_driver_order_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=bon-de-commande-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=bon-de-commande-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.put("/driver/bookings/{booking_id}/status")
@@ -5087,6 +5100,7 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
         distance_label = f"{float(booking['distance_km']):.1f} km" if booking.get("distance_km") is not None else "-"
 
         trip_rows = f"""
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Référence</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(booking_short_reference(booking.get('id')))}</td></tr>
   <tr><td style="padding:6px 0;color:#A1A1AA;">Date</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('pickup_date', '')))} à {html_escape(str(booking.get('pickup_time', '')))}</td></tr>
   <tr><td style="padding:6px 0;color:#A1A1AA;">Départ</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('pickup_address', '')))}</td></tr>
   <tr><td style="padding:6px 0;color:#A1A1AA;">Arrivée</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('dropoff_address', '')))}</td></tr>
@@ -5095,7 +5109,7 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
 """
 
         if is_guest:
-            subject = "Invitation Econnect VTC - Course réservée en votre nom"
+            subject = f"Invitation Econnect VTC - Course #{booking_short_reference(booking.get('id'))} réservée en votre nom"
             register_url = f"{FRONTEND_URL}/fr/register"
             body_html = f"""
 <p style="margin:0 0 12px 0;">Bonjour <strong>{html_escape(client_name)}</strong>,</p>
@@ -5122,7 +5136,8 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
                 template_params={
                     "CLIENT_NAME": client_name,
                     "CLIENT_EMAIL": client_email,
-                    "BOOKING_ID": booking.get("id"),
+                    "BOOKING_ID": booking_short_reference(booking.get("id")),
+                    "BOOKING_REFERENCE": booking_short_reference(booking.get("id")),
                     "PICKUP_DATE": booking.get("pickup_date"),
                     "PICKUP_TIME": booking.get("pickup_time"),
                     "PICKUP_ADDRESS": booking.get("pickup_address"),
@@ -5135,7 +5150,7 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
         else:
             pickup_date = html_escape(str(booking.get('pickup_date', '')))
             pickup_time = html_escape(str(booking.get('pickup_time', '')))
-            subject = f"Nouvelle course créée - {pickup_date} à {pickup_time}"
+            subject = f"Nouvelle course créée #{booking_short_reference(booking.get('id'))} - {pickup_date} à {pickup_time}"
             payment_note = (
                 '<p style="margin:0 0 12px 0;color:#D4AF37;">Le règlement sera demandé ultérieurement par votre conseiller.</p>'
                 if payment_mode == "deferred"
@@ -5162,7 +5177,8 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
                 template_key=TEMPLATE_KEY_BOOKING_CREATED,
                 template_params={
                     "CLIENT_NAME": client_name,
-                    "BOOKING_ID": booking.get("id"),
+                    "BOOKING_ID": booking_short_reference(booking.get("id")),
+                    "BOOKING_REFERENCE": booking_short_reference(booking.get("id")),
                     "PICKUP_DATE": booking.get("pickup_date"),
                     "PICKUP_TIME": booking.get("pickup_time"),
                     "PICKUP_ADDRESS": booking.get("pickup_address"),
@@ -6099,7 +6115,7 @@ async def download_admin_quote_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=devis-client-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=devis-client-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.get("/admin/invoices/{booking_id}/pdf")
@@ -6116,7 +6132,7 @@ async def download_admin_invoice_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=facture-client-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=facture-client-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.get("/admin/invoices/{booking_id}/driver-pdf")
@@ -6132,7 +6148,7 @@ async def download_admin_driver_invoice_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=facture-chauffeur-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=facture-chauffeur-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.get("/admin/invoices/{booking_id}/commission-pdf")
@@ -6148,7 +6164,7 @@ async def download_admin_commission_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=facture-commission-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=facture-commission-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.get("/admin/invoices/{booking_id}/activity-pdf")
@@ -6164,7 +6180,7 @@ async def download_admin_activity_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=releve-activite-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=releve-activite-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.get("/admin/orders/{booking_id}/pdf")
@@ -6180,7 +6196,7 @@ async def download_admin_order_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=bon-de-commande-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=bon-de-commande-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.get("/driver/invoices")
@@ -6238,7 +6254,7 @@ async def download_driver_invoice_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=facture-chauffeur-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=facture-chauffeur-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.get("/driver/invoices/{booking_id}/order-pdf")
@@ -6256,7 +6272,7 @@ async def download_driver_order_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=bon-commande-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=bon-commande-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.get("/driver/invoices/{booking_id}/commission-pdf")
@@ -6274,7 +6290,7 @@ async def download_driver_commission_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=facture-commission-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=facture-commission-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.get("/driver/invoices/{booking_id}/activity-pdf")
@@ -6292,7 +6308,7 @@ async def download_driver_activity_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=releve-activite-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=releve-activite-{booking_short_reference(booking_id)}.pdf"}
     )
 
 @api_router.get("/client/invoices/{booking_id}/pdf")
@@ -6314,7 +6330,7 @@ async def download_client_invoice_pdf(booking_id: str, request: Request):
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=facture-{booking_id}.pdf"}
+        headers={"Content-Disposition": f"attachment; filename=facture-{booking_short_reference(booking_id)}.pdf"}
     )
 
 # ==================== ROOT ROUTE ====================

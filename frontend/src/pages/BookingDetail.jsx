@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useAuth } from '@/contexts/AuthContext';
 import API_URL from '@/config';
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
+import { formatBookingReference } from '../utils/bookingReference';
 import { formatPaymentMethodLabel, formatPaymentStatusLabel } from '@/utils/paymentUtils';
 import { getClientFacingDriverName, shouldRenderAssignedDriverForAdmin } from '../utils/driverDisplay';
 import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, normalizeCourseStatus, statusEquals } from '../utils/courseWorkflow';
@@ -153,7 +154,7 @@ const BookingDetail = () => {
             <div className="flex flex-wrap justify-between items-start gap-4 mb-4">
               <div>
                 <h2 className="text-xl font-bold font-['Cormorant_Garamond'] text-[#D4AF37]">Détail de la course</h2>
-                <p className="text-xs text-[#A1A1AA] mt-1">ID: {booking.id}</p>
+                <p className="text-xs text-[#A1A1AA] mt-1">Réservation : {formatBookingReference(booking.id)}</p>
               </div>
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyle}`}>{statusLabel}</span>
             </div>

@@ -258,7 +258,8 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
             quote_payload["params"],
             {
                 "CLIENT_NAME": "<Client & Test>",
-                "BOOKING_ID": booking["id"],
+                "BOOKING_ID": "QUOTE1",
+                "BOOKING_REFERENCE": "QUOTE1",
                 "PICKUP_DATE": booking["pickup_date"],
                 "PICKUP_TIME": booking["pickup_time"],
                 "PICKUP_ADDRESS": booking["pickup_address"],
@@ -278,7 +279,8 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
             completed_payload["params"],
             {
                 "CLIENT_NAME": "<Client & Test>",
-                "BOOKING_ID": booking["id"],
+                "BOOKING_ID": "QUOTE1",
+                "BOOKING_REFERENCE": "QUOTE1",
                 "PICKUP_DATE": booking["pickup_date"],
                 "PICKUP_TIME": booking["pickup_time"],
                 "PICKUP_ADDRESS": booking["pickup_address"],
@@ -320,6 +322,9 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("template_id", sent_payloads[1])
         self.assertIn("Merci d'avoir voyagé avec Econnect VTC", sent_payloads[1]["html_content"])
         self.assertIn("&lt;Paris&gt;", sent_payloads[1]["html_content"])
+        for payload in sent_payloads:
+            self.assertIn("QUOTE1", payload["html_content"])
+            self.assertNotIn(booking["id"], payload["html_content"])
 
     async def test_quote_and_completion_emails_are_not_resent_when_already_sent(self):
         booking = self._booking_for_email()
@@ -359,9 +364,15 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(sent)
         self.assertEqual(send_email.await_args.kwargs["template_key"], email_service.TEMPLATE_KEY_INVOICE)
-        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_ID"], booking["id"])
+        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_ID"], server.booking_short_reference(booking["id"]))
+        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_REFERENCE"], server.booking_short_reference(booking["id"]))
         self.assertEqual(send_email.await_args.args[1], "📄 Votre facture Econnect VTC #BOOKIN")
         self.assertEqual(send_email.await_args.kwargs["attachment_filename"], "facture-BOOKIN.pdf")
+        self.assertIn("BOOKIN", send_email.await_args.args[2])
+        self.assertNotIn(booking["id"], send_email.await_args.args[2])
+        fake_bookings.find_one.assert_awaited_once_with(
+            {"id": booking["id"]}, {"_id": 0, "invoice_email_sent_at": 1}
+        )
 
     async def test_activation_email_uses_account_activation_template(self):
         tokens = SimpleNamespace(insert_one=AsyncMock())
@@ -406,11 +417,14 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
             send_email.await_args.args[1],
             "✅ Confirmation de réservation #ABCDEF - Econnect VTC",
         )
-        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_ID"], booking["id"])
+        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_ID"], server.booking_short_reference(booking["id"]))
+        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_REFERENCE"], server.booking_short_reference(booking["id"]))
+        self.assertIn("ABCDEF", send_email.await_args.args[2])
+        self.assertNotIn(booking["id"], send_email.await_args.args[2])
 
     async def test_driver_assignment_uses_driver_template(self):
         booking = {
-            "id": "book-2",
+            "id": "abcdef123456",
             "pickup_date": "02/02/2026",
             "pickup_time": "10:30",
             "pickup_address": "Paris",
@@ -423,6 +437,12 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
         with patch.object(server, "send_notification_email", AsyncMock(return_value=True)) as send_email:
             await server.send_booking_notification_to_driver(driver, booking, client)
         self.assertEqual(send_email.await_args.kwargs["template_key"], email_service.TEMPLATE_KEY_DRIVER_ASSIGNED)
+        params = send_email.await_args.kwargs["template_params"]
+        self.assertEqual(params["BOOKING_ID"], "ABCDEF")
+        self.assertEqual(params["BOOKING_REFERENCE"], "ABCDEF")
+        self.assertIn("#ABCDEF", send_email.await_args.args[1])
+        self.assertIn("ABCDEF", send_email.await_args.args[2])
+        self.assertNotIn(booking["id"], send_email.await_args.args[2])
 
     async def test_driver_assignment_uses_guest_booking_client_details(self):
         booking = {
@@ -478,7 +498,29 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
             send_email.await_args.args[1],
             "💸 Remboursement effectué - Réservation #ABCDEF - Econnect VTC",
         )
-        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_ID"], booking["id"])
+        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_ID"], server.booking_short_reference(booking["id"]))
+        self.assertEqual(send_email.await_args.kwargs["template_params"]["BOOKING_REFERENCE"], server.booking_short_reference(booking["id"]))
+        self.assertIn("ABCDEF", send_email.await_args.args[2])
+        self.assertNotIn(booking["id"], send_email.await_args.args[2])
+
+    async def test_admin_created_booking_emails_share_display_reference(self):
+        booking = self._booking_for_email()
+        for is_guest, template_key in (
+            (False, email_service.TEMPLATE_KEY_BOOKING_CREATED),
+            (True, email_service.TEMPLATE_KEY_ADMIN_MESSAGE),
+        ):
+            with self.subTest(is_guest=is_guest), patch.object(
+                server, "send_notification_email", AsyncMock(return_value=True)
+            ) as send_email:
+                await server._send_admin_booking_notification(booking, is_guest, "deferred")
+                self.assertEqual(send_email.await_count, 1)
+                self.assertEqual(send_email.await_args.kwargs["template_key"], template_key)
+                params = send_email.await_args.kwargs["template_params"]
+                self.assertEqual(params["BOOKING_ID"], "QUOTE1")
+                self.assertEqual(params["BOOKING_REFERENCE"], "QUOTE1")
+                self.assertIn("#QUOTE1", send_email.await_args.args[1])
+                self.assertIn("QUOTE1", send_email.await_args.args[2])
+                self.assertNotIn(booking["id"], send_email.await_args.args[2])
 
 
 if __name__ == "__main__":

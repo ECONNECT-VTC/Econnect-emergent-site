@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useInvoices } from '@/hooks/useInvoices';
 import { formatCurrency } from '@/utils/invoiceUtils';
+import { formatBookingReference } from '../../utils/bookingReference';
 import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
 import API_URL from '@/config';
 import LogoDisplay from '@/components/LogoDisplay';
@@ -26,7 +27,7 @@ const AdminDocuments = () => {
     return bookings.filter((row) => {
       if (lower) {
         const haystack = `${row.client_name} ${row.driver_name || ''} ${row.pickup_address} ${row.dropoff_address}`.toLowerCase();
-        if (!haystack.includes(lower)) return false;
+        if (!haystack.includes(lower) && !formatBookingReference(row.id).toLowerCase().startsWith(lower)) return false;
       }
       if (dateFrom) {
         const rd = new Date(row.created_at);
@@ -76,7 +77,7 @@ const AdminDocuments = () => {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher…"
+          placeholder="Rechercher par numéro, client, chauffeur, adresse…"
           className="w-full rounded border border-white/10 bg-[#141414] px-3 py-2 text-sm text-white placeholder-[#A1A1AA] sm:w-48"
         />
         <input
@@ -99,7 +100,7 @@ const AdminDocuments = () => {
           <div key={row.id} className="rounded-xl border border-white/10 bg-[#141414] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="font-mono text-xs text-[#D4AF37]">{row.id ? row.id.trim().slice(0, 6).toUpperCase() : '—'}</p>
+                <p className="font-mono text-xs text-[#D4AF37]">{formatBookingReference(row.id) || '—'}</p>
                 <p className="mt-1 text-sm font-semibold">{row.client_name}</p>
                 <p className="text-sm text-[#A1A1AA]">{row.driver_name || 'Chauffeur non assigné'}</p>
               </div>
@@ -150,7 +151,7 @@ const AdminDocuments = () => {
           <tbody>
             {!loading && rows.map((row) => (
               <tr key={row.id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                <td className="py-3 font-mono text-[#D4AF37] text-xs">{row.id ? row.id.trim().slice(0, 6).toUpperCase() : '—'}</td>
+                <td className="py-3 font-mono text-[#D4AF37] text-xs">{formatBookingReference(row.id) || '—'}</td>
                 <td>{row.client_name}</td>
                 <td>{row.driver_name || '—'}</td>
                 <td className="text-xs text-[#A1A1AA]">

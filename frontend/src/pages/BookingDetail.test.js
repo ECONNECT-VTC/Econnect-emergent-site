@@ -76,6 +76,11 @@ describe('BookingDetail vehicle category display', () => {
     expect(container.textContent).toContain('Confort Classique');
     expect(container.textContent).toContain('Virement bancaire');
     expect(container.textContent).toContain('Payée');
+    expect(container.textContent).toContain('Réservation : BOOKIN');
+    expect(container.textContent).not.toContain('booking_1');
+    expect(container.textContent).not.toContain('ID:');
+    expect(axios.get).toHaveBeenCalledWith('http://api.test/api/bookings/booking_1', { withCredentials: true });
+    expect(axios.get).toHaveBeenCalledWith('http://api.test/api/courses/booking_1/documents', { withCredentials: true });
   });
 
   it('shows explicit fallback when driver is admin-like label', async () => {

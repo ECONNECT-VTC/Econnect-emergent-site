@@ -40,7 +40,7 @@ Configurer dans l’hébergeur (jamais dans Git) :
 | `BREVO_TEMPLATE_BOOKING_CREATED` | Course créée pour un client existant |
 | `BREVO_TEMPLATE_QUOTE_AVAILABLE` | Devis disponible |
 | `BREVO_TEMPLATE_PAYMENT_CONFIRMED` | Paiement confirmé |
-| `BREVO_TEMPLATE_DRIVER_ASSIGNED` | Course assignée (email au chauffeur, inchangé) |
+| `BREVO_TEMPLATE_DRIVER_ASSIGNED` | Course assignée (email au chauffeur) |
 | `BREVO_TEMPLATE_DRIVER_ASSIGNED_CLIENT` | Chauffeur assigné (email au client, même sans compte, y compris auto-affectation avec véhicule de flotte) |
 | `BREVO_TEMPLATE_DRIVER_DOCUMENTS` | Passage à `COMPLETED` (email au chauffeur avec ses trois PDF) |
 | `BREVO_TEMPLATE_BOOKING_COMPLETED` | Course terminée |
@@ -54,18 +54,18 @@ Syntaxe Brevo dans le template : `{{ params.CLIENT_NAME }}`.
 
 - **Activation compte**: `CLIENT_NAME`, `ACTIVATION_URL`, `ACTIVATION_EXPIRY_HOURS`
 - **Reset mot de passe**: `CLIENT_NAME`, `RESET_URL`, `RESET_EXPIRY_HOURS`
-- **Course créée (client)**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DISTANCE_KM`, `AMOUNT`, `PAYMENT_MODE`, `BOOKING_URL`
-- **Devis disponible**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `BOOKING_URL`
-- **Chauffeur assigné**: `CLIENT_NAME`, `CLIENT_PHONE`, `CLIENT_EMAIL`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `TRANSFER_TYPE`, `NOTES`, `ORDER_DOWNLOAD_URL`
+- **Course créée (client)**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DISTANCE_KM`, `AMOUNT`, `PAYMENT_MODE`, `BOOKING_URL`
+- **Devis disponible**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `BOOKING_URL`
+- **Chauffeur assigné**: `CLIENT_NAME`, `CLIENT_PHONE`, `CLIENT_EMAIL`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `TRANSFER_TYPE`, `NOTES`, `ORDER_DOWNLOAD_URL`
 - **Chauffeur assigné (client)**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DRIVER_NAME`, `DRIVER_PHONE`, `VEHICLE_MODEL`, `VEHICLE_PLATE`, `BOOKING_URL`
 - **Documents chauffeur**: `DRIVER_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `DASHBOARD_URL`
-- **Course terminée**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `BOOKING_URL`
-- **Paiement confirmé**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `CURRENCY`, `BOOKING_URL`
-- **Facture**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `BOOKING_URL`
-- **Annulation / remboursement**: `CLIENT_NAME`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `REFUND_STATUS`, `REFUND_CURRENCY`, `STRIPE_REFUND_ID`, `BOOKING_URL`
-- **Message administratif**: `CLIENT_NAME`, `CLIENT_EMAIL`, `BOOKING_ID`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DISTANCE_KM`, `AMOUNT`, `REGISTER_URL`
+- **Course terminée**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `BOOKING_URL`
+- **Paiement confirmé**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `CURRENCY`, `BOOKING_URL`
+- **Facture**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `BOOKING_URL`
+- **Annulation / remboursement**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `REFUND_STATUS`, `REFUND_CURRENCY`, `STRIPE_REFUND_ID`, `BOOKING_URL`
+- **Message administratif**: `CLIENT_NAME`, `CLIENT_EMAIL`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DISTANCE_KM`, `AMOUNT`, `REGISTER_URL`
 
-Pour « Chauffeur assigné (client) » et « Documents chauffeur », `BOOKING_ID` reste l'identifiant complet pour compatibilité. Utiliser `{{ params.BOOKING_REFERENCE }}` pour la ligne « Référence » et les objets `🚗 Votre chauffeur est assigné – course #{{ params.BOOKING_REFERENCE }}` et `📎 Vos documents – course #{{ params.BOOKING_REFERENCE }}` : cette référence contient les six premiers caractères de l'identifiant, en majuscules.
+Dans tous les emails de réservation, `BOOKING_ID` et `BOOKING_REFERENCE` sont deux noms pour le même numéro : les six premiers caractères de l'identifiant de réservation, en majuscules (par exemple `ABCDEF`). Les templates existants utilisant `{{ params.BOOKING_ID }}` n'ont besoin d'aucune modification ; `{{ params.BOOKING_REFERENCE }}` reste un alias identique, utilisable dans le texte et l'objet. L'identifiant complet reste inchangé en base de données et dans les liens, notamment `ORDER_DOWNLOAD_URL`.
 
 ## 5) Fallback HTML
 

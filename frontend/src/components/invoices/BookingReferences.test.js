@@ -22,7 +22,7 @@ jest.mock('@/components/LogoDisplay', () => () => <div />, { virtual: true });
 describe('Booking references in document views', () => {
   let container;
   let root;
-  const bookingId = 'abcdef123456';
+  const bookingId = '  abcdef123456  ';
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -33,6 +33,8 @@ describe('Booking references in document views', () => {
       id: bookingId,
       booking_id: bookingId,
       client_name: 'Client Test',
+      driver_name: 'Chauffeur Exemple',
+      created_at: '2026-10-12T09:30:00Z',
       pickup_date: '2026-10-12',
       pickup_time: '09:30',
       pickup_address: 'Paris',
@@ -68,5 +70,52 @@ describe('Booking references in document views', () => {
         .find((button) => button.textContent.includes('Bon de '));
       await act(async () => downloadButton.click());
       expect(download).toHaveBeenCalledWith('http://api.test', bookingId, 'order');
+      const documentsButton = Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent.includes('Consulter les documents'));
+      await act(async () => documentsButton.click());
+      const desktopOrder = Array.from(container.querySelectorAll('table button'))
+        .find((button) => button.textContent.includes('Bon de '));
+      await act(async () => desktopOrder.click());
+      expect(download).toHaveBeenLastCalledWith('http://api.test', bookingId, 'order');
     });
+
+  describe.each([
+    ['admin', AdminDocuments],
+    ['driver', DriverInvoiceSection],
+  ])('%s search', (_role, Component) => {
+    it.each([
+      ['a', true],
+      ['aBc', true],
+      ['ABCDEF', true],
+      ['bcd', false],
+      ['123456', false],
+      ['abcdef1', false],
+      ['CLIENT', true],
+      ['ient Te', true],
+      ['PARIS', true],
+      ['cdg', true],
+      ['absent', false],
+      ['', true],
+    ])('searches %p with visible match %p', async (search, matches) => {
+      await act(async () => root.render(<Component />));
+      const input = container.querySelector('input[type="text"]');
+      expect(input.placeholder).toContain('numéro');
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, search);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      const references = container.querySelectorAll('p.font-mono.text-xs, td.font-mono.text-xs');
+      expect(Array.from(references, (element) => element.textContent)).toEqual(matches ? ['ABCDEF', 'ABCDEF'] : []);
+    });
+  });
+
+  it('preserves admin chauffeur-name search', async () => {
+    await act(async () => root.render(<AdminDocuments />));
+    const input = container.querySelector('input[type="text"]');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'EXEMPLE');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(container.querySelectorAll('p.font-mono.text-xs, td.font-mono.text-xs')).toHaveLength(2);
+  });
 });
