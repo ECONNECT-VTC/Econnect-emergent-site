@@ -167,7 +167,7 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(await server.send_driver_assigned_to_client(self.booking, self.driver))
         self.assertFalse(self.payloads)
 
-    async def test_documents_payload_contains_all_four_pdfs_and_net_earning(self):
+    async def test_documents_payload_contains_only_three_pdfs_and_net_earning(self):
         self.assertTrue(await server.send_driver_documents(self.booking))
         payload = self.payloads[0]
         self.assertEqual(payload["to"], [{"email": "driver@example.com"}])
@@ -181,13 +181,13 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         })
         self.assertEqual([item["name"] for item in payload["attachment"]], [
             "facture-chauffeur-ABCDEF12.pdf", "facture-commission-ABCDEF12.pdf",
-            "releve-activite-ABCDEF12.pdf", "bon-de-commande-ABCDEF12.pdf",
+            "releve-activite-ABCDEF12.pdf",
         ])
         for item in payload["attachment"]:
             self.assertEqual(b64decode(item["content"]), b"%PDF-test")
         self.assertEqual(
             [call.args[2] for call in server.generate_and_store_document.await_args_list],
-            ["driver", "commission", "activity", "order"],
+            ["driver", "commission", "activity"],
         )
         self.users.find_one.assert_awaited_once_with(
             {"id": "driver-1", "role": server.build_driver_role_query()}
@@ -204,11 +204,12 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         with patch.dict(os.environ, {"BREVO_TEMPLATE_DRIVER_DOCUMENTS": ""}):
             await server.send_driver_documents(self.booking)
         html = self.payloads[0]["html_content"]
-        for label in ("Facture chauffeur", "Facture de commission", "Relevé d'activité", "Bon de commande"):
+        for label in ("Facture chauffeur", "Facture de commission", "Relevé d'activité"):
             self.assertIn(label, html)
+        self.assertNotIn("Bon de commande", html)
         self.assertIn("&lt;Paris&gt;", html)
         self.assertIn("&lt;Chauffeur&gt;", html)
-        self.assertEqual(len(self.payloads[0]["attachment"]), 4)
+        self.assertEqual(len(self.payloads[0]["attachment"]), 3)
 
     async def test_documents_skip_admin_and_dedup_in_memory_or_database(self):
         for flag in ("fulfilled_by_admin", "driver_documents_email_sent_at"):

@@ -3707,7 +3707,6 @@ async def send_driver_documents(booking: dict):
             ("driver", "facture-chauffeur", "Facture chauffeur"),
             ("commission", "facture-commission", "Facture de commission"),
             ("activity", "releve-activite", "Relevé d'activité"),
-            ("order", "bon-de-commande", "Bon de commande"),
         )
         attachments = []
         for document_type, filename, _ in documents:

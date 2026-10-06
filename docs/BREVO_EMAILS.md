@@ -42,7 +42,7 @@ Configurer dans l’hébergeur (jamais dans Git) :
 | `BREVO_TEMPLATE_PAYMENT_CONFIRMED` | Paiement confirmé |
 | `BREVO_TEMPLATE_DRIVER_ASSIGNED` | Course assignée (email au chauffeur, inchangé) |
 | `BREVO_TEMPLATE_DRIVER_ASSIGNED_CLIENT` | Chauffeur assigné (email au client, même sans compte, y compris auto-affectation avec véhicule de flotte) |
-| `BREVO_TEMPLATE_DRIVER_DOCUMENTS` | Passage à `COMPLETED` (email au chauffeur avec ses quatre PDF) |
+| `BREVO_TEMPLATE_DRIVER_DOCUMENTS` | Passage à `COMPLETED` (email au chauffeur avec ses trois PDF) |
 | `BREVO_TEMPLATE_BOOKING_COMPLETED` | Course terminée |
 | `BREVO_TEMPLATE_INVOICE` | Facture disponible (PDF joint) |
 | `BREVO_TEMPLATE_CANCELLATION` | Annulation / remboursement |
@@ -79,11 +79,12 @@ Une réservation d'envoi atomique (`<marqueur>_pending`) empêche les envois con
 
 Les devis et les factures sont envoyés en pièce jointe PDF via Brevo (base64 + nom de fichier).
 
-À la clôture, le chauffeur reçoit tous ses documents dans un seul email :
+À la clôture, le chauffeur reçoit uniquement ces trois documents dans un seul email :
 - `facture-chauffeur-<ID8>.pdf` (`driver`) ;
 - `facture-commission-<ID8>.pdf` (`commission`) ;
-- `releve-activite-<ID8>.pdf` (`activity`) ;
-- `bon-de-commande-<ID8>.pdf` (`order`).
+- `releve-activite-<ID8>.pdf` (`activity`).
+
+Le bon de commande (`order`) n'est pas joint à cet email ni listé dans son HTML de repli. Il reste accessible via l'email d'affectation et l'espace chauffeur ; les routes de téléchargement sont inchangées.
 
 `ID8` désigne les huit premiers caractères de la référence en majuscules. `AMOUNT` est le montant versé au chauffeur après commission (`driver_earning`), au format `72.00 €`. `DASHBOARD_URL` mène à `/fr/driver`.
 
@@ -102,7 +103,7 @@ Cet email n'est pas envoyé pour les courses `fulfilled_by_admin` : elles n'ont 
    - paiement confirmé ;
    - affectation chauffeur côté client (avec/sans compte et auto-affectation) ;
    - course terminée ;
-   - documents chauffeur (quatre PDF, hors courses `fulfilled_by_admin`) ;
+   - documents chauffeur (trois PDF, sans bon de commande, hors courses `fulfilled_by_admin`) ;
    - facture PDF ;
    - annulation/remboursement.
 5. Vérifier la délivrabilité et les logs Brevo (sans données sensibles).
