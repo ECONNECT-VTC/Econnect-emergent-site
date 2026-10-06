@@ -3275,6 +3275,38 @@ async def send_notification_email(
     )
 
 
+async def claim_booking_email(booking_id: str, driver_id: str, flag: str, sent_value: Any):
+    now = datetime.now(timezone.utc)
+    claim_field = f"{flag}_pending"
+    token = str(uuid.uuid4())
+    result = await db.bookings.update_one(
+        {
+            "id": booking_id,
+            "driver_id": driver_id,
+            flag: {"$ne": sent_value} if sent_value is not None else {"$exists": False},
+            "$or": [
+                {claim_field: {"$exists": False}},
+                {f"{claim_field}.claimed_at": {"$lt": now - timedelta(minutes=10)}},
+            ],
+        },
+        {"$set": {claim_field: {"token": token, "claimed_at": now}}},
+    )
+    return token if result.modified_count == 1 else None
+
+
+async def release_booking_email(booking_id: str, flag: str, token: Optional[str]):
+    if not token:
+        return
+    try:
+        claim_field = f"{flag}_pending"
+        await db.bookings.update_one(
+            {"id": booking_id, f"{claim_field}.token": token},
+            {"$unset": {claim_field: ""}},
+        )
+    except Exception as exc:
+        logger.error("Failed to release email claim for booking %s (%s)", booking_id, exc.__class__.__name__)
+
+
 async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
     booking_id = booking.get("id")
     driver_id = booking.get("driver_id")
@@ -3283,11 +3315,16 @@ async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
     if booking.get("client_driver_notified_driver_id") == driver_id:
         return False
 
+    claim_token = None
+    flag = "client_driver_notified_driver_id"
     try:
         existing = await db.bookings.find_one(
             {"id": booking_id}, {"_id": 0, "client_driver_notified_driver_id": 1}
         )
         if existing and existing.get("client_driver_notified_driver_id") == driver_id:
+            return False
+        claim_token = await claim_booking_email(booking_id, driver_id, flag, driver_id)
+        if not claim_token:
             return False
 
         vehicle_model = " ".join(
@@ -3337,13 +3374,15 @@ async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
         )
         if sent:
             await db.bookings.update_one(
-                {"id": booking_id, "driver_id": driver_id},
+                {"id": booking_id, "driver_id": driver_id, f"{flag}_pending.token": claim_token},
                 {"$set": {"client_driver_notified_driver_id": driver_id}},
             )
         return sent
     except Exception as exc:
         logger.error("Failed to send driver assignment email for booking %s (%s)", booking_id, exc.__class__.__name__)
         return False
+    finally:
+        await release_booking_email(booking_id, flag, claim_token)
 
 
 async def send_booking_notification_to_driver(driver: dict, booking: dict, client: dict, order_download_url: Optional[str] = None):
@@ -3636,6 +3675,8 @@ async def send_driver_documents(booking: dict):
     if not booking_id or not driver_id or booking.get("fulfilled_by_admin") or booking.get("driver_documents_email_sent_at"):
         return False
 
+    claim_token = None
+    flag = "driver_documents_email_sent_at"
     try:
         existing = await db.bookings.find_one(
             {"id": booking_id}, {"_id": 0, "driver_documents_email_sent_at": 1}
@@ -3644,6 +3685,9 @@ async def send_driver_documents(booking: dict):
             return False
         driver = await db.users.find_one({"id": driver_id, "role": build_driver_role_query()})
         if not driver or not driver.get("email"):
+            return False
+        claim_token = await claim_booking_email(booking_id, driver_id, flag, None)
+        if not claim_token:
             return False
 
         settings = await get_commission_settings()
@@ -3703,13 +3747,16 @@ async def send_driver_documents(booking: dict):
         )
         if sent:
             await db.bookings.update_one(
-                {"id": booking_id, "driver_documents_email_sent_at": {"$exists": False}},
+                {"id": booking_id, "driver_documents_email_sent_at": {"$exists": False},
+                 f"{flag}_pending.token": claim_token},
                 {"$set": {"driver_documents_email_sent_at": datetime.now(timezone.utc)}},
             )
         return sent
     except Exception as exc:
         logger.error("Failed to send driver documents for booking %s (%s)", booking_id, exc.__class__.__name__)
         return False
+    finally:
+        await release_booking_email(booking_id, flag, claim_token)
 
 
 async def send_invoice_to_client(booking: dict):

@@ -73,6 +73,8 @@ Les deux nouveaux templates suivent aussi ce repli HTML si leur ID est vide. L'e
 
 L'affectation client est dédupliquée avec `client_driver_notified_driver_id` : une réaffectation à un autre chauffeur déclenche un nouvel email. Les documents sont dédupliqués avec `driver_documents_email_sent_at`. Ces marqueurs sont enregistrés uniquement après un envoi réussi ; une erreur d'email ne bloque ni le statut ni les autres emails.
 
+Une réservation d'envoi atomique (`<marqueur>_pending`) empêche les envois concurrents. Elle est libérée après chaque tentative et peut être reprise après dix minutes si un processus s'est interrompu.
+
 ## 6) Pièces jointes (devis et factures PDF)
 
 Les devis et les factures sont envoyés en pièce jointe PDF via Brevo (base64 + nom de fichier).

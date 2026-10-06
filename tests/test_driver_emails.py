@@ -1,3 +1,4 @@
+import asyncio
 import os
 import unittest
 from base64 import b64decode
@@ -31,7 +32,10 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
             "vehicle_model": "Tesla Model Y",
             "vehicle_plate": "AA-123-BB",
         }
-        self.bookings = SimpleNamespace(find_one=AsyncMock(return_value={}), update_one=AsyncMock())
+        self.bookings = SimpleNamespace(
+            find_one=AsyncMock(return_value={}),
+            update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1)),
+        )
         self.users = SimpleNamespace(find_one=AsyncMock(return_value=self.driver))
         self.settings = {"commission_rate": 0.1, "tva_commission_rate": 0.2}
         self.payloads = []
@@ -72,7 +76,7 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         })
         self.users.find_one.assert_not_awaited()
         self.assertEqual(
-            self.bookings.update_one.await_args.args[1],
+            self.bookings.update_one.await_args_list[-2].args[1],
             {"$set": {"client_driver_notified_driver_id": "driver-1"}},
         )
 
@@ -109,7 +113,10 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
                 self.bookings.find_one.side_effect = lambda *_args, **_kwargs: dict(booking)
 
                 async def update_booking(_query, update):
-                    booking.update(update["$set"])
+                    booking.update(update.get("$set", {}))
+                    for key in update.get("$unset", {}):
+                        booking.pop(key, None)
+                    return SimpleNamespace(modified_count=1)
 
                 self.bookings.update_one.side_effect = update_booking
                 with patch.object(server, "require_admin", AsyncMock(return_value=admin)), patch.object(
@@ -185,7 +192,7 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.users.find_one.assert_awaited_once_with(
             {"id": "driver-1", "role": server.build_driver_role_query()}
         )
-        self.assertIn("driver_documents_email_sent_at", self.bookings.update_one.await_args.args[1]["$set"])
+        self.assertIn("driver_documents_email_sent_at", self.bookings.update_one.await_args_list[-2].args[1]["$set"])
 
     async def test_documents_amount_respects_existing_commission_override(self):
         self.booking["commission_override"] = 5.0
@@ -224,13 +231,73 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
             with patch.object(server, "send_notification_email", mock):
                 self.assertFalse(await server.send_driver_assigned_to_client(self.booking, self.driver))
                 self.assertFalse(await server.send_driver_documents(self.booking))
-        self.bookings.update_one.assert_not_awaited()
+        delivery_flags = {"client_driver_notified_driver_id", "driver_documents_email_sent_at"}
+        for call in self.bookings.update_one.await_args_list:
+            self.assertFalse(delivery_flags.intersection(call.args[1].get("$set", {})))
+        self.assertIn("$unset", self.bookings.update_one.await_args.args[1])
 
     async def test_document_generation_failure_does_not_send_partial_attachments(self):
         server.generate_and_store_document.side_effect = [(b"%PDF-test", {}), RuntimeError("PDF failed")]
         self.assertFalse(await server.send_driver_documents(self.booking))
         self.assertFalse(self.payloads)
-        self.bookings.update_one.assert_not_awaited()
+        self.assertIn("$unset", self.bookings.update_one.await_args.args[1])
+
+    async def test_atomic_claim_prevents_concurrent_duplicate_emails(self):
+        for notifier in (
+            lambda: server.send_driver_assigned_to_client(self.booking, self.driver),
+            lambda: server.send_driver_documents(self.booking),
+        ):
+            with self.subTest(notifier=notifier):
+                state = {}
+
+                async def update_booking(query, update):
+                    values = update.get("$set", {})
+                    pending = next((key for key in values if key.endswith("_pending")), None)
+                    if pending:
+                        flag = pending.removesuffix("_pending")
+                        condition = query[flag]
+                        already_sent = (
+                            flag in state if "$exists" in condition
+                            else state.get(flag) == condition["$ne"]
+                        )
+                        if pending in state or already_sent:
+                            return SimpleNamespace(modified_count=0)
+                    state.update(values)
+                    for key in update.get("$unset", {}):
+                        state.pop(key, None)
+                    return SimpleNamespace(modified_count=1)
+
+                self.bookings.update_one.side_effect = update_booking
+                started, finish = asyncio.Event(), asyncio.Event()
+
+                async def send_email(*_args, **_kwargs):
+                    started.set()
+                    await finish.wait()
+                    return True
+
+                with patch.object(server, "send_notification_email", AsyncMock(side_effect=send_email)) as send:
+                    first = asyncio.create_task(notifier())
+                    try:
+                        await asyncio.wait_for(started.wait(), timeout=2)
+                        self.assertFalse(await notifier())
+                    finally:
+                        finish.set()
+                        self.assertTrue(await first)
+                    self.assertFalse(await notifier())
+                    send.assert_awaited_once()
+                self.assertFalse(any(key.endswith("_pending") for key in state))
+
+    async def test_claim_can_recover_abandoned_delivery_and_release_failed_send(self):
+        with patch.object(server, "send_notification_email", AsyncMock(return_value=False)):
+            self.assertFalse(await server.send_driver_documents(self.booking))
+        query, update = self.bookings.update_one.await_args_list[0].args
+        pending = "driver_documents_email_sent_at_pending"
+        self.assertIn(f"{pending}.claimed_at", query["$or"][1])
+        self.assertIn("$lt", query["$or"][1][f"{pending}.claimed_at"])
+        token = update["$set"][pending]["token"]
+        release_query, release_update = self.bookings.update_one.await_args.args
+        self.assertEqual(release_query[f"{pending}.token"], token)
+        self.assertEqual(release_update, {"$unset": {pending: ""}})
 
     async def test_completion_notifications_isolate_both_recipients(self):
         for failing in ("notify_client_booking_completed", "send_driver_documents"):
