@@ -3269,6 +3269,9 @@ async def send_notification_email(
     template_id: Optional[int] = None,
     template_params: Optional[dict] = None,
     attachments: Optional[List[Tuple[str, bytes]]] = None,
+    sender_email: Optional[str] = None,
+    sender_name: Optional[str] = None,
+    reply_to: Optional[str] = None,
 ):
     """Send transactional email via Brevo with HTML fallback."""
     return await send_brevo_transactional_email(
@@ -3281,6 +3284,9 @@ async def send_notification_email(
         template_id=template_id,
         template_params=template_params,
         attachments=attachments,
+        sender_email=sender_email,
+        sender_name=sender_name,
+        reply_to=reply_to,
     )
 
 

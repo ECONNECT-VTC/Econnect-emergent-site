@@ -2,18 +2,20 @@
 
 ## 1) Prérequis domaine d’envoi
 
-1. Créer/valider l’expéditeur dans Brevo.
+1. Créer/valider chaque expéditeur utilisé dans Brevo, y compris l’adresse de réservation.
 2. Authentifier le domaine avec SPF + DKIM.
 3. Ajouter une politique DMARC (minimum `p=none`, recommandé `quarantine`/`reject` ensuite).
-4. Vérifier que `BREVO_SENDER_EMAIL` appartient à ce domaine.
+4. Vérifier que `BREVO_SENDER_EMAIL` et `BREVO_RESERVATION_SENDER_EMAIL` appartiennent à un domaine authentifié avec SPF/DKIM/DMARC.
 
 ## 2) Variables d’environnement backend
 
 Configurer dans l’hébergeur (jamais dans Git) :
 
 - `BREVO_API_KEY`
-- `BREVO_SENDER_EMAIL`
-- `BREVO_SENDER_NAME`
+- `BREVO_SENDER_EMAIL` (défaut : `noreply@econnect-vtc.com`)
+- `BREVO_SENDER_NAME` (défaut : `Econnect VTC`)
+- `BREVO_RESERVATION_SENDER_EMAIL` (optionnel, repli sur `BREVO_SENDER_EMAIL` si absent ou vide)
+- `BREVO_REPLY_TO_EMAIL` (optionnel, adresse de réponse commune aux emails transactionnels ; aucun Reply-To ajouté si absent ou vide)
 - `BREVO_TEMPLATE_ACCOUNT_ACTIVATION`
 - `BREVO_TEMPLATE_PASSWORD_RESET`
 - `BREVO_TEMPLATE_BOOKING_CREATED`
@@ -26,6 +28,18 @@ Configurer dans l’hébergeur (jamais dans Git) :
 - `BREVO_TEMPLATE_INVOICE`
 - `BREVO_TEMPLATE_CANCELLATION`
 - `BREVO_TEMPLATE_ADMIN_MESSAGE`
+
+Pour envoyer les emails de réservation depuis une adresse dédiée tout en conservant l’expéditeur par défaut pour les comptes :
+
+```bash
+BREVO_SENDER_EMAIL=noreply@econnect-vtc.com
+BREVO_RESERVATION_SENDER_EMAIL=reservation@econnect-vtc.com
+BREVO_REPLY_TO_EMAIL=reservation@econnect-vtc.com
+```
+
+L’expéditeur de réservation s’applique aux courses créées, devis, paiements confirmés, affectations chauffeur (chauffeur et client), documents chauffeur, courses terminées, factures et annulations, même en repli HTML. Les activations de compte, réinitialisations de mot de passe et messages administratifs conservent `BREVO_SENDER_EMAIL`. Le nom reste `BREVO_SENDER_NAME` pour tous ces emails.
+
+Les fonctions `send_notification_email` et `send_brevo_transactional_email` acceptent aussi `sender_email`, `sender_name` et `reply_to` pour surcharger la configuration par envoi. Une valeur explicite est prioritaire ; `reply_to=""` permet de ne pas ajouter de Reply-To pour cet envoi. Le SDK Brevo reçoit le champ `reply_to`.
 
 > Les IDs de templates sont optionnels. Quand un ID est vide, absent ou invalide (non entier positif), le backend bascule automatiquement vers le HTML interne existant. Les emails devis disponible et course terminée sont donc envoyés même sans template Brevo configuré.
 
@@ -95,7 +109,7 @@ Cet email n'est pas envoyé pour les courses `fulfilled_by_admin` : elles n'ont 
 
 ## 7) Procédure de test avant production
 
-1. Configurer `BREVO_API_KEY` + sender.
+1. Configurer `BREVO_API_KEY` et les expéditeurs validés, puis redémarrer le backend. Configurer éventuellement `BREVO_REPLY_TO_EMAIL`.
 2. Laisser les IDs de templates vides et tester les envois (fallback HTML).
 3. Créer les templates Brevo puis renseigner les IDs.
 4. Retester :
@@ -109,7 +123,7 @@ Cet email n'est pas envoyé pour les courses `fulfilled_by_admin` : elles n'ont 
    - documents chauffeur (trois PDF, sans bon de commande, hors courses `fulfilled_by_admin`) ;
    - facture PDF ;
    - annulation/remboursement.
-5. Vérifier la délivrabilité et les logs Brevo (sans données sensibles).
+5. Vérifier l’expéditeur selon le type d’email, l’adresse de réponse si configurée, la délivrabilité et les logs Brevo (sans données sensibles).
 
 ## 8) Vérifications Hostinger / production
 
