@@ -28,7 +28,7 @@ import {
 import { buildAdminEstimatePriceQuery, toOptionalNumber } from './adminBookingUtils';
 import { logApiError, parseApiError } from '../../utils/apiErrors';
 
-const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
 const describeLoadFailure = (label, error) => `${label} : ${parseApiError(error, 'Erreur inconnue')}`;
 const PAYMENT_AWAITING_STATUSES = ['pending', 'partially_paid'];
