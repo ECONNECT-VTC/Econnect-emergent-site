@@ -77,6 +77,121 @@ class TestBookingShortReference(unittest.TestCase):
 
 
 class TestBrevoTransport(unittest.IsolatedAsyncioTestCase):
+    async def test_default_sender_is_unchanged(self):
+        sent_payloads = []
+        with patch.dict(os.environ, {"BREVO_API_KEY": "brevo-test-key"}, clear=True), patch.object(
+            email_service, "sib_api_v3_sdk", _make_brevo_sdk(sent_payloads)
+        ), patch.object(email_service.asyncio, "to_thread", side_effect=lambda fn: fn()):
+            self.assertTrue(await server.send_notification_email("client@example.com", "Sujet", "<p>HTML</p>"))
+
+        self.assertEqual(sent_payloads[0]["sender"], {"email": "noreply@econnect-vtc.com", "name": "Econnect VTC"})
+        self.assertNotIn("reply_to", sent_payloads[0])
+
+    async def test_sender_selection_by_template_key(self):
+        sent_payloads = []
+        reservation_keys = (
+            email_service.TEMPLATE_KEY_BOOKING_CREATED,
+            email_service.TEMPLATE_KEY_QUOTE_AVAILABLE,
+            email_service.TEMPLATE_KEY_PAYMENT_CONFIRMED,
+            email_service.TEMPLATE_KEY_DRIVER_ASSIGNED,
+            email_service.TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT,
+            email_service.TEMPLATE_KEY_DRIVER_DOCUMENTS,
+            email_service.TEMPLATE_KEY_BOOKING_COMPLETED,
+            email_service.TEMPLATE_KEY_INVOICE,
+            email_service.TEMPLATE_KEY_CANCELLATION,
+        )
+        default_keys = (
+            email_service.TEMPLATE_KEY_ACCOUNT_ACTIVATION,
+            email_service.TEMPLATE_KEY_PASSWORD_RESET,
+            email_service.TEMPLATE_KEY_ADMIN_MESSAGE,
+            None,
+            "unknown",
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "BREVO_API_KEY": "brevo-test-key",
+                "BREVO_SENDER_EMAIL": "noreply@example.com",
+                "BREVO_SENDER_NAME": "Configured Sender",
+                "BREVO_RESERVATION_SENDER_EMAIL": "reservation@example.com",
+                "BREVO_TEMPLATE_INVOICE": "2001",
+            },
+            clear=True,
+        ), patch.object(email_service, "sib_api_v3_sdk", _make_brevo_sdk(sent_payloads)), patch.object(
+            email_service.asyncio, "to_thread", side_effect=lambda fn: fn()
+        ):
+            for template_key in reservation_keys + default_keys:
+                with self.subTest(template_key=template_key):
+                    self.assertTrue(await server.send_notification_email(
+                        "client@example.com", "Sujet", "<p>HTML</p>", template_key=template_key
+                    ))
+                    expected_email = (
+                        "reservation@example.com" if template_key in reservation_keys else "noreply@example.com"
+                    )
+                    self.assertEqual(
+                        sent_payloads[-1]["sender"], {"email": expected_email, "name": "Configured Sender"}
+                    )
+
+    async def test_reservation_sender_falls_back_to_default(self):
+        sent_payloads = []
+        with patch.dict(
+            os.environ,
+            {"BREVO_API_KEY": "brevo-test-key", "BREVO_SENDER_EMAIL": "configured@example.com"},
+            clear=True,
+        ), patch.object(email_service, "sib_api_v3_sdk", _make_brevo_sdk(sent_payloads)), patch.object(
+            email_service.asyncio, "to_thread", side_effect=lambda fn: fn()
+        ):
+            for reservation_sender in (None, ""):
+                with self.subTest(reservation_sender=reservation_sender):
+                    if reservation_sender is not None:
+                        os.environ["BREVO_RESERVATION_SENDER_EMAIL"] = reservation_sender
+                    self.assertTrue(await server.send_notification_email(
+                        "client@example.com", "Sujet", "<p>HTML</p>",
+                        template_key=email_service.TEMPLATE_KEY_BOOKING_CREATED,
+                    ))
+                    self.assertEqual(sent_payloads[-1]["sender"]["email"], "configured@example.com")
+
+    async def test_reply_to_is_included_when_configured(self):
+        sent_payloads = []
+        with patch.dict(
+            os.environ,
+            {"BREVO_API_KEY": "brevo-test-key", "BREVO_REPLY_TO_EMAIL": "support@example.com"},
+            clear=True,
+        ), patch.object(email_service, "sib_api_v3_sdk", _make_brevo_sdk(sent_payloads)), patch.object(
+            email_service.asyncio, "to_thread", side_effect=lambda fn: fn()
+        ):
+            self.assertTrue(await server.send_notification_email("client@example.com", "Sujet", "<p>HTML</p>"))
+            self.assertEqual(sent_payloads[-1]["reply_to"], {"email": "support@example.com"})
+            self.assertTrue(await server.send_notification_email(
+                "client@example.com", "Sujet", "<p>HTML</p>", reply_to=""
+            ))
+            self.assertNotIn("reply_to", sent_payloads[-1])
+
+    async def test_explicit_sender_and_reply_to_override_configuration(self):
+        sent_payloads = []
+        with patch.dict(
+            os.environ,
+            {
+                "BREVO_API_KEY": "brevo-test-key",
+                "BREVO_RESERVATION_SENDER_EMAIL": "reservation@example.com",
+                "BREVO_SENDER_NAME": "Configured Sender",
+                "BREVO_REPLY_TO_EMAIL": "support@example.com",
+            },
+            clear=True,
+        ), patch.object(email_service, "sib_api_v3_sdk", _make_brevo_sdk(sent_payloads)), patch.object(
+            email_service.asyncio, "to_thread", side_effect=lambda fn: fn()
+        ):
+            self.assertTrue(await server.send_notification_email(
+                "client@example.com", "Sujet", "<p>HTML</p>",
+                template_key=email_service.TEMPLATE_KEY_INVOICE,
+                sender_email="custom@example.com",
+                sender_name="Custom Sender",
+                reply_to="custom-reply@example.com",
+            ))
+
+        self.assertEqual(sent_payloads[0]["sender"], {"email": "custom@example.com", "name": "Custom Sender"})
+        self.assertEqual(sent_payloads[0]["reply_to"], {"email": "custom-reply@example.com"})
+
     async def test_send_notification_email_html_fallback_without_template(self):
         sent_payloads = []
         sdk = _make_brevo_sdk(sent_payloads)
@@ -96,6 +211,7 @@ class TestBrevoTransport(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result)
         self.assertEqual(len(sent_payloads), 1)
         payload = sent_payloads[0]
+        self.assertEqual(payload["sender"], {"email": "noreply@test.com", "name": "Test Sender"})
         self.assertEqual(payload["subject"], "Sujet")
         self.assertEqual(payload["html_content"], "<p>HTML fallback</p>")
         self.assertNotIn("template_id", payload)

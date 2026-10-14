@@ -44,6 +44,18 @@ BREVO_TEMPLATE_ENV_BY_KEY = {
     TEMPLATE_KEY_ADMIN_MESSAGE: "BREVO_TEMPLATE_ADMIN_MESSAGE",
 }
 
+BREVO_SENDER_ENV_BY_KEY = {
+    TEMPLATE_KEY_BOOKING_CREATED: "BREVO_RESERVATION_SENDER_EMAIL",
+    TEMPLATE_KEY_QUOTE_AVAILABLE: "BREVO_RESERVATION_SENDER_EMAIL",
+    TEMPLATE_KEY_PAYMENT_CONFIRMED: "BREVO_RESERVATION_SENDER_EMAIL",
+    TEMPLATE_KEY_DRIVER_ASSIGNED: "BREVO_RESERVATION_SENDER_EMAIL",
+    TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT: "BREVO_RESERVATION_SENDER_EMAIL",
+    TEMPLATE_KEY_DRIVER_DOCUMENTS: "BREVO_RESERVATION_SENDER_EMAIL",
+    TEMPLATE_KEY_BOOKING_COMPLETED: "BREVO_RESERVATION_SENDER_EMAIL",
+    TEMPLATE_KEY_INVOICE: "BREVO_RESERVATION_SENDER_EMAIL",
+    TEMPLATE_KEY_CANCELLATION: "BREVO_RESERVATION_SENDER_EMAIL",
+}
+
 
 def _parse_positive_template_id(raw_value: Any, source_name: str) -> Optional[int]:
     if raw_value is None:
@@ -86,10 +98,20 @@ async def send_brevo_transactional_email(
     template_id: Optional[int] = None,
     template_params: Optional[Dict[str, Any]] = None,
     attachments: Optional[List[Tuple[str, bytes]]] = None,
+    sender_email: Optional[str] = None,
+    sender_name: Optional[str] = None,
+    reply_to: Optional[str] = None,
 ) -> bool:
     brevo_api_key = os.environ.get("BREVO_API_KEY")
-    sender_email = os.environ.get("BREVO_SENDER_EMAIL", "noreply@econnect-vtc.com")
-    sender_name = os.environ.get("BREVO_SENDER_NAME", "Econnect VTC")
+    if sender_email is None:
+        sender_env = BREVO_SENDER_ENV_BY_KEY.get(template_key)
+        sender_email = (
+            os.environ.get(sender_env) if sender_env else None
+        ) or os.environ.get("BREVO_SENDER_EMAIL", "noreply@econnect-vtc.com")
+    if sender_name is None:
+        sender_name = os.environ.get("BREVO_SENDER_NAME", "Econnect VTC")
+    if reply_to is None:
+        reply_to = os.environ.get("BREVO_REPLY_TO_EMAIL")
 
     if not brevo_api_key:
         logger.warning("Brevo API key not configured, skipping email")
@@ -106,6 +128,8 @@ async def send_brevo_transactional_email(
         "to": [{"email": to_email}],
         "subject": subject,
     }
+    if reply_to:
+        payload["reply_to"] = {"email": reply_to}
 
     if resolved_template_id:
         payload["template_id"] = resolved_template_id
