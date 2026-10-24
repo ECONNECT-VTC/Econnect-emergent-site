@@ -62,9 +62,9 @@ const getFallbackApiUrl = () => {
 };
 
 const getBuildTimeApiUrl = () => (
-  normalizeApiBase(getProcessEnv()?.REACT_APP_API_URL) ||
-  normalizeApiBase(getProcessEnv()?.REACT_APP_BACKEND_URL) ||
-  normalizeApiBase(getProcessEnv()?.VITE_API_URL)
+  normalizeApiBase(process.env.REACT_APP_API_URL) ||
+  normalizeApiBase(process.env.REACT_APP_BACKEND_URL) ||
+  normalizeApiBase(process.env.VITE_API_URL)
 );
 
 const getBuildTimeContactPhone = () => (
