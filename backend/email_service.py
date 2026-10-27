@@ -149,21 +149,29 @@ async def send_brevo_transactional_email(
     def _send_sync() -> bool:
         configuration = sib_api_v3_sdk.Configuration()
         configuration.api_key["api-key"] = brevo_api_key
-        with sib_api_v3_sdk.ApiClient(configuration) as api_client:
-            api_instance = sib_api_v3_sdk.TransactionalEmailsApi(api_client)
-            request = sib_api_v3_sdk.SendSmtpEmail(**payload)
-            api_instance.send_transac_email(request)
+        api_client = sib_api_v3_sdk.ApiClient(configuration)
+        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(api_client)
+        request = sib_api_v3_sdk.SendSmtpEmail(**payload)
+        api_instance.send_transac_email(request)
         return True
+
+    def _safe_error_detail(value: Any) -> str:
+        return str(value or "").replace(brevo_api_key, "[REDACTED]")[:500]
 
     try:
         return await asyncio.to_thread(_send_sync)
     except ApiException as exc:
         logger.error(
-            "Brevo API error while sending email to %s (status=%s)",
+            "Brevo API error while sending email to %s (status=%s, body=%r)",
             to_email,
             getattr(exc, "status", None),
+            _safe_error_detail(getattr(exc, "body", None)),
         )
         return False
     except Exception as exc:  # pragma: no cover - defensive fallback
-        logger.error("Unexpected email transport error (%s)", exc.__class__.__name__)
+        logger.error(
+            "Unexpected email transport error (%s): %r",
+            exc.__class__.__name__,
+            _safe_error_detail(exc),
+        )
         return False
