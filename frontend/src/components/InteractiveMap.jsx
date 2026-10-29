@@ -13,29 +13,36 @@ const goldIcon = new L.Icon({
 });
 
 const InteractiveMap = () => {
+  const cartoApiKey = process.env.REACT_APP_CARTO_API_KEY?.trim();
   // Paris center coordinates
   const parisPosition = [48.8566, 2.3522];
 
   return (
     <div className="w-full h-full min-h-[26.25rem] md:min-h-[31.25rem] lg:min-h-[42.5rem] rounded-2xl overflow-hidden border border-white/10" data-testid="interactive-map">
-      <MapContainer
-        center={parisPosition}
-        zoom={11}
-        style={{ height: '100%', width: '100%' }}
-        zoomControl={true}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        />
-        <Marker position={parisPosition} icon={goldIcon}>
-          <Popup className="custom-popup">
-            <div className="text-[#0A0A0A] font-semibold">
-              Econnect VTC - Paris
-            </div>
-          </Popup>
-        </Marker>
-      </MapContainer>
+      {cartoApiKey ? (
+        <MapContainer
+          center={parisPosition}
+          zoom={11}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={true}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(cartoApiKey)}`}
+          />
+          <Marker position={parisPosition} icon={goldIcon}>
+            <Popup className="custom-popup">
+              <div className="text-[#0A0A0A] font-semibold">
+                Econnect VTC - Paris
+              </div>
+            </Popup>
+          </Marker>
+        </MapContainer>
+      ) : (
+        <p role="alert" className="p-6 text-white">
+          La carte est indisponible : la clé CARTO n'est pas configurée.
+        </p>
+      )}
     </div>
   );
 };

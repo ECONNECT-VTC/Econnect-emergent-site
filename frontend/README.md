@@ -2,6 +2,51 @@
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
+## Carte CARTO en production
+
+La carte Leaflet utilise le fond raster CARTO Dark Matter. Obtenez une
+**clé CARTO Basemaps** depuis https://carto.com/basemaps/apikey/ ou votre
+offre CARTO compatible. Ne supposez pas qu'un API Access Token Workspace
+avec la permission Maps peut remplacer cette clé : le service Basemaps
+documente une clé passée via `?key=`, pas `api_key`.
+Voir la [documentation officielle des fonds raster](https://github.com/CartoDB/basemap-styles#1-web-raster-basemaps).
+
+Restreignez la clé aux domaines `https://econnect-vtc.com/*` et, si utilisé,
+`https://www.econnect-vtc.com/*` dans les réglages du fournisseur. Accordez
+uniquement les permissions nécessaires aux fonds de carte et vérifiez que
+votre offre autorise l'usage commercial.
+
+Sur la machine qui construit le frontend, créez `frontend/.env.production`
+(ou `.env.production` si vous êtes déjà dans `frontend`) :
+
+```dotenv
+REACT_APP_CARTO_API_KEY=votre_cle_basemaps
+```
+
+Ce fichier est ignoré par Git. Ne commitez pas la clé et ne la partagez pas
+dans une issue ou une pull request. `.env.example` fournit le nom attendu
+sans valeur. Une clé absente ou vide affiche un message d'indisponibilité
+au lieu de demander des tuiles non authentifiées.
+
+Exécutez `npm run build` depuis `frontend`. Create React App charge
+`.env.production` et intègre `REACT_APP_CARTO_API_KEY` dans les fichiers
+JavaScript à la compilation. Une variable déjà définie dans le shell ou la CI
+est prioritaire, suivie de `.env.production.local`, `.env.local`,
+`.env.production` et `.env`. Une variable définie seulement dans le backend
+ou après le build ne modifie pas la carte.
+
+La clé est visible dans le frontend public : les restrictions côté CARTO
+restent indispensables. Pour vérifier le déploiement, ouvrez la carte sur
+le domaine autorisé et contrôlez dans l'onglet Réseau du navigateur que les
+requêtes `dark_all` contiennent `key`, aboutissent sans erreur et affichent
+des tuiles sans filigrane. Ne partagez pas ces URL complètes.
+L'attribution OpenStreetMap/CARTO doit rester visible.
+
+Transférez ensuite le contenu de `frontend/build/` vers la racine du site
+sur le VPS. Si un rechargement Nginx est nécessaire, validez d'abord sa
+configuration avec `sudo nginx -t`, puis lancez `sudo systemctl reload nginx`.
+Tout changement de clé nécessite un nouveau build et un redéploiement.
+
 ## Available Scripts
 
 In the project directory, you can run:
