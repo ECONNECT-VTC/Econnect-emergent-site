@@ -43,11 +43,18 @@ export const AuthProvider = ({ children }) => {
     return response.data;
   };
 
-  const register = async (email, password, name, phone, role) => {
+  const register = async (email, password, name, phone, role, vehicleModel = '', vehiclePlate = '') => {
     try {
       const response = await axios.post(
         `${API_URL}/api/auth/register`,
-        { email, password, name, phone, role },
+        {
+          email,
+          password,
+          name,
+          phone,
+          role,
+          ...(role === 'chauffeur' ? { vehicle_model: vehicleModel, vehicle_plate: vehiclePlate } : {}),
+        },
         { withCredentials: true }
       );
       return response.data;

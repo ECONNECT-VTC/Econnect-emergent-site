@@ -61,6 +61,8 @@ const BookingSection = () => {
   const [time, setTime] = useState('');
   const [transferType, setTransferType] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [passengerCount, setPassengerCount] = useState('1');
+  const [babySeatCount, setBabySeatCount] = useState('0');
   const [dispositionHours, setDispositionHours] = useState('');
   const [dispositionPrices, setDispositionPrices] = useState([]);
   const [loadingDispositionPrices, setLoadingDispositionPrices] = useState(false);
@@ -202,6 +204,8 @@ const BookingSection = () => {
     setTime('');
     setTransferType('');
     setSelectedCategory('');
+    setPassengerCount('1');
+    setBabySeatCount('0');
     setDispositionHours('');
     setDistanceKm('');
     setPaymentMethod('cb');
@@ -316,13 +320,15 @@ const BookingSection = () => {
       distance_km: transferType === 'disposition' ? null : (distanceKm ? parseFloat(distanceKm) : null),
       duration_minutes: null,
       estimated_price: estimatedPrice,
+      passenger_count: Number(passengerCount),
+      baby_seat_count: Number(babySeatCount),
       payment_method: paymentMethod,
       notes: null,
       disposition_hours: transferType === 'disposition' && dispositionHours ? parseFloat(dispositionHours) : null,
       success_path: `/${lang}/booking/confirmation`,
       cancel_path: `/${lang}/booking/cancel`,
     };
-  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, dispositionHours, getEstimatedPrice, lang, paymentMethod]);
+  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, dispositionHours, getEstimatedPrice, lang, paymentMethod, passengerCount, babySeatCount]);
 
   const submitCheckout = useCallback(async (payload, draftState = null) => {
     setBookingError('');
@@ -336,6 +342,8 @@ const BookingSection = () => {
       time,
       transferType,
       selectedCategory,
+      passengerCount,
+      babySeatCount,
       paymentMethod,
       dispositionHours,
       distanceKm,
@@ -357,7 +365,7 @@ const BookingSection = () => {
       setBookingNotice('');
       setSubmittingCheckout(false);
     }
-  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm]);
+  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm, passengerCount, babySeatCount]);
 
   const handleAuthChoice = (authPath) => {
     const payload = buildCheckoutPayload();
@@ -369,6 +377,8 @@ const BookingSection = () => {
         time,
         transferType,
         selectedCategory,
+        passengerCount,
+        babySeatCount,
         paymentMethod,
         dispositionHours,
         distanceKm,
@@ -398,6 +408,8 @@ const BookingSection = () => {
     if (draft.time) setTime(draft.time);
     if (draft.transferType) setTransferType(draft.transferType);
     if (draft.selectedCategory) setSelectedCategory(draft.selectedCategory);
+    if (draft.passengerCount) setPassengerCount(String(draft.passengerCount));
+    if (draft.babySeatCount != null) setBabySeatCount(String(draft.babySeatCount));
     if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
     if (draft.dispositionHours) setDispositionHours(String(draft.dispositionHours));
     if (draft.distanceKm) setDistanceKm(String(draft.distanceKm));
@@ -465,6 +477,8 @@ const BookingSection = () => {
         time,
         transferType,
         selectedCategory,
+        passengerCount,
+        babySeatCount,
         paymentMethod,
         dispositionHours,
         distanceKm,
@@ -764,7 +778,13 @@ const BookingSection = () => {
                           <button
                             key={cat.id}
                             type="button"
-                            onClick={() => setSelectedCategory(cat.id)}
+                            onClick={() => {
+                              setSelectedCategory(cat.id);
+                              if (Number(passengerCount) > cat.passengers) {
+                                setPassengerCount(String(cat.passengers));
+                                setBabySeatCount(String(Math.min(Number(babySeatCount), cat.passengers)));
+                              }
+                            }}
                             className={`overflow-hidden rounded-2xl border text-left transition-all ${
                               selectedCategory === cat.id
                                 ? 'border-[#D4AF37] bg-[#D4AF37]/10 shadow-[0_18px_40px_rgba(212,175,55,0.08)]'
@@ -808,6 +828,46 @@ const BookingSection = () => {
                         ))}
                       </div>
                     </div>
+
+                    {selectedCategory && (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label className="text-[#A1A1AA] text-sm">Nombre de passagers</Label>
+                          <Select
+                            value={passengerCount}
+                            onValueChange={(value) => {
+                              setPassengerCount(value);
+                              if (Number(babySeatCount) > Number(value)) setBabySeatCount(value);
+                            }}
+                          >
+                            <SelectTrigger className="bg-[#1E1E1E] border-white/10" data-testid="passenger-count-select">
+                              <SelectValue placeholder="Choisir le nombre de passagers" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#1E1E1E] border-white/10">
+                              {Array.from(
+                                { length: VEHICLE_CATEGORIES.find((category) => category.id === selectedCategory)?.passengers || 1 },
+                                (_, index) => index + 1
+                              ).map((count) => (
+                                <SelectItem key={count} value={String(count)}>{count}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[#A1A1AA] text-sm">Sièges bébé nécessaires</Label>
+                          <Select value={babySeatCount} onValueChange={setBabySeatCount}>
+                            <SelectTrigger className="bg-[#1E1E1E] border-white/10" data-testid="baby-seat-count-select">
+                              <SelectValue placeholder="Choisir le nombre de sièges bébé" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-[#1E1E1E] border-white/10">
+                              {Array.from({ length: Number(passengerCount) + 1 }, (_, count) => count).map((count) => (
+                                <SelectItem key={count} value={String(count)}>{count}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Price info */}
                     {selectedCategory && (
@@ -882,6 +942,7 @@ const BookingSection = () => {
                       {date ? `${format(date, 'dd/MM/yyyy', { locale: fr })} à ${time}` : (time || 'Date à confirmer')}
                     </p>
                     <p className="flex items-center gap-2"><CarSimple size={14} className="text-[#D4AF37]" /> {VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.name}</p>
+                    <p className="flex items-center gap-2"><Users size={14} className="text-[#D4AF37]" /> {passengerCount} passager(s) · {babySeatCount} siège(s) bébé</p>
                     {transferType !== 'disposition' && distanceKm && (
                       <p className="flex items-center gap-2"><MapPin size={14} className="text-[#D4AF37]" /> Distance : {distanceKm} km</p>
                     )}

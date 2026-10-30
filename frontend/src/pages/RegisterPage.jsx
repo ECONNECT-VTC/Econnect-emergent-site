@@ -14,6 +14,8 @@ const RegisterPage = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [vehiclePlate, setVehiclePlate] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('');
@@ -45,6 +47,11 @@ const RegisterPage = () => {
      return;
    }
 
+   if (role === 'chauffeur' && (!vehicleModel.trim() || !vehiclePlate.trim())) {
+     setError('Veuillez renseigner le modèle et l’immatriculation de votre véhicule');
+     return;
+   }
+
    if (password !== confirmPassword) {
      setError('Les mots de passe ne correspondent pas');
      return;
@@ -60,7 +67,9 @@ const RegisterPage = () => {
      setLoading(true);
      setError('');
 
-     const result = await register(email, password, name, phone, role);
+     const result = role === 'chauffeur'
+       ? await register(email, password, name, phone, role, vehicleModel, vehiclePlate)
+       : await register(email, password, name, phone, role);
 
      navigate(`/${lang}/verify-email`, {
        state: {
@@ -193,6 +202,37 @@ const RegisterPage = () => {
                 />
               </div>
             </div>
+
+            {role === 'chauffeur' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="vehicle-model" className="text-[#A1A1AA]">Nom ou modèle du véhicule</Label>
+                  <Input
+                    id="vehicle-model"
+                    type="text"
+                    value={vehicleModel}
+                    onChange={(e) => setVehicleModel(e.target.value)}
+                    placeholder="Ex. Peugeot 508"
+                    required
+                    className="bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
+                    data-testid="register-vehicle-model"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vehicle-plate" className="text-[#A1A1AA]">Numéro d’immatriculation</Label>
+                  <Input
+                    id="vehicle-plate"
+                    type="text"
+                    value={vehiclePlate}
+                    onChange={(e) => setVehiclePlate(e.target.value)}
+                    placeholder="Ex. AB-123-CD"
+                    required
+                    className="bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
+                    data-testid="register-vehicle-plate"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="password" className="text-[#A1A1AA]">Mot de passe</Label>

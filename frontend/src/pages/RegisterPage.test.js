@@ -137,6 +137,44 @@ describe('RegisterPage – role selection', () => {
     expect(container.querySelector('[data-testid="register-role-chauffeur"]').checked).toBe(false);
   });
 
+  it('requires and submits vehicle details for chauffeur registration', async () => {
+    mockRegister.mockResolvedValue({});
+
+    await act(async () => {
+      root.render(<RegisterPage />);
+    });
+
+    await act(async () => {
+      container.querySelector('[data-testid="register-role-chauffeur"]').click();
+    });
+
+    expect(container.querySelector('[data-testid="register-vehicle-model"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="register-vehicle-plate"]')).not.toBeNull();
+
+    await act(async () => {
+      setInputValue(container.querySelector('[data-testid="register-name"]'), 'Jean Dupont');
+      setInputValue(container.querySelector('[data-testid="register-email"]'), 'jean@example.com');
+      setInputValue(container.querySelector('[data-testid="register-password"]'), 'ValidPass!1');
+      setInputValue(container.querySelector('[data-testid="register-confirm-password"]'), 'ValidPass!1');
+      setInputValue(container.querySelector('[data-testid="register-vehicle-model"]'), 'Peugeot 508');
+      setInputValue(container.querySelector('[data-testid="register-vehicle-plate"]'), 'AB-123-CD');
+    });
+
+    await act(async () => {
+      container.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true }));
+    });
+
+    expect(mockRegister).toHaveBeenCalledWith(
+      'jean@example.com',
+      'ValidPass!1',
+      'Jean Dupont',
+      '',
+      'chauffeur',
+      'Peugeot 508',
+      'AB-123-CD'
+    );
+  });
+
   it('selects only one role at a time (exclusive choice)', async () => {
     await act(async () => {
       root.render(<RegisterPage />);

@@ -23,7 +23,7 @@ import stripe
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfgen import canvas
@@ -188,6 +188,8 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: str
     role: str = "client"  # client, driver, admin
+    vehicle_model: Optional[str] = None
+    vehicle_plate: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -238,6 +240,14 @@ class BookingBase(BaseModel):
     estimated_price: Optional[float] = None
     notes: Optional[str] = None
     disposition_hours: Optional[float] = None
+    passenger_count: int = Field(default=1, ge=1, le=7)
+    baby_seat_count: int = Field(default=0, ge=0, le=7)
+
+    @model_validator(mode="after")
+    def validate_baby_seat_count(self):
+        if self.baby_seat_count > self.passenger_count:
+            raise ValueError("Le nombre de sièges bébé ne peut pas dépasser le nombre de passagers")
+        return self
 
 class BookingCreate(BookingBase):
     pass
@@ -260,6 +270,14 @@ class AdminBookingCreate(BaseModel):
     payment_mode: Optional[str] = None  # "immediate" | "deferred" | None (defaults to deferred)
     payment_method: Optional[str] = None
     payment_status: Optional[str] = None
+    passenger_count: int = Field(default=1, ge=1, le=7)
+    baby_seat_count: int = Field(default=0, ge=0, le=7)
+
+    @model_validator(mode="after")
+    def validate_baby_seat_count(self):
+        if self.baby_seat_count > self.passenger_count:
+            raise ValueError("Le nombre de sièges bébé ne peut pas dépasser le nombre de passagers")
+        return self
 
 class ManualPaymentRecord(BaseModel):
     amount: float
@@ -292,6 +310,8 @@ class BookingResponse(BaseModel):
     estimated_price: Optional[float] = None
     notes: Optional[str] = None
     disposition_hours: Optional[float] = None
+    passenger_count: int = 1
+    baby_seat_count: int = 0
     status: str  # DRAFT, QUOTE_SENT, QUOTE_ACCEPTED, ORDER_ISSUED, ASSIGNED, IN_PROGRESS, COMPLETED, INVOICED, PAID, cancellation_requested, cancelled
     driver_id: Optional[str] = None
     driver_name: Optional[str] = None
@@ -3932,6 +3952,14 @@ async def register(user: UserCreate):
             detail="Le rôle doit être 'client' ou 'chauffeur'"
         )
 
+    vehicle_model = (user.vehicle_model or "").strip()
+    vehicle_plate = (user.vehicle_plate or "").strip()
+    if user.role == "chauffeur" and (not vehicle_model or not vehicle_plate):
+        raise HTTPException(
+            status_code=400,
+            detail="Le modèle du véhicule et son numéro d'immatriculation sont obligatoires pour les chauffeurs",
+        )
+
     password_error = validate_password_strength(user.password)
     if password_error:
         raise HTTPException(
@@ -3957,6 +3985,11 @@ async def register(user: UserCreate):
         "phone": user.phone.strip() if user.phone else None,
         "password_hash": hash_password(user.password),
         "role": stored_role,
+        **(
+            {"vehicle_model": vehicle_model, "vehicle_plate": vehicle_plate, "is_available": True}
+            if stored_role == "driver"
+            else {}
+        ),
         "email_verified": False,
         "created_at": datetime.now(timezone.utc),
     }
@@ -4296,6 +4329,8 @@ def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_catego
         "estimated_price": booking.estimated_price,
         "notes": booking.notes,
         "disposition_hours": booking.disposition_hours,
+        "passenger_count": booking.passenger_count,
+        "baby_seat_count": booking.baby_seat_count,
         "status": "DRAFT",
         "payment_status": "pending",
         "payment_method": payment_method,
@@ -5241,6 +5276,8 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "estimated_price": booking.estimated_price,
         "notes": booking.notes,
         "disposition_hours": booking.disposition_hours,
+        "passenger_count": booking.passenger_count,
+        "baby_seat_count": booking.baby_seat_count,
         "status": "QUOTE_ACCEPTED",
         "payment_status": payment_status,
         "payment_method": payment_method,

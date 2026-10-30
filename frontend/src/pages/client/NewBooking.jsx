@@ -31,6 +31,8 @@ const NewBooking = () => {
   const [dropoff, setDropoff] = useState('');
   const [transferType, setTransferType] = useState('');
   const [dispositionHours, setDispositionHours] = useState('');
+  const [passengerCount, setPassengerCount] = useState('1');
+  const [babySeatCount, setBabySeatCount] = useState('0');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -193,6 +195,7 @@ const NewBooking = () => {
     const bPresentation = getVehicleCategoryPresentation(b.name);
     return (aPresentation?.order ?? 99) - (bPresentation?.order ?? 99);
   });
+  const passengerLimit = Number(categories.find((category) => category.id === selectedCategory)?.max_passengers) || 7;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -229,6 +232,8 @@ const NewBooking = () => {
         estimated_price: selectedPrice?.final_price || null,
         notes: notes,
         disposition_hours: dispositionHours ? parseFloat(dispositionHours) : null,
+        passenger_count: Number(passengerCount),
+        baby_seat_count: Number(babySeatCount),
         success_path: `/${lang}/booking/confirmation`,
         cancel_path: `/${lang}/booking/cancel`,
       };
@@ -388,6 +393,44 @@ const NewBooking = () => {
               </div>
             )}
 
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[#A1A1AA]">Nombre de passagers</Label>
+                <Select
+                  value={passengerCount}
+                  onValueChange={(value) => {
+                    setPassengerCount(value);
+                    if (Number(babySeatCount) > Number(value)) setBabySeatCount(value);
+                  }}
+                >
+                  <SelectTrigger className="bg-[#1E1E1E] border-white/10" data-testid="passenger-count-select">
+                    <SelectValue placeholder="Choisir le nombre de passagers" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1E1E1E] border-white/10">
+                    {Array.from({ length: passengerLimit }, (_, index) => index + 1).map((count) => (
+                      <SelectItem key={count} value={String(count)}>{count}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[#A1A1AA]">Sièges bébé nécessaires</Label>
+                <Select
+                  value={babySeatCount}
+                  onValueChange={setBabySeatCount}
+                >
+                  <SelectTrigger className="bg-[#1E1E1E] border-white/10" data-testid="baby-seat-count-select">
+                    <SelectValue placeholder="Choisir le nombre de sièges bébé" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1E1E1E] border-white/10">
+                    {Array.from({ length: Number(passengerCount) + 1 }, (_, count) => count).map((count) => (
+                      <SelectItem key={count} value={String(count)}>{count}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             {/* Vehicle Category Selection */}
             {sortedCategories.length > 0 && (
               <div className="space-y-3">
@@ -403,7 +446,14 @@ const NewBooking = () => {
                     return (
                       <div 
                         key={category.id}
-                        onClick={() => setSelectedCategory(category.id)}
+                        onClick={() => {
+                          setSelectedCategory(category.id);
+                          const maxPassengers = Number(category.max_passengers) || 7;
+                          if (Number(passengerCount) > maxPassengers) {
+                            setPassengerCount(String(maxPassengers));
+                            setBabySeatCount(String(Math.min(Number(babySeatCount), maxPassengers)));
+                          }
+                        }}
                         className={`overflow-hidden rounded-2xl transition-all ${
                           'cursor-pointer'
                         } ${

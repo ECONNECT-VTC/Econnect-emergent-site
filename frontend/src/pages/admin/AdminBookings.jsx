@@ -53,6 +53,8 @@ const getInitialCreateForm = () => ({
   distance_km: '',
   duration_minutes: '',
   disposition_hours: '',
+  passenger_count: '1',
+  baby_seat_count: '0',
   payment_mode: 'deferred',
   payment_method: '',
   payment_status: 'pending',
@@ -299,7 +301,15 @@ const AdminBookings = () => {
   ]);
 
   const updateCreateField = (field, value) => {
-    setCreateForm((prev) => ({ ...prev, [field]: value }));
+    setCreateForm((prev) => (
+      field === 'passenger_count'
+        ? {
+          ...prev,
+          passenger_count: value,
+          baby_seat_count: String(Math.min(Number(prev.baby_seat_count), Number(value) || 0)),
+        }
+        : { ...prev, [field]: value }
+    ));
   };
 
   const handleSelectedClientChange = (value) => {
@@ -347,6 +357,8 @@ const AdminBookings = () => {
           distance_km: toOptionalNumber(createForm.distance_km),
           duration_minutes: toOptionalNumber(createForm.duration_minutes),
           disposition_hours: toOptionalNumber(createForm.disposition_hours),
+          passenger_count: Number(createForm.passenger_count),
+          baby_seat_count: Number(createForm.baby_seat_count),
           payment_mode: createForm.payment_mode || 'deferred',
           payment_method: normalizePaymentMethod(createForm.payment_method) || null,
           payment_status: createForm.payment_status || 'pending',
@@ -860,8 +872,14 @@ const AdminBookings = () => {
                 </div>
               </div>
 
-              {(booking.vehicle_category_name || bookingDriverName || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin || booking.distance_km != null || booking.paid_amount != null || booking.remaining_amount != null) && (
+              {(booking.vehicle_category_name || bookingDriverName || booking.cancellation_reason || booking.refund_amount != null || booking.disposition_hours != null || booking.fulfilled_by_admin || booking.distance_km != null || booking.paid_amount != null || booking.remaining_amount != null || booking.passenger_count != null || booking.baby_seat_count != null) && (
                 <div className="mt-4 pt-4 border-t border-white/10 space-y-1 text-sm">
+                  {booking.passenger_count != null && (
+                    <p className="text-[#A1A1AA]">👥 Passagers : <span className="text-white">{booking.passenger_count}</span></p>
+                  )}
+                  {booking.baby_seat_count != null && (
+                    <p className="text-[#A1A1AA]">👶 Sièges bébé : <span className="text-white">{booking.baby_seat_count}</span></p>
+                  )}
                   {booking.distance_km != null && !isNaN(Number(booking.distance_km)) && (
                     <p className="text-[#A1A1AA]">📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>
                       {booking.estimated_price != null && !isNaN(Number(booking.estimated_price)) && (
@@ -1018,6 +1036,14 @@ const AdminBookings = () => {
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Téléphone du client</p>
               <Input value={createForm.client_phone} onChange={(e) => updateCreateField('client_phone', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Nombre de passagers</p>
+              <Input type="number" min="1" max="7" value={createForm.passenger_count} onChange={(e) => updateCreateField('passenger_count', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+            </div>
+            <div>
+              <p className="text-sm text-[#A1A1AA] mb-2">Sièges bébé nécessaires</p>
+              <Input type="number" min="0" max={createForm.passenger_count} value={createForm.baby_seat_count} onChange={(e) => updateCreateField('baby_seat_count', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
             </div>
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Date de prise en charge *</p>

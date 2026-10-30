@@ -119,6 +119,8 @@ describe('AdminBookings', () => {
             status: 'ASSIGNED',
             payment_status: 'pending',
             payment_method: 'card',
+            passenger_count: 3,
+            baby_seat_count: 2,
           }],
         });
       }
@@ -144,6 +146,8 @@ describe('AdminBookings', () => {
     expect(container.textContent).toContain('Drivers endpoint failed');
     expect(container.textContent).toContain('Paris');
     expect(container.textContent).toContain('Lyon');
+    expect(container.textContent).toContain('Passagers : 3');
+    expect(container.textContent).toContain('Sièges bébé : 2');
   });
 
   it('shows the payment received button and remaining balance for completed unpaid bookings', async () => {
