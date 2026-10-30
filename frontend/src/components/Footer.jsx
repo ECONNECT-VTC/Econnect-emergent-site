@@ -88,7 +88,7 @@ const Footer = () => {
               <li className="flex items-start gap-3">
                 <MapPin size={20} className="text-[#D4AF37] mt-1" />
                 <span className="text-[#A1A1AA]">
-                  Paris et Île-de-France
+                  À Paris et dans toute la France
                 </span>
               </li>
             </ul>

@@ -208,6 +208,8 @@ class TestRegisterEndpoint(unittest.IsolatedAsyncioTestCase):
             password="ValidPass!1",
             name="Chauffeur User",
             role="chauffeur",
+            vehicle_model="Peugeot 508",
+            vehicle_plate="AB-123-CD",
         )
         mock_users_coll = MagicMock()
         mock_users_coll.find_one = AsyncMock(return_value=None)
@@ -223,6 +225,8 @@ class TestRegisterEndpoint(unittest.IsolatedAsyncioTestCase):
 
         inserted_doc = mock_users_coll.insert_one.call_args[0][0]
         self.assertEqual(inserted_doc["role"], "driver")
+        self.assertEqual(inserted_doc["vehicle_model"], "Peugeot 508")
+        self.assertEqual(inserted_doc["vehicle_plate"], "AB-123-CD")
 
     async def test_register_invalid_role_rejected(self):
         user_data = server.UserCreate(

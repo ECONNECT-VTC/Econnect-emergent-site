@@ -101,6 +101,8 @@ describe('NewBooking form rendering', () => {
 
     expect(container.textContent).toContain('Confort Classique');
     expect(container.textContent).toContain('Prestige');
+    expect(container.querySelector('[data-testid="passenger-count-select"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="baby-seat-count-select"]')).not.toBeNull();
     expect(lastCalendarProps?.disabled).toBeUndefined();
   });
 });
