@@ -36,6 +36,7 @@ describe('InteractiveMap', () => {
     MapContainer.mockImplementation(({ children }) => createElement('div', null, children));
     Marker.mockImplementation(({ children }) => createElement('div', null, children));
     delete process.env.REACT_APP_CARTO_API_KEY;
+    delete window.__ECONNECT_CONFIG__;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -44,6 +45,7 @@ describe('InteractiveMap', () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     container.remove();
+    delete window.__ECONNECT_CONFIG__;
     if (originalKey === undefined) {
       delete process.env.REACT_APP_CARTO_API_KEY;
     } else {
@@ -68,13 +70,23 @@ describe('InteractiveMap', () => {
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
-  it.each([undefined, '', '   '])('uses public dark tiles when the optional key is %p', async (key) => {
+  it('prefers the runtime public key over the build-time key', async () => {
+    process.env.REACT_APP_CARTO_API_KEY = 'build-key';
+    window.__ECONNECT_CONFIG__ = { CARTO_API_KEY: ' runtime-key ' };
+
+    await act(async () => root.render(<InteractiveMap />));
+
+    expect(TileLayer.mock.calls[0][0].url).toBe('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=runtime-key');
+    expect(container.textContent).not.toContain('runtime-key');
+  });
+
+  it.each([undefined, '', '   '])('does not request watermarked tiles when the key is %p', async (key) => {
     if (key !== undefined) process.env.REACT_APP_CARTO_API_KEY = key;
 
     await act(async () => root.render(<InteractiveMap />));
 
-    expect(container.querySelector('[role="alert"]')).toBeNull();
-    expect(TileLayer.mock.calls[0][0].url).toBe('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
+    expect(TileLayer).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]').textContent).toContain('Fond de carte non configuré');
   });
 
   it('renders both endpoints, fits the gold route and forwards map and field selections', async () => {
@@ -105,6 +117,7 @@ describe('InteractiveMap', () => {
   });
 
   it('reports unavailable background tiles without disabling address selection', async () => {
+    process.env.REACT_APP_CARTO_API_KEY = 'test-key';
     await act(async () => root.render(<InteractiveMap onSelectPosition={jest.fn()} />));
     await act(async () => TileLayer.mock.calls[0][0].eventHandlers.tileerror());
     expect(container.querySelector('[role="alert"]').textContent).toContain('fond de carte est indisponible');

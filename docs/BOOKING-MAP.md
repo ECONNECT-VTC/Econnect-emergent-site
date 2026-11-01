@@ -5,7 +5,11 @@ la création administrateur (`AdminBookings`) partagent la recherche d'adresses,
 les sélections sur la carte et le calcul du trajet. Les fenêtres d'édition
 client (`ClientBookings`) et administrateur utilisent la même logique.
 La carte utilise le fond sombre CARTO, deux marqueurs Départ/Arrivée et un tracé doré.
-La clé `REACT_APP_CARTO_API_KEY` est optionnelle pour le fond raster public.
+La clé publique CARTO Basemaps est **obligatoire** : sans elle CARTO renvoie des tuiles
+filigranées « API KEY REQUIRED ». Sans clé, la carte n'appelle plus CARTO et affiche
+« Fond de carte non configuré » ; recherche, marqueurs et itinéraire restent actifs.
+Clé lue dans `window.__ECONNECT_CONFIG__.CARTO_API_KEY` (runtime), sinon dans
+`REACT_APP_CARTO_API_KEY` (compilée au build). URL : `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=CLE`.
 
 ## Utilisation
 
@@ -92,7 +96,10 @@ le backend ne peut pas limiter les tuiles demandées directement par le navigate
 
 Variables frontend (voir `frontend/.env.example`) :
 
-- `REACT_APP_CARTO_API_KEY` : clé publique optionnelle, jamais un secret serveur.
+- `REACT_APP_CARTO_API_KEY` : clé publique CARTO Basemaps obligatoire (https://carto.com/basemaps/apikey/),
+  restreinte aux domaines econnect-vtc.com, visible dans le navigateur, jamais un secret serveur.
+  À définir dans `frontend/.env.production` avant `npm run build`, ou au runtime via
+  `window.__ECONNECT_CONFIG__ = { CARTO_API_KEY: '...' }` dans `index.html`, sans rebuild.
 - Configuration API existante : `REACT_APP_API_URL`, `REACT_APP_BACKEND_URL`
   ou configuration runtime (sinon même origine en production).
 
