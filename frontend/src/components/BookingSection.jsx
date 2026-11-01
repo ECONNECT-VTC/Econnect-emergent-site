@@ -24,6 +24,7 @@ import { fr } from 'date-fns/locale';
 import InteractiveMap from './InteractiveMap';
 import AddressAutocomplete from './AddressAutocomplete';
 import useBookingRoute from '@/hooks/useBookingRoute';
+import { addressesFromBooking, bookingCoordinates, isAddress } from '@/utils/bookingMap';
 import { PremiumWifiIcon } from './VehicleFeatureBadges';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -205,7 +206,7 @@ const BookingSection = () => {
   }
 
   const canProceedToStep2 = date && time && pickup && dropoff && transferType &&
-    !bookingRoute.loading &&
+    bookingRoute.geocoded && !bookingRoute.loading &&
     (transferType === 'disposition' ? dispositionHours : parseFloat(distanceKm) > 0);
 
   // Smooth scroll to the top of the booking form panel on step changes (Bug 3b)
@@ -330,9 +331,11 @@ const BookingSection = () => {
   }, [dispositionPrices, priceEstimates, selectedCategory, transferType, distanceKm, estimatingPrice, getCategoryStartingPrice]);
 
   const buildCheckoutPayload = useCallback(() => {
+    if (!bookingRoute.geocoded || bookingRoute.loading) return null;
     const estimatedPrice = getEstimatedPrice();
     if (!estimatedPrice) return null;
     return {
+      ...bookingCoordinates(bookingRoute.addresses),
       pickup_address: pickup,
       dropoff_address: dropoff,
       pickup_date: date ? format(date, 'dd/MM/yyyy', { locale: fr }) : '',
@@ -350,7 +353,7 @@ const BookingSection = () => {
       success_path: `/${lang}/booking/confirmation`,
       cancel_path: `/${lang}/booking/cancel`,
     };
-  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, durationMinutes, dispositionHours, getEstimatedPrice, lang, paymentMethod, passengerCount, babySeatCount]);
+  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, durationMinutes, dispositionHours, getEstimatedPrice, lang, paymentMethod, passengerCount, babySeatCount, bookingRoute.addresses, bookingRoute.geocoded, bookingRoute.loading]);
 
   const submitCheckout = useCallback(async (payload, draftState = null) => {
     setBookingError('');
@@ -472,7 +475,14 @@ const BookingSection = () => {
     const draft = readBookingCheckoutDraft();
     if (!draft?.autoPayAfterAuth || !draft?.checkoutPayload || autoCheckoutStartedRef.current) return;
     autoCheckoutStartedRef.current = true;
-    submitCheckoutRef.current(draft.checkoutPayload, { ...draft, autoPayAfterAuth: false });
+    const payload = draft.checkoutPayload;
+    const savedAddresses = addressesFromBooking(payload);
+    if (!isAddress(savedAddresses.pickup) || !isAddress(savedAddresses.dropoff)) {
+      setStep(1);
+      setBookingError('Veuillez sélectionner les adresses géolocalisées avant de payer.');
+      return;
+    }
+    submitCheckoutRef.current(payload, { ...draft, autoPayAfterAuth: false });
   }, [user]);
 
   useEffect(() => {
@@ -766,7 +776,7 @@ const BookingSection = () => {
                         <p className="text-xs text-[#A1A1AA]">
                           {bookingRoute.route
                             ? `Calcul automatique · environ ${durationMinutes} min, hors trafic.`
-                            : 'Choisissez les adresses proposées ou sur la carte. Saisie manuelle possible si le routage est indisponible.'}
+                            : 'Choisissez et validez les deux adresses avant de poursuivre. Distance manuelle possible si le routage est indisponible.'}
                         </p>
                       </div>
                     )}

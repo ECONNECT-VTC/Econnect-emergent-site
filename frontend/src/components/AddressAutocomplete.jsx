@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import axios from 'axios';
 import { Input } from '@/components/ui/input';
-import { searchAddresses } from '@/utils/bookingMap';
+import { mapErrorMessage, searchAddresses } from '@/utils/bookingMap';
 
 export default function AddressAutocomplete({ value, onChange, onSelect, onFocus, selectedAddress, ...props }) {
   const listId = useId();
@@ -27,7 +27,7 @@ export default function AddressAutocomplete({ value, onChange, onSelect, onFocus
         if (!results.length) setError('Aucune adresse trouvée. Précisez la ville ou choisissez sur la carte.');
       } catch (err) {
         if (!controller.signal.aborted && !axios.isCancel(err)) {
-          setError('Recherche d’adresses indisponible. Réessayez ou choisissez sur la carte.');
+          setError(mapErrorMessage(err, 'Recherche d’adresses indisponible. Réessayez ou choisissez sur la carte.'));
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -55,6 +55,7 @@ export default function AddressAutocomplete({ value, onChange, onSelect, onFocus
         onFocus={() => { setFocused(true); onFocus?.(); }}
         onBlur={() => setFocused(false)}
         autoComplete="off"
+        maxLength={200}
         role="combobox"
         aria-autocomplete="list"
         aria-expanded={expanded}
@@ -93,6 +94,9 @@ export default function AddressAutocomplete({ value, onChange, onSelect, onFocus
       )}
       {focused && loading && <p role="status" className="mt-2 text-xs text-[#C7B588]">Recherche d’adresses…</p>}
       {focused && error && <p role="alert" className="mt-2 text-xs text-amber-300">{error}</p>}
+      {value && selectedAddress?.label !== value && (
+        <p className="mt-2 text-xs text-[#C7B588]">Choisissez une proposition ou un point sur la carte pour valider l’adresse.</p>
+      )}
     </div>
   );
 }

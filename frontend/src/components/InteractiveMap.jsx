@@ -82,7 +82,7 @@ const InteractiveMap = ({
         {loading ? <p role="status">Localisation et calcul de l’itinéraire…</p>
           : route ? <p>{route.distanceKm} km · environ {route.durationMinutes} min (hors trafic)</p>
             : <p>Sélectionnez le départ et l’arrivée pour afficher votre itinéraire.</p>}
-        {error && <p role="alert" className="mt-2 text-amber-300">{error} Vous pouvez renseigner une distance manuellement si nécessaire.</p>}
+        {error && <p role="alert" className="mt-2 text-amber-300">{error}</p>}
       </div>
     </div>
   );

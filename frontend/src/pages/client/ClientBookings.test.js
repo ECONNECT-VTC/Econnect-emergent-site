@@ -1,10 +1,21 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import axios from 'axios';
+import { fetchDrivingRoute } from '@/utils/bookingMap';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+let mockEditMap;
 
 jest.mock('axios');
+jest.mock('@/components/InteractiveMap', () => () => <div />);
+jest.mock('@/components/ReservationLocationFields', () => (props) => {
+  mockEditMap = props.map;
+  return <div data-testid="edit-locations" />;
+});
+jest.mock('@/utils/bookingMap', () => ({
+  ...jest.requireActual('../../utils/bookingMap'),
+  fetchDrivingRoute: jest.fn(),
+}));
 
 jest.mock('react-router-dom', () => {
   const React = require('react');
@@ -57,6 +68,8 @@ describe('ClientBookings invoice visibility', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    axios.put.mockReset();
+    fetchDrivingRoute.mockReset();
   });
 
   afterEach(async () => {
@@ -66,6 +79,30 @@ describe('ClientBookings invoice visibility', () => {
     container.remove();
     axios.get.mockReset();
     mockDownloadClientInvoicePdf.mockReset();
+  });
+
+  it('updates client addresses with coordinates and route metrics, blocking unvalidated changes', async () => {
+    const pickup = { label: 'Paris', position: [48.85, 2.35] };
+    const dropoff = { label: 'CDG', position: [49.01, 2.55] };
+    fetchDrivingRoute.mockResolvedValue({ positions: [pickup.position, dropoff.position], distanceKm: 28.5, durationMinutes: 36 });
+    axios.put.mockResolvedValue({ data: {} });
+    axios.get.mockResolvedValue({ data: [] });
+    await renderWithBookings([{
+      id: 'booking-edit', status: 'DRAFT', pickup_address: 'Paris', dropoff_address: 'CDG',
+      pickup_date: '10/11/2026', pickup_time: '10:30',
+      pickup_lat: 48.85, pickup_lng: 2.35, dropoff_lat: 49.01, dropoff_lng: 2.55,
+    }]);
+    const button = (text) => Array.from(container.querySelectorAll('button')).find((entry) => entry.textContent.includes(text));
+    await act(async () => button('Modifier').click());
+    expect(mockEditMap.valid).toBe(true);
+    await act(async () => button('Enregistrer les modifications').click());
+    expect(axios.put).toHaveBeenCalledWith('http://api.test/api/bookings/booking-edit', expect.objectContaining({
+      pickup_lat: 48.85, pickup_lng: 2.35, dropoff_lat: 49.01, dropoff_lng: 2.55,
+      distance_km: 28.5, duration_minutes: 36,
+    }), expect.any(Object));
+    await act(async () => mockEditMap.changeAddress('pickup', 'Orly'));
+    expect(mockEditMap.valid).toBe(false);
+    expect(button('Enregistrer les modifications').disabled).toBe(true);
   });
 
   it('does not render the invoice download button before completion', async () => {

@@ -1,7 +1,5 @@
 import axios from 'axios';
-
-const geocoderUrl = (process.env.REACT_APP_GEOCODER_URL || 'https://photon.komoot.io').replace(/\/+$/, '');
-const routerUrl = (process.env.REACT_APP_ROUTING_URL || 'https://router.project-osrm.org').replace(/\/+$/, '');
+import API_URL from '@/config';
 
 export const isCoordinate = (position) => Array.isArray(position)
   && position.length === 2
@@ -11,6 +9,27 @@ export const isCoordinate = (position) => Array.isArray(position)
 
 export const isAddress = (address) => typeof address?.label === 'string'
   && address.label.trim().length > 0 && isCoordinate(address.position);
+
+export const bookingCoordinates = (addresses) => {
+  if (!isAddress(addresses?.pickup) || !isAddress(addresses?.dropoff)) {
+    throw new Error('Choisissez et géocodez les adresses de départ et d’arrivée.');
+  }
+  return {
+    pickup_lat: addresses.pickup.position[0], pickup_lng: addresses.pickup.position[1],
+    dropoff_lat: addresses.dropoff.position[0], dropoff_lng: addresses.dropoff.position[1],
+  };
+};
+
+export const addressesFromBooking = (booking) => {
+  const address = (field) => {
+    const result = { label: booking?.[`${field}_address`], position: [booking?.[`${field}_lat`], booking?.[`${field}_lng`]] };
+    return isAddress(result) ? result : null;
+  };
+  return { pickup: address('pickup'), dropoff: address('dropoff') };
+};
+
+export const mapErrorMessage = (error, fallback) => typeof error?.response?.data?.detail === 'string'
+  ? error.response.data.detail : fallback;
 
 const readAddresses = (data) => {
   if (!Array.isArray(data?.features)) throw new Error('Réponse du service d’adresses invalide.');
@@ -27,20 +46,20 @@ const readAddresses = (data) => {
 };
 
 export const searchAddresses = async (query, signal) => {
-  const response = await axios.get(`${geocoderUrl}/api/`, {
-    params: { q: query, lang: 'fr', limit: 5, lat: 48.8566, lon: 2.3522 },
+  const response = await axios.post(`${API_URL}/api/map/search`, { q: query }, {
     signal,
-    timeout: 10000,
+    timeout: 15000,
+    withCredentials: true,
   });
   return readAddresses(response.data);
 };
 
 export const reverseAddress = async (position, signal) => {
   if (!isCoordinate(position)) throw new Error('Position invalide.');
-  const response = await axios.get(`${geocoderUrl}/reverse`, {
-    params: { lat: position[0], lon: position[1], lang: 'fr', limit: 1 },
+  const response = await axios.post(`${API_URL}/api/map/reverse`, { lat: position[0], lng: position[1] }, {
     signal,
-    timeout: 10000,
+    timeout: 15000,
+    withCredentials: true,
   });
   const address = readAddresses(response.data)[0];
   if (!address) throw new Error('Aucune adresse trouvée à cet endroit. Choisissez un autre point.');
@@ -49,11 +68,13 @@ export const reverseAddress = async (position, signal) => {
 
 export const fetchDrivingRoute = async (pickup, dropoff, signal) => {
   if (!isAddress(pickup) || !isAddress(dropoff)) throw new Error('Adresses invalides.');
-  const coordinates = [pickup, dropoff].map(({ position }) => `${position[1]},${position[0]}`).join(';');
-  const response = await axios.get(`${routerUrl}/route/v1/driving/${coordinates}`, {
-    params: { overview: 'full', geometries: 'geojson', steps: false },
+  const response = await axios.post(`${API_URL}/api/map/route`, {
+    pickup: { lat: pickup.position[0], lng: pickup.position[1] },
+    dropoff: { lat: dropoff.position[0], lng: dropoff.position[1] },
+  }, {
     signal,
     timeout: 15000,
+    withCredentials: true,
   });
   const route = response.data?.routes?.[0];
   const positions = route?.geometry?.coordinates?.map((point) => [point[1], point[0]]);

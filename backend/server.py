@@ -2,6 +2,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Standard library
 import asyncio
 import hashlib
+import math
 import logging
 import os
 import re
@@ -28,6 +29,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfgen import canvas
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
+from pydantic import ValidationError
+from booking_map import BookingCoordinates, MapPosition, MapRouteRequest, MapSearchRequest, MapService, enforce_map_limits, validate_route_response
 from email_service import (
     TEMPLATE_KEY_ACCOUNT_ACTIVATION,
     TEMPLATE_KEY_ADMIN_MESSAGE,
@@ -224,19 +228,13 @@ class DriverResponse(BaseModel):
     is_available: bool = True
     created_at: datetime
 
-class BookingBase(BaseModel):
+class BookingBase(BookingCoordinates):
     pickup_address: str
     dropoff_address: str
-    pickup_lat: Optional[float] = None
-    pickup_lng: Optional[float] = None
-    dropoff_lat: Optional[float] = None
-    dropoff_lng: Optional[float] = None
     pickup_date: str
     pickup_time: str
     transfer_type: str  # simple, retour, disposition
     vehicle_category_id: Optional[str] = None
-    distance_km: Optional[float] = None
-    duration_minutes: Optional[float] = None
     estimated_price: Optional[float] = None
     notes: Optional[str] = None
     disposition_hours: Optional[float] = None
@@ -252,7 +250,7 @@ class BookingBase(BaseModel):
 class BookingCreate(BookingBase):
     pass
 
-class AdminBookingCreate(BaseModel):
+class AdminBookingCreate(BookingCoordinates):
     client_name: str
     client_email: EmailStr
     pickup_address: str
@@ -265,8 +263,6 @@ class AdminBookingCreate(BaseModel):
     estimated_price: Optional[float] = None
     vehicle_category_id: Optional[str] = None
     disposition_hours: Optional[float] = None
-    distance_km: Optional[float] = None
-    duration_minutes: Optional[float] = None
     payment_mode: Optional[str] = None  # "immediate" | "deferred" | None (defaults to deferred)
     payment_method: Optional[str] = None
     payment_status: Optional[str] = None
@@ -4388,6 +4384,7 @@ async def resolve_vehicle_category_name(category_ref: Optional[str]) -> Optional
 @api_router.post("/bookings", response_model=BookingResponse)
 async def create_booking(booking: BookingCreate, request: Request):
     user = await get_current_user(request)
+    require_booking_coordinates(booking)
 
     vehicle_category_name = await resolve_vehicle_category_name(booking.vehicle_category_id)
 
@@ -4402,6 +4399,7 @@ async def create_booking(booking: BookingCreate, request: Request):
 async def create_booking_checkout(booking: BookingCheckoutCreate, request: Request):
     _ensure_stripe_configured()
     user = await get_current_user(request)
+    require_booking_coordinates(booking)
 
     estimated_price = booking.estimated_price
     if estimated_price is None or not isinstance(estimated_price, (int, float)) or float(estimated_price) <= 0:
@@ -4694,8 +4692,9 @@ async def update_booking(booking_id: str, payload: dict, request: Request):
         raise HTTPException(status_code=403, detail="Accès refusé")
     if normalize_booking_status(booking.get("status")) not in ("DRAFT", "QUOTE_SENT", "QUOTE_ACCEPTED"):
         raise HTTPException(status_code=400, detail="Impossible de modifier cette réservation")
-    allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", "transfer_type"]
+    allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", "transfer_type", *BookingCoordinates.model_fields]
     update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    update_data = validate_booking_location_update(booking, update_data)
     await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
     return await db.bookings.find_one({"id": booking_id}, {"_id": 0})
 
@@ -5237,6 +5236,7 @@ async def _send_admin_booking_notification(booking: dict, is_guest: bool, paymen
 @api_router.post("/admin/bookings", response_model=BookingResponse)
 async def create_admin_booking(booking: AdminBookingCreate, request: Request):
     await require_admin(request)
+    require_booking_coordinates(booking)
 
     # Look up client by email to link client_id
     existing_client = await db.users.find_one({"email": booking.client_email, "role": "client"})
@@ -5262,10 +5262,10 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "client_phone": booking.client_phone,
         "pickup_address": booking.pickup_address,
         "dropoff_address": booking.dropoff_address,
-        "pickup_lat": None,
-        "pickup_lng": None,
-        "dropoff_lat": None,
-        "dropoff_lng": None,
+        "pickup_lat": booking.pickup_lat,
+        "pickup_lng": booking.pickup_lng,
+        "dropoff_lat": booking.dropoff_lat,
+        "dropoff_lng": booking.dropoff_lng,
         "pickup_date": booking.pickup_date,
         "pickup_time": booking.pickup_time,
         "transfer_type": booking.transfer_type,
@@ -5599,8 +5599,10 @@ async def admin_update_booking(booking_id: str, payload: dict, request: Request)
         "vehicle_category_id",
         "payment_method",
         "payment_status",
+        *BookingCoordinates.model_fields,
     ]
     update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    update_data = validate_booking_location_update(booking, update_data)
     if "payment_method" in update_data:
         update_data["payment_method"] = normalize_payment_method_code(update_data.get("payment_method"))
     if "payment_status" in update_data:
@@ -5890,6 +5892,10 @@ async def estimate_price(
     Calculate price estimates for all vehicle categories.
     Standard transfers are based on distance; disposition transfers use hourly rates.
     """
+    if transfer_type not in {"simple", "retour", "disposition"} or not math.isfinite(distance_km) or not 0 <= distance_km <= 5000 or not math.isfinite(duration_minutes) or not 0 <= duration_minutes <= 10080:
+        raise HTTPException(422, "Paramètres de tarification invalides.")
+    if disposition_hours is not None and (not math.isfinite(disposition_hours) or disposition_hours <= 0):
+        raise HTTPException(422, "Nombre d’heures invalide.")
     await ensure_default_vehicle_categories()
     raw_categories = await db.vehicle_categories.find({"is_active": True}, {"_id": 0}).sort("order", 1).to_list(100)
     categories = []
@@ -6383,12 +6389,104 @@ async def root():
     return {"message": "Econnect VTC API", "version": "1.0.0"}
 
 # Include router and setup
+map_service = MapService()
+
+def require_booking_coordinates(booking):
+    if not booking.pickup_address.strip() or not booking.dropoff_address.strip():
+        raise HTTPException(422, "Les adresses de départ et d’arrivée sont nécessaires.")
+    if any(getattr(booking, key) is None for key in ("pickup_lat", "pickup_lng", "dropoff_lat", "dropoff_lng")):
+        raise HTTPException(422, "Géocodez les adresses de départ et d’arrivée avant de réserver.")
+
+
+def validate_booking_location_update(booking, update):
+    changed = any(key in update and update[key] != booking.get(key) for key in (
+        "pickup_address", "dropoff_address", "pickup_lat", "pickup_lng", "dropoff_lat", "dropoff_lng",
+    ))
+    if not changed and not set(update).intersection(BookingCoordinates.model_fields):
+        return update
+    if changed:
+        for key in ("pickup_lat", "pickup_lng", "dropoff_lat", "dropoff_lng"):
+            if update.get(key) is None:
+                raise HTTPException(422, "Géocodez les adresses avant de modifier le trajet.")
+        if not all(key in update for key in ("distance_km", "duration_minutes")):
+            raise HTTPException(422, "La distance et la durée du nouveau trajet sont nécessaires.")
+        if not all(isinstance(update.get(key, booking.get(key)), str) and update.get(key, booking.get(key)).strip() for key in ("pickup_address", "dropoff_address")):
+            raise HTTPException(422, "Adresses invalides.")
+    try:
+        validated = BookingCoordinates.model_validate({**{key: booking.get(key) for key in BookingCoordinates.model_fields}, **update})
+    except ValidationError:
+        raise HTTPException(422, "Coordonnées ou métriques du trajet invalides.")
+    return {**update, **validated.model_dump(include=set(update) & set(BookingCoordinates.model_fields))}
+
+async def read_map_body(request):
+    content = bytearray()
+    async for chunk in request.stream():
+        content.extend(chunk)
+        if len(content) > 4096:
+            raise HTTPException(413, "Requête trop volumineuse.")
+    request._body = bytes(content)
+
+
+@app.middleware("http")
+async def protect_map_requests(request: Request, call_next):
+    if request.method != "OPTIONS" and (request.url.path.startswith("/api/map/") or request.url.path == "/api/estimate-price"):
+        try:
+            origin = request.headers.get("origin")
+            if origin and origin not in get_cors_origins():
+                raise HTTPException(403, "Origine de la requête non autorisée.")
+            identity = request.client.host if request.client else "unknown"
+            await enforce_map_limits(db, identity, None, JWT_SECRET)
+            account = await get_current_user(request) if request.cookies.get("access_token") or request.headers.get("Authorization") else None
+            if account:
+                await enforce_map_limits(db, identity, account["id"], JWT_SECRET, include_public=False)
+            if len(str(request.url)) > 4096:
+                raise HTTPException(414, "Requête trop longue.")
+            if request.method == "POST":
+                try:
+                    await asyncio.wait_for(read_map_body(request), timeout=3)
+                except asyncio.TimeoutError:
+                    raise HTTPException(408, "Délai de réception de la requête dépassé.")
+        except HTTPException as exc:
+            headers = dict(exc.headers or {})
+            if request.headers.get("origin") in get_cors_origins():
+                headers.update({
+                    "Access-Control-Allow-Origin": request.headers["origin"],
+                    "Access-Control-Allow-Credentials": "true",
+                    "Vary": "Origin",
+                })
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=headers)
+    return await call_next(request)
+
+
+@api_router.post("/map/search")
+async def search_map_addresses(payload: MapSearchRequest):
+    query = payload.q.strip()
+    if not 3 <= len(query) <= 200 or any(ord(char) < 32 for char in query):
+        raise HTTPException(422, "Saisissez une adresse de 3 à 200 caractères.")
+    return await map_service.request("/api/", {"q": query, "lang": "fr", "limit": 5, "lat": 48.8566, "lon": 2.3522})
+
+
+@api_router.post("/map/reverse")
+async def reverse_map_address(position: MapPosition):
+    return await map_service.request("/reverse", {"lat": position.lat, "lon": position.lng, "lang": "fr", "limit": 1})
+
+
+@api_router.post("/map/route")
+async def calculate_map_route(payload: MapRouteRequest):
+    if abs(payload.pickup.lat - payload.dropoff.lat) > 30 or abs(payload.pickup.lng - payload.dropoff.lng) > 45:
+        raise HTTPException(422, "Trajet trop long pour une réservation.")
+    coordinates = f"{payload.pickup.lng},{payload.pickup.lat};{payload.dropoff.lng},{payload.dropoff.lat}"
+    data = await map_service.request(f"/route/v1/driving/{coordinates}", {"overview": "full", "geometries": "geojson", "steps": "false"}, routing=True)
+    return validate_route_response(data)
+
+
 app.include_router(api_router)
 
 # ==================== STARTUP EVENTS ====================
 
 @app.on_event("startup")
 async def startup_event():
+    await db.map_request_limits.create_index("expires_at", expireAfterSeconds=0)
     # Create indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)

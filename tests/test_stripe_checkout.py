@@ -112,6 +112,7 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
 
         fake_db = SimpleNamespace(bookings=bookings, vehicle_categories=vehicle_categories)
         payload = server.BookingCheckoutCreate(
+            pickup_lat=48.85, pickup_lng=2.35, dropoff_lat=49.01, dropoff_lng=2.55,
             pickup_address="Aéroport CDG",
             dropoff_address="Paris",
             pickup_date="20/06/2026",
@@ -150,6 +151,7 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
 
         fake_db = SimpleNamespace(bookings=bookings, vehicle_categories=vehicle_categories)
         payload = server.BookingCheckoutCreate(
+            pickup_lat=48.85, pickup_lng=2.35, dropoff_lat=49.01, dropoff_lng=2.55,
             pickup_address="Aéroport CDG",
             dropoff_address="Paris",
             pickup_date="20/06/2026",
