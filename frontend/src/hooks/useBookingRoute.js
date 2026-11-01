@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { fetchDrivingRoute, isAddress, reverseAddress } from '@/utils/bookingMap';
+import { fetchDrivingRoute, isAddress, mapErrorMessage, reverseAddress } from '@/utils/bookingMap';
 
 const emptyAddresses = { pickup: null, dropoff: null };
 
@@ -49,7 +49,7 @@ export default function useBookingRoute({ pickup, dropoff, setPickup, setDropoff
       if (!controller.signal.aborted) selectAddress(activeField, address);
     } catch (err) {
       if (!controller.signal.aborted && !axios.isCancel(err)) {
-        setError(err.message || 'Impossible de localiser cette adresse.');
+        setError(mapErrorMessage(err, err.message || 'Impossible de localiser cette adresse.'));
       }
     } finally {
       if (!controller.signal.aborted) setLoading(false);
@@ -72,7 +72,7 @@ export default function useBookingRoute({ pickup, dropoff, setPickup, setDropoff
       })
       .catch((err) => {
         if (!controller.signal.aborted && !axios.isCancel(err)) {
-          setError(err.message || 'Impossible de calculer l’itinéraire.');
+          setError(mapErrorMessage(err, err.message || 'Impossible de calculer l’itinéraire.'));
         }
       })
       .finally(() => {
@@ -101,6 +101,8 @@ export default function useBookingRoute({ pickup, dropoff, setPickup, setDropoff
   }, []);
 
   return {
+    geocoded: isAddress(addresses.pickup) && isAddress(addresses.dropoff)
+      && addresses.pickup.label === pickup && addresses.dropoff.label === dropoff,
     addresses, activeField, setActiveField, route, loading, error,
     changeAddress, selectAddress, selectMapPosition, reset, restoreAddresses,
   };

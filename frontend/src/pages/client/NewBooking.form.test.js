@@ -155,11 +155,30 @@ describe('NewBooking form rendering', () => {
     await act(async () => container.querySelector('[data-testid="vehicle-berline-id"]').click());
     await act(async () => container.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
     expect(createCheckoutSession).toHaveBeenCalledWith(expect.objectContaining({
+      pickup_lat: 48.85, pickup_lng: 2.35, dropoff_lat: 49.01, dropoff_lng: 2.55,
       pickup_address: 'Paris', dropoff_address: 'CDG', distance_km: 28.5, duration_minutes: 36, estimated_price: 75,
     }));
     expect(saveBookingCheckoutDraft).toHaveBeenCalledWith(expect.objectContaining({
       mapAddresses: { pickup, dropoff }, durationMinutes: '36',
     }));
     jest.useRealTimers();
+  });
+
+  it('blocks typed addresses that have not been selected or geocoded', async () => {
+    await act(async () => root.render(<NewBooking />));
+    await act(async () => {
+      lastCalendarProps.onSelect(new Date('2026-11-10'));
+      container.querySelector('[data-value="10:30"]').click();
+      container.querySelector('[data-value="simple"]').click();
+      container.querySelector('[data-testid="vehicle-berline-id"]').click();
+      for (const name of ['pickup', 'dropoff']) {
+        const input = container.querySelector(`[data-testid="${name}-input"]`);
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Paris');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    await act(async () => container.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(createCheckoutSession).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Choisissez et géocodez');
   });
 });

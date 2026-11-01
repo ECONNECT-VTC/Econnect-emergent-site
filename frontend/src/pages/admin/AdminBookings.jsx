@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams, useParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,8 @@ import {
 import { buildAdminEstimatePriceQuery, toOptionalNumber } from './adminBookingUtils';
 import { logApiError, parseApiError } from '../../utils/apiErrors';
 
-const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY;
+import useBookingFormMap from '@/hooks/useBookingFormMap';
+import ReservationLocationFields from '@/components/ReservationLocationFields';
 
 const describeLoadFailure = (label, error) => `${label} : ${parseApiError(error, 'Erreur inconnue')}`;
 const PAYMENT_AWAITING_STATUSES = ['pending', 'partially_paid'];
@@ -96,6 +97,8 @@ const AdminBookings = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const createMap = useBookingFormMap(createForm, setCreateForm);
+  const editMap = useBookingFormMap(editForm, setEditForm);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [adminFleet, setAdminFleet] = useState([]);
   const [assignSelfDialogOpen, setAssignSelfDialogOpen] = useState(false);
@@ -110,86 +113,6 @@ const AdminBookings = () => {
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
   const [statusUpdatingId, setStatusUpdatingId] = useState('');
   const [documentActionId, setDocumentActionId] = useState('');
-  const [googleMapsReady, setGoogleMapsReady] = useState(Boolean(window.google?.maps?.places));
-  const pickupRef = useRef(null);
-  const dropoffRef = useRef(null);
-
-  useEffect(() => {
-    if (!GOOGLE_MAPS_API_KEY) return;
-
-    const existingScript = document.getElementById('google-maps-script');
-    const handleLoad = () => setGoogleMapsReady(Boolean(window.google?.maps?.places));
-
-    if (window.google?.maps?.places) {
-      setGoogleMapsReady(true);
-      return undefined;
-    }
-
-    if (existingScript) {
-      existingScript.addEventListener('load', handleLoad);
-      return () => existingScript.removeEventListener('load', handleLoad);
-    }
-
-    const script = document.createElement('script');
-    script.id = 'google-maps-script';
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
-    script.async = true;
-    script.addEventListener('load', handleLoad);
-    document.head.appendChild(script);
-
-    return () => script.removeEventListener('load', handleLoad);
-  }, []);
-
-  useEffect(() => {
-    if (!createDialogOpen || !window.google?.maps?.places) return;
-
-    const calculateDistance = (origin, destination) => {
-      if (!origin || !destination || !window.google?.maps?.DistanceMatrixService) return;
-      const service = new window.google.maps.DistanceMatrixService();
-      service.getDistanceMatrix(
-        { origins: [origin], destinations: [destination], travelMode: window.google.maps.TravelMode.DRIVING },
-        (response, status) => {
-          if (status === 'OK') {
-            const element = response.rows?.[0]?.elements?.[0];
-            if (element?.status === 'OK' && element.distance) {
-              const km = Math.round((element.distance.value / 1000) * 10) / 10;
-              const mins = element.duration?.value ? Math.round(element.duration.value / 60) : null;
-              setCreateForm((prev) => ({ ...prev, distance_km: String(km), duration_minutes: mins != null ? String(mins) : prev.duration_minutes }));
-            }
-          }
-        }
-      );
-    };
-
-    const setupAutocomplete = (inputRef, field) => {
-      if (!inputRef.current) return null;
-
-      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, { types: ['address'] });
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        const address = place.formatted_address || '';
-        setCreateForm((prev) => {
-          const next = { ...prev, [field]: address };
-          const pickup = field === 'pickup_address' ? address : prev.pickup_address;
-          const dropoff = field === 'dropoff_address' ? address : prev.dropoff_address;
-          if (pickup && dropoff) {
-            setTimeout(() => calculateDistance(pickup, dropoff), 0);
-          }
-          return next;
-        });
-      });
-
-      return autocomplete;
-    };
-
-    const pickupAutocomplete = setupAutocomplete(pickupRef, 'pickup_address');
-    const dropoffAutocomplete = setupAutocomplete(dropoffRef, 'dropoff_address');
-
-    return () => {
-      if (pickupAutocomplete) window.google.maps.event.clearInstanceListeners(pickupAutocomplete);
-      if (dropoffAutocomplete) window.google.maps.event.clearInstanceListeners(dropoffAutocomplete);
-    };
-  }, [createDialogOpen, googleMapsReady]);
 
   const fetchData = useCallback(async (includeUnpaidPending = false) => {
     setLoading(true);
@@ -260,13 +183,15 @@ const AdminBookings = () => {
     });
     if (!queryString) return;
 
+    const controller = new AbortController();
     const debounceTimer = setTimeout(async () => {
       try {
         const response = await axios.post(
           `${API_URL}/api/estimate-price?${queryString}`,
           {},
-          { withCredentials: true },
+          { withCredentials: true, signal: controller.signal },
         );
+        if (controller.signal.aborted) return;
         const estimates = Array.isArray(response.data) ? response.data : [];
         if (estimates.length === 0) return;
 
@@ -277,19 +202,22 @@ const AdminBookings = () => {
               estimates,
               createForm.vehicle_category_id,
               selectedCategory?.name,
-            ) || estimates[0]
+            )
           )
           : estimates[0];
         const estimatedPrice = toOptionalNumber(selectedEstimate?.final_price);
         if (estimatedPrice === null) return;
 
         setCreateForm((prev) => ({ ...prev, estimated_price: String(estimatedPrice) }));
-      } catch {
-        // keep manual value if estimate endpoint is unavailable
+      } catch (err) {
+        if (!controller.signal.aborted && !axios.isCancel(err)) {
+          setError(parseApiError(err, 'Calcul du tarif indisponible. Vous pouvez conserver un prix manuel.'));
+          logApiError('AdminBookings.estimatePrice', err);
+        }
       }
     }, 450);
 
-    return () => clearTimeout(debounceTimer);
+    return () => { clearTimeout(debounceTimer); controller.abort(); };
   }, [
     createDialogOpen,
     createForm.transfer_type,
@@ -339,12 +267,17 @@ const AdminBookings = () => {
   const handleCreateDialogOpenChange = (open) => {
     setCreateDialogOpen(open);
     if (!open) {
+      createMap.reset();
       setSelectedClientId('');
       setCreateForm(getInitialCreateForm());
     }
   };
 
   const handleCreateBooking = async () => {
+    if (!createMap.valid) {
+      setError('Choisissez et géocodez les deux adresses avant de créer la réservation.');
+      return;
+    }
     setCreating(true);
     setError('');
     try {
@@ -352,6 +285,7 @@ const AdminBookings = () => {
         `${API_URL}/api/admin/bookings`,
         {
           ...createForm,
+          ...createMap.coordinatePayload(),
           vehicle_category_id: createForm.vehicle_category_id || null,
           estimated_price: toOptionalNumber(createForm.estimated_price),
           distance_km: toOptionalNumber(createForm.distance_km),
@@ -543,6 +477,7 @@ const AdminBookings = () => {
   };
 
   const openEditDialog = (booking) => {
+    editMap.restoreBooking(booking);
     setEditingBooking(booking);
     setEditForm({
       pickup_address: booking.pickup_address || '',
@@ -559,10 +494,18 @@ const AdminBookings = () => {
 
   const handleEditSubmit = async () => {
     if (!editingBooking) return;
+    if (!editMap.valid) {
+      setError('Choisissez et géocodez les deux adresses avant d’enregistrer.');
+      return;
+    }
     setEditSubmitting(true);
     setError('');
     try {
-      const payload = { ...editForm };
+      const payload = {
+        ...editForm, ...editMap.coordinatePayload(),
+        distance_km: toOptionalNumber(editForm.distance_km),
+        duration_minutes: toOptionalNumber(editForm.duration_minutes),
+      };
       if (payload.estimated_price !== '') payload.estimated_price = Number(payload.estimated_price);
       else delete payload.estimated_price;
       payload.payment_method = normalizePaymentMethod(payload.payment_method) || null;
@@ -658,7 +601,7 @@ const AdminBookings = () => {
     createForm.dropoff_address.trim() &&
     createForm.pickup_date.trim() &&
     createForm.pickup_time &&
-    createForm.transfer_type;
+    createForm.transfer_type && createMap.valid;
   const selectedCreateCategory = vehicleCategories.find((category) => category.id === createForm.vehicle_category_id) || null;
   const selectedCreateCategoryPresentation = getVehicleCategoryPresentation(selectedCreateCategory?.name);
 
@@ -1050,12 +993,7 @@ const AdminBookings = () => {
               <Input value={createForm.pickup_date} onChange={(e) => updateCreateField('pickup_date', e.target.value)} placeholder="dd/MM/yyyy" className="bg-[#1E1E1E] border-white/10" />
             </div>
             <div className="md:col-span-2">
-              <p className="text-sm text-[#A1A1AA] mb-2">Adresse de départ *</p>
-              <Input ref={pickupRef} value={createForm.pickup_address} onChange={(e) => updateCreateField('pickup_address', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
-            </div>
-            <div className="md:col-span-2">
-              <p className="text-sm text-[#A1A1AA] mb-2">Adresse d'arrivée *</p>
-              <Input ref={dropoffRef} value={createForm.dropoff_address} onChange={(e) => updateCreateField('dropoff_address', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+              <ReservationLocationFields form={createForm} map={createMap} idPrefix="admin-create" />
             </div>
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Heure de prise en charge *</p>
@@ -1133,12 +1071,13 @@ const AdminBookings = () => {
               <Input type="number" min="0" step="0.01" value={createForm.estimated_price} onChange={(e) => updateCreateField('estimated_price', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
             </div>
             <div>
-              <p className="text-sm text-[#A1A1AA] mb-2">Distance (km) {GOOGLE_MAPS_API_KEY ? <span className="text-xs text-green-400">— calculée auto</span> : null}</p>
+              <p className="text-sm text-[#A1A1AA] mb-2">Distance (km) — calculée automatiquement</p>
               <Input
                 type="number" min="0" step="0.1"
                 value={createForm.distance_km}
+                readOnly={Boolean(createMap.route) || createMap.loading}
                 onChange={(e) => updateCreateField('distance_km', e.target.value)}
-                placeholder={GOOGLE_MAPS_API_KEY ? 'Calculée automatiquement' : 'Ex: 15.5'}
+                placeholder="Calculée automatiquement"
                 className="bg-[#1E1E1E] border-white/10"
               />
             </div>
@@ -1204,6 +1143,7 @@ const AdminBookings = () => {
           >
             {creating ? 'Création...' : 'Créer la course'}
           </Button>
+          {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
         </DialogContent>
       </Dialog>
 
@@ -1374,19 +1314,12 @@ const AdminBookings = () => {
       </Dialog>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="bg-[#141414] border-white/10 max-w-lg">
+        <DialogContent className="bg-[#141414] border-white/10 max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[#D4AF37]">Modifier la réservation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div>
-              <p className="text-sm text-[#A1A1AA] mb-2">Adresse de départ</p>
-              <Input value={editForm.pickup_address || ''} onChange={(e) => setEditForm({ ...editForm, pickup_address: e.target.value })} className="bg-[#1E1E1E] border-white/10" />
-            </div>
-            <div>
-              <p className="text-sm text-[#A1A1AA] mb-2">Adresse d'arrivée</p>
-              <Input value={editForm.dropoff_address || ''} onChange={(e) => setEditForm({ ...editForm, dropoff_address: e.target.value })} className="bg-[#1E1E1E] border-white/10" />
-            </div>
+            <ReservationLocationFields form={editForm} map={editMap} idPrefix="admin-edit" />
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-[#A1A1AA] mb-2">Date</p>
@@ -1433,7 +1366,7 @@ const AdminBookings = () => {
               </Select>
             </div>
             {error && <p className="text-sm text-red-400">{error}</p>}
-            <Button onClick={handleEditSubmit} disabled={editSubmitting} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
+            <Button onClick={handleEditSubmit} disabled={editSubmitting || !editMap.valid} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
               {editSubmitting ? 'Enregistrement...' : 'Enregistrer les modifications'}
             </Button>
           </div>

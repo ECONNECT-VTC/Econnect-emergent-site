@@ -1,13 +1,25 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import axios from 'axios';
+import { fetchDrivingRoute, reverseAddress } from '@/utils/bookingMap';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let mockSearchParams = new URLSearchParams();
+const mockMaps = {};
 
 jest.mock('axios');
 jest.mock('@/config', () => 'http://api.test', { virtual: true });
 jest.mock('@/components/BookingComments', () => () => null, { virtual: true });
+jest.mock('@/components/InteractiveMap', () => () => <div />);
+jest.mock('@/components/ReservationLocationFields', () => (props) => {
+  mockMaps[props.idPrefix] = props.map;
+  return <div data-testid={props.idPrefix} />;
+});
+jest.mock('@/utils/bookingMap', () => ({
+  ...jest.requireActual('../../utils/bookingMap'),
+  fetchDrivingRoute: jest.fn(),
+  reverseAddress: jest.fn(),
+}));
 jest.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'admin-1', role: 'admin' } }),
 }), { virtual: true });
@@ -37,13 +49,20 @@ jest.mock('@/components/ui/input', () => {
 jest.mock('@/components/ui/textarea', () => ({
   Textarea: (props) => <textarea {...props} />,
 }), { virtual: true });
-jest.mock('@/components/ui/select', () => ({
-  Select: ({ children }) => <div>{children}</div>,
-  SelectContent: ({ children }) => <div>{children}</div>,
-  SelectItem: ({ children }) => <div>{children}</div>,
-  SelectTrigger: ({ children }) => <div>{children}</div>,
-  SelectValue: ({ children }) => <div>{children}</div>,
-}), { virtual: true });
+jest.mock('@/components/ui/select', () => {
+  const React = require('react');
+  const Context = React.createContext(null);
+  return {
+    Select: ({ children, onValueChange }) => <Context.Provider value={onValueChange}>{children}</Context.Provider>,
+    SelectContent: ({ children }) => <div>{children}</div>,
+    SelectItem: ({ children, value }) => {
+      const change = React.useContext(Context);
+      return <button type="button" data-value={value} onClick={() => change?.(value)}>{children}</button>;
+    },
+    SelectTrigger: ({ children }) => <div>{children}</div>,
+    SelectValue: ({ children }) => <div>{children}</div>,
+  };
+}, { virtual: true });
 jest.mock('@phosphor-icons/react', () => ({
   CalendarCheck: () => null,
   CarSimple: () => null,
@@ -89,6 +108,10 @@ const AdminBookings = require('./AdminBookings').default;
 describe('AdminBookings', () => {
   let container;
   let root;
+  const findButton = (text) => Array.from(container.querySelectorAll('button')).find((button) => button.textContent.includes(text));
+  const pickup = { label: 'Paris', position: [48.85, 2.35] };
+  const dropoff = { label: 'CDG', position: [49.01, 2.55] };
+  const route = { positions: [pickup.position, dropoff.position], distanceKm: 28.5, durationMinutes: 36 };
 
   beforeEach(() => {
     mockSearchParams = new URLSearchParams();
@@ -96,6 +119,10 @@ describe('AdminBookings', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     axios.get.mockReset();
+    axios.post.mockReset();
+    axios.put.mockReset();
+    fetchDrivingRoute.mockReset();
+    reverseAddress.mockReset();
   });
 
   afterEach(async () => {
@@ -103,6 +130,56 @@ describe('AdminBookings', () => {
       root.unmount();
     });
     container.remove();
+  });
+
+  it('creates an admin booking with the same coordinate contract and preserves manual pricing/payment', async () => {
+    axios.get.mockResolvedValue({ data: [] });
+    axios.post.mockResolvedValue({ data: {} });
+    fetchDrivingRoute.mockResolvedValue(route);
+    reverseAddress.mockResolvedValueOnce(pickup).mockResolvedValueOnce(dropoff);
+    await act(async () => root.render(<AdminBookings />));
+    const setInput = (label, value) => {
+      const paragraph = Array.from(container.querySelectorAll('p')).find((element) => element.textContent === label);
+      const input = paragraph.parentElement.querySelector('input');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    await act(async () => {
+      setInput('Nom du client *', 'Client Test');
+      setInput('Email du client *', 'client@example.com');
+      setInput('Date de prise en charge *', '10/11/2026');
+      setInput('Prix estimé (€)', '75');
+      container.querySelector('[data-value="10:30"]').click();
+    });
+    expect(findButton('Créer la course').disabled).toBe(true);
+    await act(async () => mockMaps['admin-create'].selectMapPosition(pickup.position));
+    await act(async () => mockMaps['admin-create'].selectMapPosition(dropoff.position));
+    expect(findButton('Créer la course').disabled).toBe(false);
+    await act(async () => findButton('Créer la course').click());
+    expect(axios.post).toHaveBeenCalledWith('http://api.test/api/admin/bookings', expect.objectContaining({
+      pickup_address: 'Paris', dropoff_address: 'CDG',
+      pickup_lat: 48.85, pickup_lng: 2.35, dropoff_lat: 49.01, dropoff_lng: 2.55,
+      distance_km: 28.5, duration_minutes: 36, estimated_price: 75, payment_mode: 'deferred',
+    }), expect.objectContaining({ withCredentials: true }));
+  });
+
+  it('restores saved coordinates for admin edits and invalidates them when typing', async () => {
+    axios.get.mockImplementation((url) => Promise.resolve({ data: url.includes('/api/admin/bookings') ? [{
+      id: 'booking-edit', client_name: 'Client', status: 'DRAFT', pickup_address: 'Paris',
+      dropoff_address: 'CDG', pickup_lat: 48.85, pickup_lng: 2.35, dropoff_lat: 49.01, dropoff_lng: 2.55,
+    }] : [] }));
+    axios.put.mockResolvedValue({ data: {} });
+    fetchDrivingRoute.mockResolvedValue(route);
+    await act(async () => root.render(<AdminBookings />));
+    await act(async () => findButton('Modifier').click());
+    expect(mockMaps['admin-edit'].valid).toBe(true);
+    await act(async () => findButton('Enregistrer les modifications').click());
+    expect(axios.put).toHaveBeenCalledWith('http://api.test/api/admin/bookings/booking-edit', expect.objectContaining({
+      pickup_lat: 48.85, pickup_lng: 2.35, dropoff_lat: 49.01, dropoff_lng: 2.55,
+      distance_km: 28.5, duration_minutes: 36,
+    }), expect.any(Object));
+    await act(async () => mockMaps['admin-edit'].changeAddress('pickup', 'Orly'));
+    expect(findButton('Enregistrer les modifications').disabled).toBe(true);
   });
 
   it('keeps reservations visible when a secondary endpoint fails', async () => {

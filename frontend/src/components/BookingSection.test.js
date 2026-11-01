@@ -205,6 +205,8 @@ describe('BookingSection', () => {
       new Event('submit', { bubbles: true, cancelable: true })
     ));
     expect(createCheckoutSession).toHaveBeenCalledWith(expect.objectContaining({
+      pickup_lat: pickup.position[0], pickup_lng: pickup.position[1],
+      dropoff_lat: dropoff.position[0], dropoff_lng: dropoff.position[1],
       pickup_address: pickup.label, dropoff_address: dropoff.label,
       distance_km: 28.5, duration_minutes: 36, estimated_price: 75,
     }));
@@ -225,5 +227,16 @@ describe('BookingSection', () => {
     expect(container.querySelector('[data-testid="continue-booking-step-3"]').disabled).toBe(true);
     expect(createCheckoutSession).not.toHaveBeenCalled();
     log.mockRestore();
+  });
+
+  it('blocks an old checkout draft without geocoded addresses after authentication', async () => {
+    mockReadBookingCheckoutDraft.mockReturnValue({
+      autoPayAfterAuth: true, step: 3,
+      checkoutPayload: { pickup_address: 'Paris', dropoff_address: 'CDG', estimated_price: 75 },
+    });
+    await act(async () => root.render(<BookingSection />));
+    expect(createCheckoutSession).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]').textContent).toContain('adresses géolocalisées');
+    expect(container.querySelector('[data-testid="booking-form"]')).not.toBeNull();
   });
 });

@@ -24,6 +24,7 @@ import { createCheckoutSession, saveBookingCheckoutDraft } from '@/utils/booking
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import InteractiveMap from '@/components/InteractiveMap';
 import useBookingRoute from '@/hooks/useBookingRoute';
+import { bookingCoordinates } from '@/utils/bookingMap';
 
 const NewBooking = () => {
   const enableDebugLogging = process.env.NODE_ENV !== 'production';
@@ -225,6 +226,10 @@ const NewBooking = () => {
       setError('Veuillez choisir une gamme de véhicule');
       return;
     }
+    if (!bookingRoute.geocoded) {
+      setError('Choisissez et géocodez les adresses de départ et d’arrivée avant de réserver.');
+      return;
+    }
 
     if (transferType === 'disposition' && !dispositionHours) {
       setError('Veuillez indiquer le nombre d\'heures de mise à disposition');
@@ -241,6 +246,7 @@ const NewBooking = () => {
 
     try {
       const payload = {
+        ...bookingCoordinates(bookingRoute.addresses),
         pickup_address: pickup,
         dropoff_address: dropoff,
         pickup_date: format(date, 'dd/MM/yyyy', { locale: fr }),

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import useBookingFormMap from '@/hooks/useBookingFormMap';
+import ReservationLocationFields from '@/components/ReservationLocationFields';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -34,6 +36,7 @@ const ClientBookings = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const editMap = useBookingFormMap(editForm, setEditForm);
   const [editSubmitting, setEditSubmitting] = useState(false);
 
   const fetchBookings = async () => {
@@ -70,6 +73,7 @@ const ClientBookings = () => {
   };
 
   const openEditDialog = (booking) => {
+    editMap.restoreBooking(booking);
     setEditingBooking(booking);
     setEditForm({
       pickup_address: booking.pickup_address || '',
@@ -83,10 +87,18 @@ const ClientBookings = () => {
 
   const handleEditSubmit = async () => {
     if (!editingBooking) return;
+    if (!editMap.valid) {
+      setError('Choisissez et géocodez les deux adresses avant d’enregistrer.');
+      return;
+    }
     setEditSubmitting(true);
     setError('');
     try {
-      await axios.put(`${API_URL}/api/bookings/${editingBooking.id}`, editForm, { withCredentials: true });
+      await axios.put(`${API_URL}/api/bookings/${editingBooking.id}`, {
+        ...editForm, ...editMap.coordinatePayload(),
+        distance_km: editForm.distance_km ? Number(editForm.distance_km) : null,
+        duration_minutes: editForm.duration_minutes ? Number(editForm.duration_minutes) : null,
+      }, { withCredentials: true });
       setEditDialogOpen(false);
       setEditingBooking(null);
       fetchBookings();
@@ -263,19 +275,12 @@ const ClientBookings = () => {
       </Dialog>
 
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="bg-[#141414] border-white/10 max-w-lg">
+        <DialogContent className="bg-[#141414] border-white/10 max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-[#D4AF37]">Modifier la réservation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div>
-              <p className="text-sm text-[#A1A1AA] mb-2">Adresse de départ</p>
-              <Input value={editForm.pickup_address || ''} onChange={(e) => setEditForm({ ...editForm, pickup_address: e.target.value })} className="bg-[#1E1E1E] border-white/10" />
-            </div>
-            <div>
-              <p className="text-sm text-[#A1A1AA] mb-2">Adresse d'arrivée</p>
-              <Input value={editForm.dropoff_address || ''} onChange={(e) => setEditForm({ ...editForm, dropoff_address: e.target.value })} className="bg-[#1E1E1E] border-white/10" />
-            </div>
+            <ReservationLocationFields form={editForm} map={editMap} idPrefix="client-edit" />
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-[#A1A1AA] mb-2">Date</p>
@@ -291,7 +296,7 @@ const ClientBookings = () => {
               <Input value={editForm.notes || ''} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} className="bg-[#1E1E1E] border-white/10" />
             </div>
             {error && <p className="text-sm text-red-400">{error}</p>}
-            <Button onClick={handleEditSubmit} disabled={editSubmitting} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
+            <Button onClick={handleEditSubmit} disabled={editSubmitting || !editMap.valid} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]">
               {editSubmitting ? 'Enregistrement...' : 'Enregistrer les modifications'}
             </Button>
           </div>

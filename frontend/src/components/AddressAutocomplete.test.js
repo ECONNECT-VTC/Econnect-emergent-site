@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client';
 import AddressAutocomplete from './AddressAutocomplete';
 import { searchAddresses } from '@/utils/bookingMap';
 
-jest.mock('@/utils/bookingMap', () => ({ searchAddresses: jest.fn() }));
+jest.mock('@/utils/bookingMap', () => ({
+  ...jest.requireActual('../utils/bookingMap'),
+  searchAddresses: jest.fn(),
+}));
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const address = { label: 'Gare du Nord, Paris', position: [48.88, 2.35] };
 let selected;
