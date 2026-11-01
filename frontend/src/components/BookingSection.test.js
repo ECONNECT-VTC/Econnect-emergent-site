@@ -1,11 +1,14 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import axios from 'axios';
+import { fetchDrivingRoute, reverseAddress } from '@/utils/bookingMap';
+import { createCheckoutSession, saveBookingCheckoutDraft } from '@/utils/bookingCheckout';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let lastCalendarProps = null;
 const mockReadBookingCheckoutDraft = jest.fn();
+let mockMapProps;
 
 jest.mock('axios');
 jest.mock('@/config', () => 'http://api.test', { virtual: true });
@@ -49,7 +52,12 @@ jest.mock('@/components/ui/calendar', () => ({
     return <div data-testid="calendar-component" />;
   },
 }), { virtual: true });
-jest.mock('./InteractiveMap', () => () => <div />, { virtual: true });
+jest.mock('./InteractiveMap', () => (props) => { mockMapProps = props; return <div />; }, { virtual: true });
+jest.mock('@/utils/bookingMap', () => ({
+  ...jest.requireActual('../utils/bookingMap'),
+  fetchDrivingRoute: jest.fn(),
+  reverseAddress: jest.fn(),
+}));
 jest.mock('@/components/VehicleFeatureBadges', () => ({
   PremiumWifiIcon: () => null,
 }), { virtual: true });
@@ -95,6 +103,10 @@ describe('BookingSection', () => {
   beforeEach(() => {
     lastCalendarProps = null;
     mockReadBookingCheckoutDraft.mockReset();
+    fetchDrivingRoute.mockReset();
+    reverseAddress.mockReset();
+    createCheckoutSession.mockReset();
+    saveBookingCheckoutDraft.mockClear();
     HTMLElement.prototype.scrollIntoView = jest.fn();
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -159,5 +171,59 @@ describe('BookingSection', () => {
 
     expect(container.textContent).toContain('20% du montant de la course sera payé maintenant');
     expect(container.textContent).toContain('Payer l’acompte et confirmer');
+  });
+
+  it('uses map-selected addresses and driving metrics for public pricing, checkout and drafts', async () => {
+    const pickup = { label: 'Gare du Nord, Paris', position: [48.88, 2.35] };
+    const dropoff = { label: 'Aéroport CDG', position: [49.01, 2.55] };
+    const route = { distanceKm: 28.5, durationMinutes: 36, positions: [pickup.position, dropoff.position] };
+    mockReadBookingCheckoutDraft.mockReturnValue({
+      step: 1, date: '2026-11-10T10:00:00.000Z', time: '10:30', transferType: 'simple',
+    });
+    reverseAddress.mockResolvedValueOnce(pickup).mockResolvedValueOnce(dropoff);
+    fetchDrivingRoute.mockResolvedValue(route);
+    axios.post.mockResolvedValue({ data: [{ category_name: 'Berline', final_price: 75 }] });
+    createCheckoutSession.mockRejectedValue(new Error('Payment not started in test'));
+    await act(async () => root.render(<BookingSection />));
+    await act(async () => mockMapProps.onSelectPosition(pickup.position));
+    await act(async () => mockMapProps.onSelectPosition(dropoff.position));
+    expect(container.querySelector('[data-testid="pickup-input"]').value).toBe(pickup.label);
+    expect(container.querySelector('[data-testid="dropoff-input"]').value).toBe(dropoff.label);
+    expect(container.querySelector('[data-testid="distance-km-input"]').value).toBe('28.5');
+    expect(container.querySelector('[data-testid="distance-km-input"]').readOnly).toBe(true);
+    const query = new URL(axios.post.mock.calls.at(-1)[0]).searchParams;
+    expect(query.get('distance_km')).toBe('28.5');
+    expect(query.get('duration_minutes')).toBe('36');
+    await act(async () => container.querySelector('[data-testid="booking-form"]').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    ));
+    await act(async () => container.querySelector('[data-testid="vehicle-cat-Berline"]').click());
+    await act(async () => container.querySelector('[data-testid="continue-booking-step-3"]').closest('form').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    ));
+    await act(async () => container.querySelector('[data-testid="booking-confirmation-form"]').dispatchEvent(
+      new Event('submit', { bubbles: true, cancelable: true })
+    ));
+    expect(createCheckoutSession).toHaveBeenCalledWith(expect.objectContaining({
+      pickup_address: pickup.label, dropoff_address: dropoff.label,
+      distance_km: 28.5, duration_minutes: 36, estimated_price: 75,
+    }));
+    expect(saveBookingCheckoutDraft).toHaveBeenCalledWith(expect.objectContaining({
+      mapAddresses: { pickup, dropoff }, durationMinutes: '36',
+    }));
+  });
+
+  it('reports pricing failure and does not charge a minimum fare as a route estimate', async () => {
+    mockReadBookingCheckoutDraft.mockReturnValue({
+      step: 2, date: '2026-11-10T10:00:00.000Z', time: '10:30', transferType: 'simple',
+      pickup: 'Paris', dropoff: 'CDG', distanceKm: '28.5', selectedCategory: 'Berline',
+    });
+    axios.post.mockRejectedValue(new Error('Pricing unavailable'));
+    const log = jest.spyOn(console, 'error').mockImplementation(() => {});
+    await act(async () => root.render(<BookingSection />));
+    expect(container.querySelector('[role="alert"]').textContent).toContain('Impossible de calculer les tarifs');
+    expect(container.querySelector('[data-testid="continue-booking-step-3"]').disabled).toBe(true);
+    expect(createCheckoutSession).not.toHaveBeenCalled();
+    log.mockRestore();
   });
 });

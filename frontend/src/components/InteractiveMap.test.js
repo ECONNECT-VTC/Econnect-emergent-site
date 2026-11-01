@@ -1,9 +1,17 @@
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Polyline, useMapEvents } from 'react-leaflet';
 import InteractiveMap from './InteractiveMap';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+const mockMap = {
+  fitBounds: jest.fn(), setView: jest.fn(), invalidateSize: jest.fn(),
+  getContainer: () => document.createElement('div'),
+};
+global.ResizeObserver = class {
+  observe() {}
+  disconnect() {}
+};
 
 jest.mock('react-leaflet', () => {
   const React = require('react');
@@ -12,6 +20,9 @@ jest.mock('react-leaflet', () => {
     TileLayer: jest.fn(() => null),
     Marker: jest.fn(({ children }) => React.createElement('div', null, children)),
     Popup: ({ children }) => React.createElement('div', null, children),
+    Polyline: jest.fn(() => null),
+    useMap: () => mockMap,
+    useMapEvents: jest.fn(),
   };
 });
 
@@ -53,20 +64,50 @@ describe('InteractiveMap', () => {
     expect(tileProps.attribution).toContain('https://carto.com/attributions');
     expect(MapContainer.mock.calls[0][0].center).toEqual([48.8566, 2.3522]);
     expect(MapContainer.mock.calls[0][0].zoom).toBe(11);
-    expect(Marker.mock.calls[0][0].position).toEqual([48.8566, 2.3522]);
-    expect(container.textContent).toContain('Econnect VTC - Paris');
+    expect(Marker).not.toHaveBeenCalled();
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
-  it.each([undefined, '', '   '])('reports an unavailable map for key %p without requesting tiles', async (key) => {
+  it.each([undefined, '', '   '])('uses public dark tiles when the optional key is %p', async (key) => {
     if (key !== undefined) process.env.REACT_APP_CARTO_API_KEY = key;
 
     await act(async () => root.render(<InteractiveMap />));
 
-    expect(container.querySelector('[role="alert"]').textContent).toContain(
-      "la clé CARTO n'est pas configurée"
-    );
-    expect(MapContainer).not.toHaveBeenCalled();
-    expect(TileLayer).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+    expect(TileLayer.mock.calls[0][0].url).toBe('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png');
+  });
+
+  it('renders both endpoints, fits the gold route and forwards map and field selections', async () => {
+    const pickup = { label: 'Paris', position: [48.85, 2.35] };
+    const dropoff = { label: 'CDG', position: [49.01, 2.55] };
+    const route = { positions: [pickup.position, dropoff.position], distanceKm: 28.5, durationMinutes: 35 };
+    const onSelectPosition = jest.fn();
+    const onActiveFieldChange = jest.fn();
+    await act(async () => root.render(
+      <InteractiveMap {...{ pickup, dropoff, route, onSelectPosition, onActiveFieldChange }} />
+    ));
+    expect(Marker.mock.calls.map(([props]) => props.position)).toEqual([pickup.position, dropoff.position]);
+    expect(Polyline.mock.calls[0][0].pathOptions.color).toBe('#D4AF37');
+    expect(mockMap.fitBounds).toHaveBeenCalledWith(route.positions, { padding: [40, 40], maxZoom: 15 });
+    expect(container.textContent).toContain('28.5 km');
+    useMapEvents.mock.calls[0][0].click({ latlng: { lat: 48.9, lng: 2.4 } });
+    expect(onSelectPosition).toHaveBeenCalledWith([48.9, 2.4]);
+    await act(async () => container.querySelectorAll('button')[1].click());
+    expect(onActiveFieldChange).toHaveBeenCalledWith('dropoff');
+  });
+
+  it('prevents modifying the route after leaving the address step', async () => {
+    const onSelectPosition = jest.fn();
+    await act(async () => root.render(<InteractiveMap editable={false} onSelectPosition={onSelectPosition} />));
+    useMapEvents.mock.calls[0][0].click({ latlng: { lat: 48.9, lng: 2.4 } });
+    expect(onSelectPosition).not.toHaveBeenCalled();
+    expect(container.querySelector('button')).toBeNull();
+  });
+
+  it('reports unavailable background tiles without disabling address selection', async () => {
+    await act(async () => root.render(<InteractiveMap onSelectPosition={jest.fn()} />));
+    await act(async () => TileLayer.mock.calls[0][0].eventHandlers.tileerror());
+    expect(container.querySelector('[role="alert"]').textContent).toContain('fond de carte est indisponible');
+    expect(container.querySelector('button')).not.toBeNull();
   });
 });

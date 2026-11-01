@@ -22,6 +22,8 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import InteractiveMap from './InteractiveMap';
+import AddressAutocomplete from './AddressAutocomplete';
+import useBookingRoute from '@/hooks/useBookingRoute';
 import { PremiumWifiIcon } from './VehicleFeatureBadges';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -69,7 +71,16 @@ const BookingSection = () => {
   const [pricingCategories, setPricingCategories] = useState([]);
   const [priceEstimates, setPriceEstimates] = useState([]);
   const [estimatingPrice, setEstimatingPrice] = useState(false);
+  const [priceError, setPriceError] = useState('');
   const [distanceKm, setDistanceKm] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState('');
+  const onRouteChange = useCallback((route) => {
+    setDistanceKm(route ? String(route.distanceKm) : '');
+    setDurationMinutes(route ? String(route.durationMinutes) : '');
+    setPriceEstimates([]);
+  }, []);
+  const bookingRoute = useBookingRoute({ pickup, dropoff, setPickup, setDropoff, onRouteChange });
+  const resetRoute = bookingRoute.reset;
   const [submittingCheckout, setSubmittingCheckout] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('cb');
   const [bookingError, setBookingError] = useState('');
@@ -133,37 +144,43 @@ const BookingSection = () => {
 
   // Fetch distance-based price estimates from backend whenever relevant inputs change (Bug 3a)
   useEffect(() => {
+    setPriceEstimates([]);
+    setPriceError('');
     if (transferType === 'disposition' || !transferType) {
-      setPriceEstimates([]);
+      setEstimatingPrice(false);
       return;
     }
     const km = parseFloat(distanceKm);
     if (!(km > 0)) {
-      setPriceEstimates([]);
+      setEstimatingPrice(false);
       return;
     }
     const controller = new AbortController();
     setEstimatingPrice(true);
-    const params = new URLSearchParams({ transfer_type: transferType, distance_km: String(km) });
+    const params = new URLSearchParams({
+      transfer_type: transferType, distance_km: String(km), duration_minutes: durationMinutes || '0',
+    });
     axios
       .post(`${API_URL}/api/estimate-price?${params}`, {}, {
         withCredentials: true,
         signal: controller.signal,
       })
       .then((res) => {
+        if (controller.signal.aborted) return;
         setPriceEstimates(Array.isArray(res.data) ? res.data : []);
       })
       .catch((err) => {
-        if (!axios.isCancel(err)) {
+        if (!controller.signal.aborted && !axios.isCancel(err)) {
           console.error('[BookingSection] Failed to fetch price estimates:', err);
+          setPriceError('Impossible de calculer les tarifs. Réessayez avant de confirmer.');
           setPriceEstimates([]);
         }
       })
       .finally(() => {
-        setEstimatingPrice(false);
+        if (!controller.signal.aborted) setEstimatingPrice(false);
       });
     return () => controller.abort();
-  }, [distanceKm, transferType]);
+  }, [distanceKm, durationMinutes, transferType]);
 
   const getFormattedDispositionPrice = useCallback((categoryId) => {
     if (loadingDispositionPrices) {
@@ -188,7 +205,8 @@ const BookingSection = () => {
   }
 
   const canProceedToStep2 = date && time && pickup && dropoff && transferType &&
-    (transferType !== 'disposition' || dispositionHours);
+    !bookingRoute.loading &&
+    (transferType === 'disposition' ? dispositionHours : parseFloat(distanceKm) > 0);
 
   // Smooth scroll to the top of the booking form panel on step changes (Bug 3b)
   const scrollToFormPanel = useCallback(() => {
@@ -208,9 +226,12 @@ const BookingSection = () => {
     setBabySeatCount('0');
     setDispositionHours('');
     setDistanceKm('');
+    setDurationMinutes('');
+    resetRoute();
     setPaymentMethod('cb');
     setDispositionPrices([]);
     setPriceEstimates([]);
+    setPriceError('');
     setStep(1);
     setSubmittingCheckout(false);
     setBookingError('');
@@ -219,7 +240,7 @@ const BookingSection = () => {
     autoCheckoutStartedRef.current = false;
     clearBookingCheckoutDraft();
     scrollToFormPanel();
-  }, [scrollToFormPanel]);
+  }, [scrollToFormPanel, resetRoute]);
 
   const handleStep1Submit = (e) => {
     e.preventDefault();
@@ -297,6 +318,7 @@ const BookingSection = () => {
     if (Number.isFinite(estimatedFromDistance) && estimatedFromDistance > 0) {
       return estimatedFromDistance;
     }
+    if (parseFloat(distanceKm) > 0 || estimatingPrice) return null;
     // Fallback to min_fare (or parsed startingPrice) when no distance estimate is available
     const selectedVehicle = VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory);
     if (!selectedVehicle) return null;
@@ -305,7 +327,7 @@ const BookingSection = () => {
     const rawPrice = Number(String(rawPriceSource).replace(/[^\d.,]/g, '').replace(',', '.'));
     if (!Number.isFinite(rawPrice) || rawPrice <= 0) return null;
     return transferType === 'retour' ? rawPrice * 2 : rawPrice;
-  }, [dispositionPrices, priceEstimates, selectedCategory, transferType, getCategoryStartingPrice]);
+  }, [dispositionPrices, priceEstimates, selectedCategory, transferType, distanceKm, estimatingPrice, getCategoryStartingPrice]);
 
   const buildCheckoutPayload = useCallback(() => {
     const estimatedPrice = getEstimatedPrice();
@@ -318,7 +340,7 @@ const BookingSection = () => {
       transfer_type: transferType,
       vehicle_category_id: selectedCategory || null,
       distance_km: transferType === 'disposition' ? null : (distanceKm ? parseFloat(distanceKm) : null),
-      duration_minutes: null,
+      duration_minutes: transferType === 'disposition' ? null : (durationMinutes ? parseFloat(durationMinutes) : null),
       estimated_price: estimatedPrice,
       passenger_count: Number(passengerCount),
       baby_seat_count: Number(babySeatCount),
@@ -328,7 +350,7 @@ const BookingSection = () => {
       success_path: `/${lang}/booking/confirmation`,
       cancel_path: `/${lang}/booking/cancel`,
     };
-  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, dispositionHours, getEstimatedPrice, lang, paymentMethod, passengerCount, babySeatCount]);
+  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, durationMinutes, dispositionHours, getEstimatedPrice, lang, paymentMethod, passengerCount, babySeatCount]);
 
   const submitCheckout = useCallback(async (payload, draftState = null) => {
     setBookingError('');
@@ -347,6 +369,8 @@ const BookingSection = () => {
       paymentMethod,
       dispositionHours,
       distanceKm,
+      durationMinutes,
+      mapAddresses: bookingRoute.addresses,
       step: 3,
       autoPayAfterAuth: false,
       checkoutPayload: payload,
@@ -365,7 +389,7 @@ const BookingSection = () => {
       setBookingNotice('');
       setSubmittingCheckout(false);
     }
-  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm, passengerCount, babySeatCount]);
+  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm, durationMinutes, bookingRoute.addresses, passengerCount, babySeatCount]);
 
   const handleAuthChoice = (authPath) => {
     const payload = buildCheckoutPayload();
@@ -382,6 +406,8 @@ const BookingSection = () => {
         paymentMethod,
         dispositionHours,
         distanceKm,
+        durationMinutes,
+        mapAddresses: bookingRoute.addresses,
         step: 3,
         autoPayAfterAuth: true,
         checkoutPayload: payload,
@@ -413,6 +439,8 @@ const BookingSection = () => {
     if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
     if (draft.dispositionHours) setDispositionHours(String(draft.dispositionHours));
     if (draft.distanceKm) setDistanceKm(String(draft.distanceKm));
+    if (draft.durationMinutes) setDurationMinutes(String(draft.durationMinutes));
+    if (draft.mapAddresses) bookingRoute.restoreAddresses(draft.mapAddresses);
     if (draft.step) setStep(draft.step);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentional mount-only: adding state setters as deps would re-run on every field change, causing an infinite loop where setDate(new Date(x)) always produces a new object reference
 
@@ -482,6 +510,8 @@ const BookingSection = () => {
         paymentMethod,
         dispositionHours,
         distanceKm,
+        durationMinutes,
+        mapAddresses: bookingRoute.addresses,
         step: 3,
         autoPayAfterAuth: true,
         checkoutPayload: payload,
@@ -576,6 +606,8 @@ const BookingSection = () => {
                 </Button>
               </div>
             )}
+            {step !== 3 && bookingError && <p role="alert" className="mb-4 text-red-300">{bookingError}</p>}
+            {priceError && <p role="alert" className="mb-4 text-red-300">{priceError}</p>}
 
             <AnimatePresence mode="wait">
               {step === 1 && (
@@ -641,11 +673,14 @@ const BookingSection = () => {
                       <div className="space-y-2">
                         <Label htmlFor="pickup" className="text-[#A1A1AA] text-sm">{t('lieuPriseEnCharge')}</Label>
                         <div className="relative">
-                          <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
-                          <Input
+                          <MapPin size={18} className="absolute left-3 top-3 text-[#D4AF37]" />
+                          <AddressAutocomplete
                             id="pickup"
                             value={pickup}
-                            onChange={(e) => setPickup(e.target.value)}
+                            onChange={(value) => bookingRoute.changeAddress('pickup', value)}
+                            onSelect={(address) => bookingRoute.selectAddress('pickup', address)}
+                            onFocus={() => bookingRoute.setActiveField('pickup')}
+                            selectedAddress={bookingRoute.addresses.pickup}
                             placeholder={t('adresseDepart')}
                             className="pl-10 bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
                             data-testid="pickup-input"
@@ -656,11 +691,14 @@ const BookingSection = () => {
                       <div className="space-y-2">
                         <Label htmlFor="dropoff" className="text-[#A1A1AA] text-sm">{t('lieuDepot')}</Label>
                         <div className="relative">
-                          <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#D4AF37]" />
-                          <Input
+                          <MapPin size={18} className="absolute left-3 top-3 text-[#D4AF37]" />
+                          <AddressAutocomplete
                             id="dropoff"
                             value={dropoff}
-                            onChange={(e) => setDropoff(e.target.value)}
+                            onChange={(value) => bookingRoute.changeAddress('dropoff', value)}
+                            onSelect={(address) => bookingRoute.selectAddress('dropoff', address)}
+                            onFocus={() => bookingRoute.setActiveField('dropoff')}
+                            selectedAddress={bookingRoute.addresses.dropoff}
                             placeholder={t('adresseArrivee')}
                             className="pl-10 bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
                             data-testid="dropoff-input"
@@ -719,11 +757,17 @@ const BookingSection = () => {
                           min="0"
                           step="0.1"
                           value={distanceKm}
+                          readOnly={Boolean(bookingRoute.route) || bookingRoute.loading}
                           onChange={(e) => setDistanceKm(parseFloat(e.target.value) > 0 ? e.target.value : '')}
                           placeholder="Ex: 15"
                           className="bg-[#1E1E1E] border-white/10 focus:border-[#D4AF37]/50"
                           data-testid="distance-km-input"
                         />
+                        <p className="text-xs text-[#A1A1AA]">
+                          {bookingRoute.route
+                            ? `Calcul automatique · environ ${durationMinutes} min, hors trafic.`
+                            : 'Choisissez les adresses proposées ou sur la carte. Saisie manuelle possible si le routage est indisponible.'}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -897,7 +941,7 @@ const BookingSection = () => {
                     </Button>
                     <Button
                       type="submit"
-                      disabled={!selectedCategory}
+                      disabled={!selectedCategory || !estimatedPrice || estimatingPrice || loadingDispositionPrices}
                       className="flex-1 bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6 text-lg transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
                       data-testid="continue-booking-step-3"
                     >
@@ -1103,7 +1147,17 @@ const BookingSection = () => {
             transition={{ duration: 0.6, delay: 0.2 }}
             className={`h-full rounded-2xl overflow-hidden ${bookingPanelMinHeight}`}
           >
-            <InteractiveMap />
+            <InteractiveMap
+              pickup={bookingRoute.addresses.pickup}
+              dropoff={bookingRoute.addresses.dropoff}
+              route={bookingRoute.route}
+              activeField={bookingRoute.activeField}
+              onActiveFieldChange={bookingRoute.setActiveField}
+              onSelectPosition={bookingRoute.selectMapPosition}
+              loading={bookingRoute.loading}
+              error={bookingRoute.error}
+              editable={step === 1}
+            />
           </motion.div>
         </div>
       </div>

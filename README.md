@@ -1,5 +1,10 @@
 # Econnect Emergent Site
 
+## Carte et adresses de réservation
+
+Voir [`docs/BOOKING-MAP.md`](./docs/BOOKING-MAP.md) pour l'utilisation,
+les services de géocodage/routage et le déploiement du frontend.
+
 ## Paiement Stripe
 
 Voir la documentation d'intégration et de configuration webhook :
