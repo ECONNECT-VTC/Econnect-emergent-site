@@ -21,6 +21,9 @@ import {
 } from '@/utils/vehicleCategories';
 import { buildEstimatePriceQuery, parseBookingError } from './newBookingUtils';
 import { createCheckoutSession, saveBookingCheckoutDraft } from '@/utils/bookingCheckout';
+import AddressAutocomplete from '@/components/AddressAutocomplete';
+import InteractiveMap from '@/components/InteractiveMap';
+import useBookingRoute from '@/hooks/useBookingRoute';
 
 const NewBooking = () => {
   const enableDebugLogging = process.env.NODE_ENV !== 'production';
@@ -44,6 +47,12 @@ const NewBooking = () => {
   const [duration, setDuration] = useState('');
   const [priceEstimates, setPriceEstimates] = useState([]);
   const [estimatingPrice, setEstimatingPrice] = useState(false);
+  const onRouteChange = useCallback((route) => {
+    setDistance(route ? String(route.distanceKm) : '');
+    setDuration(route ? String(route.durationMinutes) : '');
+    setPriceEstimates([]);
+  }, []);
+  const bookingRoute = useBookingRoute({ pickup, dropoff, setPickup, setDropoff, onRouteChange });
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -71,7 +80,7 @@ const NewBooking = () => {
     fetchCategories();
   }, [fetchCategories]);
 
-  const estimatePrice = useCallback(async () => {
+  const estimatePrice = useCallback(async (signal) => {
     const queryString = buildEstimatePriceQuery({
       transferType,
       distance,
@@ -85,26 +94,32 @@ const NewBooking = () => {
       const response = await axios.post(
         `${API_URL}/api/estimate-price?${queryString}`,
         {},
-        { withCredentials: true }
+        { withCredentials: true, signal }
       );
+      if (signal.aborted) return;
       setPriceEstimates(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
+      if (signal.aborted || axios.isCancel(err)) return;
       setPriceEstimates([]);
       setError(parseBookingError(err, 'Erreur lors du calcul des tarifs'));
     } finally {
-      setEstimatingPrice(false);
+      if (!signal.aborted) setEstimatingPrice(false);
     }
   }, [distance, dispositionHours, duration, transferType]);
 
   useEffect(() => {
+    setPriceEstimates([]);
     const shouldEstimateDisposition = transferType === 'disposition' && dispositionHours && parseFloat(dispositionHours) > 0;
     const shouldEstimateDistance = transferType !== 'disposition' && distance && parseFloat(distance) > 0;
 
     if (shouldEstimateDisposition || shouldEstimateDistance) {
-      const timer = setTimeout(() => estimatePrice(), 500);
-      return () => clearTimeout(timer);
+      const controller = new AbortController();
+      setEstimatingPrice(true);
+      const timer = setTimeout(() => estimatePrice(controller.signal), 500);
+      return () => { clearTimeout(timer); controller.abort(); };
     } else {
       setPriceEstimates([]);
+      setEstimatingPrice(false);
     }
   }, [distance, dispositionHours, duration, estimatePrice, transferType]);
 
@@ -215,6 +230,11 @@ const NewBooking = () => {
       setError('Veuillez indiquer le nombre d\'heures de mise à disposition');
       return;
     }
+    if (bookingRoute.loading || estimatingPrice
+      || !Number.isFinite(getSelectedPrice()?.final_price)) {
+      setError('Veuillez attendre le calcul du tarif. Choisissez les adresses proposées ou renseignez une distance valide.');
+      return;
+    }
 
     setLoading(true);
     const selectedPrice = getSelectedPrice();
@@ -247,6 +267,8 @@ const NewBooking = () => {
         selectedCategory,
         dispositionHours,
         distanceKm: distance,
+        durationMinutes: duration,
+        mapAddresses: bookingRoute.addresses,
         step: 3,
         autoPayAfterAuth: false,
         checkoutPayload: payload,
@@ -310,18 +332,28 @@ const NewBooking = () => {
             {/* Addresses */}
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label className="text-[#A1A1AA]">Adresse de depart *</Label>
+                <Label htmlFor="pickup" className="text-[#A1A1AA]">Adresse de depart *</Label>
                 <div className="relative">
-                  <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-green-400" />
-                  <Input value={pickup} onChange={(e) => setPickup(e.target.value)} placeholder="Entrez l'adresse" className="pl-10 bg-[#1E1E1E] border-white/10" data-testid="pickup-input" />
+                  <MapPin size={18} className="absolute left-3 top-3 text-[#D4AF37]" />
+                  <AddressAutocomplete id="pickup" value={pickup}
+                    onChange={(value) => bookingRoute.changeAddress('pickup', value)}
+                    onSelect={(address) => bookingRoute.selectAddress('pickup', address)}
+                    onFocus={() => bookingRoute.setActiveField('pickup')}
+                    selectedAddress={bookingRoute.addresses.pickup}
+                    placeholder="Entrez l'adresse" className="pl-10 bg-[#1E1E1E] border-white/10" data-testid="pickup-input" />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[#A1A1AA]">Adresse d'arrivee *</Label>
+                <Label htmlFor="dropoff" className="text-[#A1A1AA]">Adresse d'arrivee *</Label>
                 <div className="relative">
-                  <MapPin size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-400" />
-                  <Input value={dropoff} onChange={(e) => setDropoff(e.target.value)} placeholder="Entrez l'adresse" className="pl-10 bg-[#1E1E1E] border-white/10" data-testid="dropoff-input" />
+                  <MapPin size={18} className="absolute left-3 top-3 text-[#F3D67A]" />
+                  <AddressAutocomplete id="dropoff" value={dropoff}
+                    onChange={(value) => bookingRoute.changeAddress('dropoff', value)}
+                    onSelect={(address) => bookingRoute.selectAddress('dropoff', address)}
+                    onFocus={() => bookingRoute.setActiveField('dropoff')}
+                    selectedAddress={bookingRoute.addresses.dropoff}
+                    placeholder="Entrez l'adresse" className="pl-10 bg-[#1E1E1E] border-white/10" data-testid="dropoff-input" />
                 </div>
               </div>
             </div>
@@ -350,6 +382,7 @@ const NewBooking = () => {
                     step="0.1"
                     min="0"
                     value={distance} 
+                    readOnly={Boolean(bookingRoute.route) || bookingRoute.loading}
                     onChange={(e) => setDistance(e.target.value)} 
                     placeholder="Ex: 15.5" 
                     className="bg-[#1E1E1E] border-white/10" 
@@ -362,6 +395,7 @@ const NewBooking = () => {
                     type="number"
                     min="0"
                     value={duration} 
+                    readOnly={Boolean(bookingRoute.route) || bookingRoute.loading}
                     onChange={(e) => setDuration(e.target.value)} 
                     placeholder="Ex: 30" 
                     className="bg-[#1E1E1E] border-white/10"
@@ -513,7 +547,7 @@ const NewBooking = () => {
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Instructions speciales..." className="bg-[#1E1E1E] border-white/10 min-h-[80px]" data-testid="notes-input" />
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6" data-testid="submit-booking">
+            <Button type="submit" disabled={loading || bookingRoute.loading || estimatingPrice} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6" data-testid="submit-booking">
               {loading ? <CircleNotch size={20} className="animate-spin" /> : <>Confirmer <ArrowRight size={20} className="ml-2" /></>}
             </Button>
           </form>
@@ -521,6 +555,18 @@ const NewBooking = () => {
 
         {/* Price Summary Sidebar */}
         <div className="glass h-fit rounded-xl p-5 sm:p-6 lg:sticky lg:top-24">
+          <div className="mb-6">
+            <InteractiveMap
+              pickup={bookingRoute.addresses.pickup}
+              dropoff={bookingRoute.addresses.dropoff}
+              route={bookingRoute.route}
+              activeField={bookingRoute.activeField}
+              onActiveFieldChange={bookingRoute.setActiveField}
+              onSelectPosition={bookingRoute.selectMapPosition}
+              loading={bookingRoute.loading}
+              error={bookingRoute.error}
+            />
+          </div>
           <h3 className="text-lg font-bold font-['Cormorant_Garamond'] mb-4 flex items-center gap-2">
             <CurrencyEur size={24} className="text-[#D4AF37]" />
             Estimation tarifaire
@@ -529,7 +575,7 @@ const NewBooking = () => {
           {transferType === 'disposition' && !dispositionHours ? (
             <p className="text-[#A1A1AA] text-sm">Indiquez le nombre d'heures pour afficher les tarifs de mise à disposition.</p>
           ) : transferType !== 'disposition' && !distance ? (
-            <p className="text-[#A1A1AA] text-sm">Entrez la distance pour voir les tarifs.</p>
+            <p className="text-[#A1A1AA] text-sm">Choisissez les adresses pour calculer le trajet et les tarifs. Distance manuelle possible si le routage est indisponible.</p>
           ) : estimatingPrice ? (
             <div className="flex items-center gap-2 text-[#A1A1AA]">
               <CircleNotch size={20} className="animate-spin" />
