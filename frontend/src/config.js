@@ -72,6 +72,12 @@ const getBuildTimeContactPhone = () => (
   normalizePhone(getProcessEnv()?.VITE_CONTACT_PHONE)
 );
 
+// Public CARTO Basemaps key: runtime config first, then the build-time variable.
+export const getCartoApiKey = () => (
+  (typeof window !== 'undefined' && trimValue(window.__ECONNECT_CONFIG__?.CARTO_API_KEY)) ||
+  trimValue(process.env.REACT_APP_CARTO_API_KEY)
+);
+
 export let API_URL = '';
 export let API_URL_SOURCE = 'same-origin-fallback';
 export let CONTACT_PHONE = '';

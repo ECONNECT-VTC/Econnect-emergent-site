@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { getCartoApiKey } from '../config';
+
+const CARTO_DARK_TILES_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 const createMarker = (label, color) => L.divIcon({
   className: '',
@@ -36,7 +39,8 @@ const InteractiveMap = ({
   loading = false, error = '', editable = true,
 }) => {
   const [tileError, setTileError] = useState(false);
-  const cartoApiKey = process.env.REACT_APP_CARTO_API_KEY?.trim();
+  // CARTO serves "API KEY REQUIRED" tiles without a key, so tiles are only requested with one.
+  const cartoApiKey = getCartoApiKey();
   // Paris center coordinates
   const parisPosition = [48.8566, 2.3522];
 
@@ -60,14 +64,16 @@ const InteractiveMap = ({
         <MapContainer
           center={parisPosition}
           zoom={11}
-          style={{ height: '100%', width: '100%', position: 'absolute' }}
+          style={{ height: '100%', width: '100%', position: 'absolute', background: '#0A0A0A' }}
           zoomControl={true}
         >
-          <TileLayer
-            eventHandlers={{ tileerror: () => setTileError(true), tileload: () => setTileError(false) }}
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>'
-            url={`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png${cartoApiKey ? `?key=${encodeURIComponent(cartoApiKey)}` : ''}`}
-          />
+          {cartoApiKey && (
+            <TileLayer
+              eventHandlers={{ tileerror: () => setTileError(true), tileload: () => setTileError(false) }}
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>'
+              url={`${CARTO_DARK_TILES_URL}?key=${encodeURIComponent(cartoApiKey)}`}
+            />
+          )}
           <MapInteraction pickup={pickup} dropoff={dropoff} route={route} onSelectPosition={editable ? onSelectPosition : undefined} />
           {[[pickup, pickupIcon, 'Départ'], [dropoff, dropoffIcon, 'Arrivée']].map(([address, icon, label]) => address && (
             <Marker key={label} position={address.position} icon={icon}>
@@ -78,6 +84,7 @@ const InteractiveMap = ({
         </MapContainer>
       </div>
       <div className="p-4 text-sm text-[#F3D67A]" aria-live="polite">
+        {!cartoApiKey && <p role="alert" className="mb-2 text-amber-300">Fond de carte non configuré. La recherche d’adresses, les marqueurs et l’itinéraire restent utilisables.</p>}
         {tileError && <p role="alert" className="mb-2 text-amber-300">Le fond de carte est indisponible. La recherche d’adresses reste utilisable.</p>}
         {loading ? <p role="status">Localisation et calcul de l’itinéraire…</p>
           : route ? <p>{route.distanceKm} km · environ {route.durationMinutes} min (hors trafic)</p>

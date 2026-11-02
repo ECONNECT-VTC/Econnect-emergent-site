@@ -28,6 +28,10 @@ dans une issue ou une pull request. `.env.example` fournit le nom attendu
 sans valeur. Une clé absente ou vide affiche un message d'indisponibilité
 au lieu de demander des tuiles non authentifiées.
 
+Alternative sans rebuild : définir la clé au runtime, avant le bundle, dans
+`build/index.html` : `<script>window.__ECONNECT_CONFIG__ = { CARTO_API_KEY: 'votre_cle_basemaps' };</script>`.
+Cette valeur est prioritaire sur `REACT_APP_CARTO_API_KEY`.
+
 Exécutez `npm run build` depuis `frontend`. Create React App charge
 `.env.production` et intègre `REACT_APP_CARTO_API_KEY` dans les fichiers
 JavaScript à la compilation. Une variable déjà définie dans le shell ou la CI
