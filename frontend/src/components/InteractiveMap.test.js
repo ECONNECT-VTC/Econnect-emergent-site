@@ -60,12 +60,13 @@ describe('InteractiveMap', () => {
 
     const tileProps = TileLayer.mock.calls[0][0];
     expect(tileProps.url).toBe(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=test%2Fkey%2Bwith%26special%3Dcharacters'
+      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=test%2Fkey%2Bwith%26special%3Dcharacters'
     );
     expect(tileProps.attribution).toContain('https://www.openstreetmap.org/copyright');
     expect(tileProps.attribution).toContain('https://carto.com/attributions');
     expect(MapContainer.mock.calls[0][0].center).toEqual([48.8566, 2.3522]);
     expect(MapContainer.mock.calls[0][0].zoom).toBe(11);
+    expect(MapContainer.mock.calls[0][0].style.background).toBe('#F2EFE9');
     expect(Marker).not.toHaveBeenCalled();
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
@@ -76,8 +77,18 @@ describe('InteractiveMap', () => {
 
     await act(async () => root.render(<InteractiveMap />));
 
-    expect(TileLayer.mock.calls[0][0].url).toBe('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=runtime-key');
+    expect(TileLayer.mock.calls[0][0].url).toBe('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=runtime-key');
     expect(container.textContent).not.toContain('runtime-key');
+  });
+
+  it('falls back to the build key when the runtime key is blank', async () => {
+    process.env.REACT_APP_CARTO_API_KEY = 'build-key';
+    window.__ECONNECT_CONFIG__ = { CARTO_API_KEY: '   ' };
+
+    await act(async () => root.render(<InteractiveMap />));
+
+    expect(TileLayer.mock.calls[0][0].url).toContain('?key=build-key');
+    expect(container.textContent).not.toContain('build-key');
   });
 
   it.each([undefined, '', '   '])('does not request watermarked tiles when the key is %p', async (key) => {

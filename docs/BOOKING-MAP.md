@@ -4,12 +4,19 @@ Le formulaire public (`BookingSection`), l'espace client (`NewBooking`) et
 la création administrateur (`AdminBookings`) partagent la recherche d'adresses,
 les sélections sur la carte et le calcul du trajet. Les fenêtres d'édition
 client (`ClientBookings`) et administrateur utilisent la même logique.
-La carte utilise le fond sombre CARTO, deux marqueurs Départ/Arrivée et un tracé doré.
+La carte utilise le fond clair CARTO Positron (`light_all`), deux marqueurs
+Départ/Arrivée et un tracé doré, dans le cadre noir/or du site.
 La clé publique CARTO Basemaps est **obligatoire** : sans elle CARTO renvoie des tuiles
 filigranées « API KEY REQUIRED ». Sans clé, la carte n'appelle plus CARTO et affiche
 « Fond de carte non configuré » ; recherche, marqueurs et itinéraire restent actifs.
 Clé lue dans `window.__ECONNECT_CONFIG__.CARTO_API_KEY` (runtime), sinon dans
-`REACT_APP_CARTO_API_KEY` (compilée au build). URL : `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=CLE`.
+`REACT_APP_CARTO_API_KEY` (compilée au build). URL : `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=CLE`.
+`public/index.html` charge le fichier `runtime-config.js` de manière synchrone
+avant React. Le fichier livré contient une clé vide ; sur le serveur, renseigner
+la clé dans le `runtime-config.js` situé à côté du `index.html` réellement publié,
+après chaque copie de build. Ne jamais commiter la vraie clé.
+Servir ce fichier en JavaScript avec `Cache-Control: no-store`.
+Voir [les étapes d'injection et de vérification](../frontend/README.md#configuration-runtime-sur-le-serveur-sans-rebuild).
 
 ## Utilisation
 
@@ -99,7 +106,8 @@ Variables frontend (voir `frontend/.env.example`) :
 - `REACT_APP_CARTO_API_KEY` : clé publique CARTO Basemaps obligatoire (https://carto.com/basemaps/apikey/),
   restreinte aux domaines econnect-vtc.com, visible dans le navigateur, jamais un secret serveur.
   À définir dans `frontend/.env.production` avant `npm run build`, ou au runtime via
-  `window.__ECONNECT_CONFIG__ = { CARTO_API_KEY: '...' }` dans `index.html`, sans rebuild.
+  `window.__ECONNECT_CONFIG__.CARTO_API_KEY` dans le fichier serveur
+  `runtime-config.js` chargé par `index.html`, sans rebuild.
 - Configuration API existante : `REACT_APP_API_URL`, `REACT_APP_BACKEND_URL`
   ou configuration runtime (sinon même origine en production).
 
