@@ -4,7 +4,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getCartoApiKey } from '../config';
 
-const CARTO_DARK_TILES_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const CARTO_TILES_URL = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 
 const createMarker = (label, color) => L.divIcon({
   className: '',
@@ -64,14 +64,14 @@ const InteractiveMap = ({
         <MapContainer
           center={parisPosition}
           zoom={11}
-          style={{ height: '100%', width: '100%', position: 'absolute', background: '#0A0A0A' }}
+          style={{ height: '100%', width: '100%', position: 'absolute', background: '#F2EFE9' }}
           zoomControl={true}
         >
           {cartoApiKey && (
             <TileLayer
               eventHandlers={{ tileerror: () => setTileError(true), tileload: () => setTileError(false) }}
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>'
-              url={`${CARTO_DARK_TILES_URL}?key=${encodeURIComponent(cartoApiKey)}`}
+              url={`${CARTO_TILES_URL}?key=${encodeURIComponent(cartoApiKey)}`}
             />
           )}
           <MapInteraction pickup={pickup} dropoff={dropoff} route={route} onSelectPosition={editable ? onSelectPosition : undefined} />

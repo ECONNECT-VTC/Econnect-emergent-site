@@ -4,7 +4,8 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 ## Carte CARTO en production
 
-La carte Leaflet utilise le fond raster CARTO Dark Matter. Obtenez une
+La carte Leaflet utilise le fond clair CARTO Positron (`light_all`), avec les
+marqueurs et le trajet dorés dans le cadre noir/or du site. Obtenez une
 **clé CARTO Basemaps** depuis https://carto.com/basemaps/apikey/ ou votre
 offre CARTO compatible. Ne supposez pas qu'un API Access Token Workspace
 avec la permission Maps peut remplacer cette clé : le service Basemaps
@@ -28,28 +29,62 @@ dans une issue ou une pull request. `.env.example` fournit le nom attendu
 sans valeur. Une clé absente ou vide affiche un message d'indisponibilité
 au lieu de demander des tuiles non authentifiées.
 
-Alternative sans rebuild : définir la clé au runtime, avant le bundle, dans
-`build/index.html` : `<script>window.__ECONNECT_CONFIG__ = { CARTO_API_KEY: 'votre_cle_basemaps' };</script>`.
-Cette valeur est prioritaire sur `REACT_APP_CARTO_API_KEY`.
+### Configuration runtime sur le serveur, sans rebuild
+
+`public/index.html` charge `/runtime-config.js` **avant le bundle React**,
+sans `async` ni `defer`. Le build copie ce fichier depuis `public/`.
+Le fichier livré dans Git contient seulement une clé vide : le mécanisme de
+chargement ne crée pas une clé CARTO automatiquement.
+
+Après avoir généré le build et avant sa publication, Kodee doit renseigner
+`runtime-config.js` **dans la racine réellement servie par Nginx**, à côté du
+`index.html` publié, avec :
+
+```javascript
+window.__ECONNECT_CONFIG__ = Object.assign(
+  {},
+  window.__ECONNECT_CONFIG__ || {},
+  { CARTO_API_KEY: 'votre_cle_basemaps' }
+);
+```
+
+Cette fusion conserve les éventuels `API_URL` et `CONTACT_PHONE`. La clé runtime
+non vide est prioritaire sur `REACT_APP_CARTO_API_KEY` ; une clé runtime vide
+laisse fonctionner le fallback du build. Ne mettez aucune vraie clé dans
+`frontend/public/runtime-config.js` ni dans Git. Une clé Basemaps est publique
+(visible dans les requêtes), jamais un secret serveur.
+
+Configurer `Cache-Control: no-store` pour `/runtime-config.js` et revalider
+`index.html`. Chaque publication doit réinjecter la configuration serveur :
+recopier le fichier vide d'un nouveau build sans cette étape effacerait la clé.
+Une modification runtime nécessite un rechargement de la page, pas un rebuild.
+Ne chargez pas ce fichier de manière asynchrone après le démarrage de React.
+
+Vérifier sur le serveur que l'URL `/runtime-config.js` renvoie un fichier
+JavaScript (HTTP 200, pas le HTML de secours du SPA), puis dans le navigateur
+que ce fichier est chargé avant `main.*.js`. Vérifier que les tuiles
+`light_all` s'affichent sans filigrane. Ne partagez pas le contenu du fichier
+ni les URL complètes contenant la clé.
 
 Exécutez `npm run build` depuis `frontend`. Create React App charge
 `.env.production` et intègre `REACT_APP_CARTO_API_KEY` dans les fichiers
 JavaScript à la compilation. Une variable déjà définie dans le shell ou la CI
 est prioritaire, suivie de `.env.production.local`, `.env.local`,
 `.env.production` et `.env`. Une variable définie seulement dans le backend
-ou après le build ne modifie pas la carte.
+après le build ne modifie pas le bundle ; utilisez le fichier runtime ci-dessus
+pour configurer une clé après compilation.
 
 La clé est visible dans le frontend public : les restrictions côté CARTO
 restent indispensables. Pour vérifier le déploiement, ouvrez la carte sur
 le domaine autorisé et contrôlez dans l'onglet Réseau du navigateur que les
-requêtes `dark_all` contiennent `key`, aboutissent sans erreur et affichent
+requêtes `light_all` contiennent `key`, aboutissent sans erreur et affichent
 des tuiles sans filigrane. Ne partagez pas ces URL complètes.
 L'attribution OpenStreetMap/CARTO doit rester visible.
 
 Transférez ensuite le contenu de `frontend/build/` vers la racine du site
 sur le VPS. Si un rechargement Nginx est nécessaire, validez d'abord sa
 configuration avec `sudo nginx -t`, puis lancez `sudo systemctl reload nginx`.
-Tout changement de clé nécessite un nouveau build et un redéploiement.
+Avec la configuration runtime, changer de clé ne nécessite pas de nouveau build.
 
 ## Available Scripts
 
