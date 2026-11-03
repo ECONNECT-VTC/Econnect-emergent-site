@@ -97,4 +97,28 @@ describe('address autocomplete', () => {
     expect(container.querySelector('[role="alert"]').textContent).toContain('Aucune adresse');
     expect(selected).toBeNull();
   });
+
+  it('distinguishes a 404 API error from a successful search with no results', async () => {
+    searchAddresses.mockRejectedValueOnce({ response: { status: 404, data: { detail: 'Not Found' } } });
+    await type('roissy');
+    await finishSearch();
+    expect(container.querySelector('[role="alert"]').textContent).toContain('API cartographique est introuvable');
+    expect(container.querySelector('input').value).toBe('roissy');
+    expect(selected).toBeNull();
+    searchAddresses.mockResolvedValueOnce([]);
+    await type('adresse inconnue');
+    await finishSearch();
+    expect(container.querySelector('[role="alert"]').textContent).toContain('Aucune adresse trouvée');
+  });
+
+  it('cancels the previous search signal on further input but executes the latest debounce', async () => {
+    await type('roi');
+    await finishSearch();
+    const previousSignal = searchAddresses.mock.calls[0][1];
+    await type('roissy');
+    expect(previousSignal.aborted).toBe(true);
+    await finishSearch();
+    expect(searchAddresses.mock.calls.at(-1)[0]).toBe('roissy');
+    expect(searchAddresses.mock.calls.at(-1)[1].aborted).toBe(false);
+  });
 });

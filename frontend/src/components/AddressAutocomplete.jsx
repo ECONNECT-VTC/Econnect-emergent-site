@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import axios from 'axios';
 import { Input } from '@/components/ui/input';
-import { mapErrorMessage, searchAddresses } from '@/utils/bookingMap';
+import { mapErrorMessage, searchAddresses, traceBookingMap } from '@/utils/bookingMap';
 
 export default function AddressAutocomplete({ value, onChange, onSelect, onFocus, selectedAddress, ...props }) {
   const listId = useId();
@@ -12,13 +12,16 @@ export default function AddressAutocomplete({ value, onChange, onSelect, onFocus
   const [error, setError] = useState('');
 
   useEffect(() => {
+    traceBookingMap('value received', { length: value.trim().length, focused, selected: selectedAddress?.label === value });
     setSuggestions([]);
     setActiveIndex(-1);
     setError('');
     setLoading(false);
     if (!focused || value.trim().length < 3 || selectedAddress?.label === value) return;
     const controller = new AbortController();
+    traceBookingMap('debounce scheduled', { delay: 400 });
     const timer = setTimeout(async () => {
+      traceBookingMap('debounce executed', { length: value.trim().length });
       setLoading(true);
       try {
         const results = await searchAddresses(value.trim(), controller.signal);
@@ -26,6 +29,7 @@ export default function AddressAutocomplete({ value, onChange, onSelect, onFocus
         setSuggestions(results);
         if (!results.length) setError('Aucune adresse trouvée. Précisez la ville ou choisissez sur la carte.');
       } catch (err) {
+        traceBookingMap('search failed or cancelled', { aborted: controller.signal.aborted, status: err.response?.status });
         if (!controller.signal.aborted && !axios.isCancel(err)) {
           setError(mapErrorMessage(err, 'Recherche d’adresses indisponible. Réessayez ou choisissez sur la carte.'));
         }
@@ -34,6 +38,7 @@ export default function AddressAutocomplete({ value, onChange, onSelect, onFocus
       }
     }, 400);
     return () => {
+      traceBookingMap('debounce cleanup', { aborted: true });
       clearTimeout(timer);
       controller.abort();
     };
@@ -51,7 +56,11 @@ export default function AddressAutocomplete({ value, onChange, onSelect, onFocus
       <Input
         {...props}
         value={value}
-        onChange={(event) => { setFocused(true); onChange(event.target.value); }}
+        onChange={(event) => {
+          traceBookingMap('onChange', { length: event.target.value.length });
+          setFocused(true);
+          onChange(event.target.value);
+        }}
         onFocus={() => { setFocused(true); onFocus?.(); }}
         onBlur={() => setFocused(false)}
         autoComplete="off"

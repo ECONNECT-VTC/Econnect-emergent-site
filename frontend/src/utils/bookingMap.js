@@ -1,6 +1,12 @@
 import axios from 'axios';
 import API_URL from '@/config';
 
+export const traceBookingMap = (stage, details) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.debug(`[BookingMap] ${stage}`, details);
+  }
+};
+
 export const isCoordinate = (position) => Array.isArray(position)
   && position.length === 2
   && position.every(Number.isFinite)
@@ -28,8 +34,13 @@ export const addressesFromBooking = (booking) => {
   return { pickup: address('pickup'), dropoff: address('dropoff') };
 };
 
-export const mapErrorMessage = (error, fallback) => typeof error?.response?.data?.detail === 'string'
-  ? error.response.data.detail : fallback;
+export const mapErrorMessage = (error, fallback) => {
+  if (error?.response?.status === 404) {
+    return 'Service de recherche et de trajet indisponible : l’API cartographique est introuvable. Veuillez réessayer plus tard.';
+  }
+  return typeof error?.response?.data?.detail === 'string'
+    ? error.response.data.detail : fallback;
+};
 
 const readAddresses = (data) => {
   if (!Array.isArray(data?.features)) throw new Error('Réponse du service d’adresses invalide.');
@@ -46,11 +57,14 @@ const readAddresses = (data) => {
 };
 
 export const searchAddresses = async (query, signal) => {
-  const response = await axios.post(`${API_URL}/api/map/search`, { q: query }, {
+  const url = `${API_URL}/api/map/search`;
+  traceBookingMap('searchAddresses: POST', { url, queryLength: query.length, aborted: signal?.aborted });
+  const response = await axios.post(url, { q: query }, {
     signal,
     timeout: 15000,
     withCredentials: true,
   });
+  traceBookingMap('searchAddresses: response', { status: response.status, count: response.data?.features?.length });
   return readAddresses(response.data);
 };
 

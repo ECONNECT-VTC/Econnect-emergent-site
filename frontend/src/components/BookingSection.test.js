@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import axios from 'axios';
 import { fetchDrivingRoute, reverseAddress } from '@/utils/bookingMap';
 import { createCheckoutSession, saveBookingCheckoutDraft } from '@/utils/bookingCheckout';
+import { useAuth } from '@/contexts/AuthContext';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -18,7 +19,7 @@ jest.mock('@/contexts/LanguageContext', () => ({
   useLanguage: () => ({ t: (key) => key }),
 }), { virtual: true });
 jest.mock('@/contexts/AuthContext', () => ({
-  useAuth: () => ({ user: { id: 'u1', email: 'client@test.com' } }),
+  useAuth: jest.fn(() => ({ user: { id: 'u1', email: 'client@test.com' } })),
 }), { virtual: true });
 jest.mock('react-router-dom', () => ({
   useLocation: () => ({ hash: '' }),
@@ -74,8 +75,12 @@ jest.mock('@/utils/bookingCheckout', () => ({
 jest.mock('framer-motion', () => {
   const React = require('react');
   const stripMotionProps = ({ initial, animate, exit, transition, whileInView, viewport, ...props }) => props;
+  const components = {};
   const motion = new Proxy({}, {
-    get: (_, tag) => ({ children, ...props }) => React.createElement(tag, stripMotionProps(props), children),
+    get: (_, tag) => {
+      if (!components[tag]) components[tag] = ({ children, ...props }) => React.createElement(tag, stripMotionProps(props), children);
+      return components[tag];
+    },
   });
   return {
     motion,
@@ -101,6 +106,7 @@ describe('BookingSection', () => {
   let root;
 
   beforeEach(() => {
+    useAuth.mockReturnValue({ user: { id: 'u1', email: 'client@test.com' } });
     lastCalendarProps = null;
     mockReadBookingCheckoutDraft.mockReset();
     fetchDrivingRoute.mockReset();
@@ -126,6 +132,41 @@ describe('BookingSection', () => {
       root.unmount();
     });
     container.remove();
+    jest.useRealTimers();
+  });
+
+  it.each(['pickup', 'dropoff'])('sends the visible public %s field through the real autocomplete and POST after 400ms without authentication', async (field) => {
+    jest.useFakeTimers();
+    useAuth.mockReturnValue({ user: null });
+    mockReadBookingCheckoutDraft.mockReturnValue(null);
+    axios.post.mockResolvedValue({ data: { features: [{
+      properties: { name: 'Roissy', city: 'Roissy-en-France' },
+      geometry: { coordinates: [2.52, 49.0] },
+    }] } });
+    await act(async () => root.render(<BookingSection />));
+    const input = container.querySelector(`[data-testid="${field}-input"]`);
+    expect(input.getAttribute('role')).toBe('combobox');
+    let text = '';
+    for (const char of 'roissy') {
+      text += char;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, text);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      expect(input.value).toBe(text);
+    }
+    await act(async () => jest.advanceTimersByTime(399));
+    expect(axios.post).not.toHaveBeenCalled();
+    await act(async () => { jest.advanceTimersByTime(1); await Promise.resolve(); });
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(axios.post).toHaveBeenCalledWith('http://api.test/api/map/search', { q: 'roissy' }, expect.objectContaining({
+      withCredentials: true, signal: expect.any(AbortSignal),
+    }));
+    expect(axios.post.mock.calls[0][2].signal.aborted).toBe(false);
+    expect(container.querySelector('[role="option"]').textContent).toContain('Roissy');
+    await act(async () => container.querySelector('[role="option"]').click());
+    expect(input.value).toBe('Roissy, Roissy-en-France');
+    expect(mockMapProps[field].position).toEqual([49.0, 2.52]);
   });
 
   it('allows selecting past dates on the public booking calendar', async () => {
