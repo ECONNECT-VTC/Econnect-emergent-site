@@ -1,11 +1,47 @@
 import axios from 'axios';
-import { addressesFromBooking, bookingCoordinates, fetchDrivingRoute, reverseAddress, searchAddresses } from './bookingMap';
+import { addressesFromBooking, bookingCoordinates, fetchDrivingRoute, mapErrorMessage, reverseAddress, searchAddresses, traceBookingMap } from './bookingMap';
 
 jest.mock('axios');
 const pickup = { label: 'Paris', position: [48.85, 2.35] };
 const dropoff = { label: 'CDG', position: [49.01, 2.55] };
 
 beforeEach(() => jest.clearAllMocks());
+
+it('uses the configured production API origin for the search POST', async () => {
+  const previous = window.__ECONNECT_CONFIG__;
+  try {
+    window.__ECONNECT_CONFIG__ = { API_URL: 'https://api.econnect-vtc.com' };
+    axios.post.mockResolvedValue({ data: { features: [] } });
+    await searchAddresses('roissy');
+    expect(axios.post).toHaveBeenCalledWith(
+      'https://api.econnect-vtc.com/api/map/search',
+      { q: 'roissy' }, expect.objectContaining({ withCredentials: true })
+    );
+  } finally {
+    window.__ECONNECT_CONFIG__ = previous;
+  }
+});
+
+it.each(['production', 'test', 'development'])('only emits diagnostic traces in development, not %s otherwise', (mode) => {
+  const previous = process.env.NODE_ENV;
+  const debug = jest.spyOn(console, 'debug').mockImplementation(() => {});
+  try {
+    process.env.NODE_ENV = mode;
+    traceBookingMap('test stage', { length: 6 });
+    expect(debug).toHaveBeenCalledTimes(mode === 'development' ? 1 : 0);
+  } finally {
+    process.env.NODE_ENV = previous;
+    debug.mockRestore();
+  }
+});
+
+it('distinguishes a missing API route from an address with no results and preserves quota errors', () => {
+  expect(mapErrorMessage({ response: { status: 404, data: { detail: 'Not Found' } } }, 'fallback'))
+    .toContain('API cartographique est introuvable');
+  expect(mapErrorMessage({ response: { status: 429, data: { detail: 'Trop de requêtes.' } } }, 'fallback'))
+    .toBe('Trop de requêtes.');
+  expect(mapErrorMessage(new Error('Network'), 'fallback')).toBe('fallback');
+});
 
 it('converts geocoder longitude/latitude to Leaflet coordinates and includes address details', async () => {
   axios.post.mockResolvedValue({ data: { features: [{
