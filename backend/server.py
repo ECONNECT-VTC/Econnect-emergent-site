@@ -32,6 +32,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from pydantic import ValidationError
 from booking_map import BookingCoordinates, MapPosition, MapRouteRequest, MapSearchRequest, MapService, enforce_map_limits, validate_route_response
+from booking_terms import CURRENT_TERMS_VERSION, TERMS_DOCUMENTS, booking_terms_enabled, generate_booking_terms_pdf
 from email_service import (
     TEMPLATE_KEY_ACCOUNT_ACTIVATION,
     TEMPLATE_KEY_ADMIN_MESSAGE,
@@ -51,6 +52,7 @@ from email_service import (
 # Load environment variables before accessing os.environ
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+booking_terms_enabled()  # Fail startup rather than activate an unreviewed draft.
 
 # Logo path for PDF generation — prefer backend/assets/, fallback to frontend/public/photo/
 LOGO_PATH = ROOT_DIR / "assets" / "logo.png"
@@ -248,7 +250,8 @@ class BookingBase(BookingCoordinates):
         return self
 
 class BookingCreate(BookingBase):
-    pass
+    terms_accepted: bool = Field(default=False, strict=True)
+    terms_version: Optional[str] = Field(default=None, strict=True, max_length=32)
 
 class AdminBookingCreate(BookingCoordinates):
     client_name: str
@@ -338,6 +341,9 @@ class BookingResponse(BaseModel):
     payment_mode: Optional[str] = None
     created_at: datetime
     assigned_at: Optional[datetime] = None
+    terms_accepted: bool = False
+    terms_version: Optional[str] = None
+    terms_accepted_at: Optional[datetime] = None
 
 class BookingCheckoutCreate(BookingCreate):
     payment_method: Optional[str] = None
@@ -3510,8 +3516,71 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
 
 
 async def send_booking_confirmation_to_client(booking: dict):
-    paid_amount = booking.get("paid_amount") if booking.get("paid_amount") is not None else booking.get("estimated_price")
-    amount_label = f"{float(paid_amount):.2f} €" if paid_amount is not None else "Montant indisponible"
+    attachments = []
+    terms_params = {}
+    terms_html = ""
+    accepted_amount_label = None
+    if booking.get("terms_accepted") is True:
+        version = booking.get("terms_version")
+        if version not in TERMS_DOCUMENTS or not booking.get("terms_accepted_at"):
+            raise ValueError("Accepted booking terms evidence is incomplete or unavailable")
+        terms_pdf = generate_booking_terms_pdf(version)
+        settings = await get_commission_settings()
+        quote_pdf, _ = await generate_and_store_document(booking, settings, "quote")
+        attachments = [
+            (f"devis-{booking_short_reference(booking.get('id'))}.pdf", quote_pdf),
+            (f"cgv-{version}.pdf", terms_pdf),
+        ]
+        terms_url = f"{os.environ.get('BACKEND_URL', FRONTEND_URL).rstrip('/')}/api/booking-terms/{version}/pdf"
+        def recap_amount(field: str) -> Optional[float]:
+            value = booking.get(field)
+            if value is None:
+                return None
+            try:
+                amount = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid booking confirmation amount: {field}") from exc
+            if isinstance(value, bool) or not math.isfinite(amount) or amount < 0:
+                raise ValueError(f"Invalid booking confirmation amount: {field}")
+            return round_amount(amount)
+
+        def recap_label(amount: Optional[float]) -> str:
+            return f"{amount:.2f} €" if amount is not None else "Montant indisponible"
+
+        total_amount = recap_amount("estimated_price")
+        recorded_paid_amount = recap_amount("paid_amount")
+        remaining_amount = (
+            round_amount(max(total_amount - recorded_paid_amount, 0.0))
+            if total_amount is not None and recorded_paid_amount is not None else None
+        )
+        accepted_amount_label = recap_label(recorded_paid_amount)
+        cancellation_summary = (
+            "Vous pouvez transmettre une demande d'annulation depuis votre espace client. "
+            "Elle est examinée par le professionnel ; son envoi ne déclenche pas automatiquement "
+            "un remboursement. Consultez les conditions acceptées et contactez le professionnel "
+            "pour les modalités applicables, sans préjudice de vos droits légaux."
+        )
+        terms_params = {
+            "CGV_VERSION": version, "CGV_URL": terms_url,
+            "TOTAL_AMOUNT": recap_label(total_amount),
+            "PAID_AMOUNT": accepted_amount_label,
+            "REMAINING_BALANCE": recap_label(remaining_amount),
+            "CANCELLATION_SUMMARY": cancellation_summary,
+        }
+        terms_html = (
+            f'<p>Montant total : {terms_params["TOTAL_AMOUNT"]}<br>'
+            f'Montant payé : {terms_params["PAID_AMOUNT"]}<br>'
+            f'Solde restant : {terms_params["REMAINING_BALANCE"]}</p>'
+            f'<p>{html_escape(cancellation_summary)}</p>'
+            f'<p>Les conditions générales de vente et de transport acceptées '
+            f'(version {html_escape(version)}) sont jointes en PDF, avec votre devis. '
+            f'<a href="{html_escape(terms_url, quote=True)}">Télécharger cette version des CGV</a>.</p>'
+        )
+    if accepted_amount_label is not None:
+        amount_label = accepted_amount_label
+    else:
+        paid_amount = booking.get("paid_amount") if booking.get("paid_amount") is not None else booking.get("estimated_price")
+        amount_label = f"{float(paid_amount):.2f} €" if paid_amount is not None else "Montant indisponible"
     currency = (booking.get("paid_currency") or "EUR").upper()
     subject = f"✅ Confirmation de réservation #{booking_short_reference(booking.get('id'))} - Econnect VTC"
 
@@ -3527,6 +3596,7 @@ async def send_booking_confirmation_to_client(booking: dict):
 </table>
 """
 
+    body_html += terms_html
     html_content = build_email_html(
         title="Réservation confirmée",
         body_html=body_html,
@@ -3538,6 +3608,7 @@ async def send_booking_confirmation_to_client(booking: dict):
         subject,
         html_content,
         template_key=TEMPLATE_KEY_PAYMENT_CONFIRMED,
+        attachments=attachments,
         template_params={
             "CLIENT_NAME": booking.get("client_name", "Client"),
             "BOOKING_ID": booking_short_reference(booking.get("id")),
@@ -3549,6 +3620,7 @@ async def send_booking_confirmation_to_client(booking: dict):
             "AMOUNT": amount_label,
             "CURRENCY": currency,
             "BOOKING_URL": f"{FRONTEND_URL}/fr/client/bookings",
+            **terms_params,
         },
     )
 
@@ -4301,10 +4373,56 @@ async def resend_activation(data: ResendActivationRequest):
 
 # ==================== CLIENT ROUTES ====================
 
-def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_category_name: Optional[str]) -> dict:
+@api_router.get("/booking-terms")
+async def get_booking_terms():
+    return {
+        "enabled": booking_terms_enabled(),
+        **TERMS_DOCUMENTS[CURRENT_TERMS_VERSION].model_dump(mode="json"),
+    }
+
+
+@api_router.get("/booking-terms/{version}/pdf")
+async def download_booking_terms_pdf(version: str):
+    if version not in TERMS_DOCUMENTS:
+        raise HTTPException(status_code=404, detail="Version des CGV introuvable")
+    return Response(
+        content=generate_booking_terms_pdf(version),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="cgv-{version}.pdf"'},
+    )
+
+
+def _record_booking_terms_consent(booking: BookingCreate) -> dict:
+    if not booking_terms_enabled():
+        return {"terms_accepted": False, "terms_version": None, "terms_accepted_at": None}
+    errors = []
+    if booking.terms_accepted is not True:
+        errors.append({
+            "loc": ["body", "terms_accepted"], "type": "value_error",
+            "msg": "Vous devez accepter les conditions générales de vente et de transport.",
+        })
+    if booking.terms_version != CURRENT_TERMS_VERSION:
+        errors.append({
+            "loc": ["body", "terms_version"], "type": "value_error",
+            "msg": "La version des CGV a changé. Veuillez consulter et accepter la version actuelle.",
+        })
+    if errors:
+        raise HTTPException(status_code=422, detail=errors)
+    return {
+        "terms_accepted": True,
+        "terms_version": CURRENT_TERMS_VERSION,
+        "terms_accepted_at": datetime.now(timezone.utc),
+    }
+
+
+def _build_client_booking_doc(
+    user: dict, booking: BookingCreate, vehicle_category_name: Optional[str],
+    terms_consent: Optional[dict] = None,
+) -> dict:
     payment_method = normalize_payment_method_code(getattr(booking, "payment_method", None))
     return {
         "id": str(uuid.uuid4()),
+        **(terms_consent or {}),
         "client_id": user["id"],
         "client_name": user["name"],
         "client_email": user["email"],
@@ -4383,12 +4501,13 @@ async def resolve_vehicle_category_name(category_ref: Optional[str]) -> Optional
 
 @api_router.post("/bookings", response_model=BookingResponse)
 async def create_booking(booking: BookingCreate, request: Request):
+    terms_consent = _record_booking_terms_consent(booking)
     user = await get_current_user(request)
     require_booking_coordinates(booking)
 
     vehicle_category_name = await resolve_vehicle_category_name(booking.vehicle_category_id)
 
-    booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name)
+    booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name, terms_consent)
 
     await db.bookings.insert_one(booking_doc)
     booking_doc.pop("_id", None)
@@ -4397,6 +4516,7 @@ async def create_booking(booking: BookingCreate, request: Request):
 
 @api_router.post("/bookings/checkout", response_model=BookingCheckoutResponse)
 async def create_booking_checkout(booking: BookingCheckoutCreate, request: Request):
+    terms_consent = _record_booking_terms_consent(booking)
     _ensure_stripe_configured()
     user = await get_current_user(request)
     require_booking_coordinates(booking)
@@ -4409,7 +4529,7 @@ async def create_booking_checkout(booking: BookingCheckoutCreate, request: Reque
 
     vehicle_category_name = await resolve_vehicle_category_name(booking.vehicle_category_id)
 
-    booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name)
+    booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name, terms_consent)
     await db.bookings.insert_one(booking_doc)
 
     charge_amount = _get_checkout_charge_amount(estimated_price, payment_method)
