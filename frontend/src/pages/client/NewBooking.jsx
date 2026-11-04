@@ -24,11 +24,14 @@ import { createCheckoutSession, saveBookingCheckoutDraft } from '@/utils/booking
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import InteractiveMap from '@/components/InteractiveMap';
 import useBookingRoute from '@/hooks/useBookingRoute';
+import useBookingTerms from '@/hooks/useBookingTerms';
+import BookingTermsAcceptance from '@/components/BookingTermsAcceptance';
 import { bookingCoordinates } from '@/utils/bookingMap';
 
 const NewBooking = () => {
   const enableDebugLogging = process.env.NODE_ENV !== 'production';
   const { lang = 'fr' } = useParams();
+  const consent = useBookingTerms();
   const [date, setDate] = useState();
   const [time, setTime] = useState('');
   const [pickup, setPickup] = useState('');
@@ -216,6 +219,11 @@ const NewBooking = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    const consentError = consent.validate(consent.payload);
+    if (consentError) {
+      setError(consentError);
+      return;
+    }
 
     if (!date || !time || !pickup || !dropoff || !transferType) {
       setError('Veuillez remplir tous les champs obligatoires');
@@ -246,6 +254,7 @@ const NewBooking = () => {
 
     try {
       const payload = {
+        ...consent.payload,
         ...bookingCoordinates(bookingRoute.addresses),
         pickup_address: pickup,
         dropoff_address: dropoff,
@@ -553,7 +562,8 @@ const NewBooking = () => {
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Instructions speciales..." className="bg-[#1E1E1E] border-white/10 min-h-[80px]" data-testid="notes-input" />
             </div>
 
-            <Button type="submit" disabled={loading || bookingRoute.loading || estimatingPrice} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6" data-testid="submit-booking">
+            <BookingTermsAcceptance consent={consent} lang={lang} />
+            <Button type="submit" disabled={loading || bookingRoute.loading || estimatingPrice || !consent.ready} className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6" data-testid="submit-booking">
               {loading ? <CircleNotch size={20} className="animate-spin" /> : <>Confirmer <ArrowRight size={20} className="ml-2" /></>}
             </Button>
           </form>

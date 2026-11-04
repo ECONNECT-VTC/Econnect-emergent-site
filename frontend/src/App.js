@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ForgotPassword from '@/pages/ForgotPassword';
 import LandingPage from '@/pages/LandingPage';
+import BookingTerms from '@/pages/BookingTerms';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import ResetPassword from '@/pages/ResetPassword';
@@ -45,6 +46,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route index element={<LandingPage />} />
+      <Route path="conditions-generales" element={<BookingTerms />} />
       <Route path="login" element={<LoginPage />} />
       <Route path="register" element={<RegisterPage />} />
       <Route path="forgot-password" element={<ForgotPassword />} />
