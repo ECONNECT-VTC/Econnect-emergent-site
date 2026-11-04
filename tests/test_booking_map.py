@@ -183,6 +183,46 @@ class TestMapProtection(unittest.IsolatedAsyncioTestCase):
             self.assertIn(caught.exception.status_code, (502, 503))
             self.assertFalse(service.cache)
 
+    async def test_roissy_search_sends_identification_and_returns_features(self):
+        features = [{
+            "type": "Feature",
+            "properties": {"name": "Roissy", "city": "Roissy-en-France"},
+            "geometry": {"type": "Point", "coordinates": [2.52, 49.0]},
+        }]
+        requests = []
+
+        def provider(request):
+            requests.append(request)
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(request.url.params["q"], "roissy")
+            self.assertEqual(request.headers["User-Agent"], "EconnectVTC/1.0 (+https://econnect-vtc.com)")
+            self.assertEqual(request.headers["Accept"], "application/json")
+            return httpx.Response(200, json={"features": features})
+
+        service = MapService()
+        upstream = httpx.AsyncClient(transport=httpx.MockTransport(provider))
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=server.app), base_url="http://test") as client:
+            with patch.object(server, "db", self.db), patch.object(server, "map_service", service), \
+                    patch("booking_map.httpx.AsyncClient", return_value=upstream) as factory:
+                response = await client.post("/api/map/search", json={"q": "roissy"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"features": features})
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(str(requests[0].url).split("?")[0], service.geocoder + "/api/")
+        self.assertFalse(factory.call_args.kwargs["follow_redirects"])
+        self.assertFalse(factory.call_args.kwargs["trust_env"])
+
+    async def test_provider_403_remains_explicit_service_error_without_sensitive_logs(self):
+        service = MapService()
+        upstream = httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(403)))
+        with patch("booking_map.httpx.AsyncClient", return_value=upstream), \
+                self.assertLogs("booking_map", level="WARNING") as logs:
+            with self.assertRaises(HTTPException) as caught:
+                await service.request("/api/", {"q": "roissy"})
+        self.assertEqual(caught.exception.status_code, 503)
+        self.assertFalse(service.cache)
+        self.assertEqual(logs.output, ["WARNING:booking_map:Map provider failed with status 403"])
+
     async def test_busy_provider_slots_return_429(self):
         service = MapService()
         for _ in range(4):
