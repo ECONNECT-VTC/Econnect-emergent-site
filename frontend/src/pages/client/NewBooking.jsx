@@ -295,6 +295,7 @@ const NewBooking = () => {
       }
       window.location.href = checkout.checkout_url;
     } catch (err) {
+      consent.refreshAfterError(err);
       setError(parseBookingError(err, 'Erreur lors de la réservation'));
     } finally {
       setLoading(false);

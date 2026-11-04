@@ -26,6 +26,7 @@ import AddressAutocomplete from './AddressAutocomplete';
 import useBookingRoute from '@/hooks/useBookingRoute';
 import useBookingTerms from '@/hooks/useBookingTerms';
 import BookingTermsAcceptance from './BookingTermsAcceptance';
+import { parseApiError } from '@/utils/apiErrors';
 import { addressesFromBooking, bookingCoordinates, isAddress } from '@/utils/bookingMap';
 import { PremiumWifiIcon } from './VehicleFeatureBadges';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -62,6 +63,7 @@ const BookingSection = () => {
   const consent = useBookingTerms();
   const resetConsent = consent.setAccepted;
   const validateConsent = consent.validate;
+  const refreshConsentAfterError = consent.refreshAfterError;
   const [step, setStep] = useState(1);
   const [date, setDate] = useState();
   const [pickup, setPickup] = useState('');
@@ -401,11 +403,12 @@ const BookingSection = () => {
       clearBookingCheckoutDraft();
       window.location.href = checkout.checkout_url;
     } catch (error) {
-      setBookingError(error?.response?.data?.detail || 'Impossible de lancer le paiement Stripe.');
+      refreshConsentAfterError(error);
+      setBookingError(parseApiError(error, 'Impossible de lancer le paiement Stripe.'));
       setBookingNotice('');
       setSubmittingCheckout(false);
     }
-  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm, durationMinutes, bookingRoute.addresses, passengerCount, babySeatCount, validateConsent]);
+  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm, durationMinutes, bookingRoute.addresses, passengerCount, babySeatCount, validateConsent, refreshConsentAfterError]);
 
   const handleAuthChoice = (authPath) => {
     const consentError = consent.validate(consent.payload);

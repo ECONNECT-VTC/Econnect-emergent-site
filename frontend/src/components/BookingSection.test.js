@@ -197,7 +197,11 @@ describe('BookingSection', () => {
     reverseAddress.mockResolvedValueOnce(pickup).mockResolvedValueOnce(dropoff);
     fetchDrivingRoute.mockResolvedValue(route);
     axios.post.mockResolvedValue({ data: [{ category_name: 'Berline', final_price: 75 }] });
-    createCheckoutSession.mockRejectedValue(new Error('Payment not started in test'));
+    createCheckoutSession.mockRejectedValue({
+      response: { status: 422, data: { detail: [{
+        loc: ['body', 'terms_version'], msg: 'La version des CGV a changé.',
+      }] } },
+    });
     await act(async () => root.render(<BookingSection />));
     await act(async () => mockMapProps.onSelectPosition(pickup.position));
     await act(async () => mockMapProps.onSelectPosition(dropoff.position));
@@ -234,6 +238,8 @@ describe('BookingSection', () => {
     expect(saveBookingCheckoutDraft).toHaveBeenCalledWith(expect.objectContaining({
       mapAddresses: { pickup, dropoff }, durationMinutes: '36',
     }));
+    expect(container.querySelector('[data-testid="booking-checkout-error"]').textContent).toContain('La version des CGV a changé.');
+    expect(container.querySelector('[data-testid="booking-terms-acceptance"]').checked).toBe(false);
   });
 
   it('reports pricing failure and does not charge a minimum fare as a route estimate', async () => {

@@ -83,4 +83,17 @@ describe('booking terms acceptance', () => {
     expect(consent.validate({ terms_accepted: true, terms_version: document.version })).toBe('');
     expect(consent.ready).toBe(false);
   });
+
+  it('reloads and clears acceptance if the backend rejects a version changed during checkout', async () => {
+    await act(async () => root.render(<Harness />));
+    await act(async () => container.querySelector('input').click());
+    axios.get.mockResolvedValueOnce({ data: { ...document, version: '2026-12-01' } });
+    await act(async () => consent.refreshAfterError({
+      response: { status: 422, data: { detail: [{ loc: ['body', 'terms_version'], msg: 'Version changed' }] } },
+    }));
+    expect(axios.get).toHaveBeenCalledTimes(2);
+    expect(consent.terms.version).toBe('2026-12-01');
+    expect(consent.accepted).toBe(false);
+    expect(consent.ready).toBe(false);
+  });
 });

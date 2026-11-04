@@ -48,11 +48,19 @@ export default function useBookingTerms() {
   const accepted = Boolean(terms && acceptedVersion === terms.version);
   const payload = terms?.enabled ? { terms_accepted: accepted, terms_version: terms.version } : {};
   const setAccepted = useCallback((value) => setAcceptedVersion(value ? terms?.version : null), [terms?.version]);
+  const retry = useCallback(() => setAttempt((value) => value + 1), []);
+  const refreshAfterError = useCallback((err) => {
+    const detail = err?.response?.data?.detail;
+    if (err?.response?.status === 422 && Array.isArray(detail)
+      && detail.some((entry) => Array.isArray(entry?.loc) && entry.loc.includes('terms_version'))) {
+      retry();
+    }
+  }, [retry]);
 
   return {
     terms, loading, error, accepted, payload, validate,
     ready: !validate(payload),
     setAccepted,
-    retry: () => setAttempt((value) => value + 1),
+    retry, refreshAfterError,
   };
 }
