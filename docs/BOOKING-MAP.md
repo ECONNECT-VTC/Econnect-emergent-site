@@ -62,6 +62,32 @@ Le navigateur n'appelle plus directement Photon/OSRM. Les routes backend
 appellent uniquement les fournisseurs configurés sur le serveur.
 Ces nouvelles routes sont implémentées dans `backend/server.py`.
 
+### Identification des requêtes Photon
+
+Le backend envoie au géocodeur `User-Agent: EconnectVTC/1.0 (+https://econnect-vtc.com)`
+et `Accept: application/json`. Le site public identifie l'application sans
+inventer d'adresse email ni transmettre de secret. `MAP_GEOCODER_URL` et
+`MAP_ROUTING_URL` restent inchangés. `trust_env=False` et les redirections
+désactivées sont conservés : un refus `403` ne prouve pas qu'une redirection
+soit nécessaire, et suivre une destination arbitraire affaiblirait la protection
+du proxy.
+
+Le test `test_roissy_search_sends_identification_and_returns_features` vérifie
+le POST `/api/map/search` avec `{"q":"roissy"}` jusqu'au transport HTTP simulé,
+les en-têtes réellement envoyés et une réponse `200` contenant `features`.
+Commande depuis la racine du dépôt :
+
+```sh
+python -m unittest tests.test_booking_map tests.test_admin_regressions tests.test_stripe_checkout tests.test_cors_config
+```
+
+Ce test ne garantit pas que Photon accepte l'adresse IP du VPS. Après validation,
+le serveur devra retester en local puis publiquement. Si Photon renvoie encore
+`403`, ne pas contourner le refus : vérifier les conditions et restrictions
+auprès du fournisseur ou configurer une instance Photon autorisée via
+`MAP_GEOCODER_URL`. L'API continue à renvoyer `503` explicitement en cas de
+refus fournisseur ; les logs ne contiennent que le statut, pas la requête.
+
 Les quotas couvrent aussi `/api/estimate-price`. Ils sont stockés dans MongoDB
 avec incréments atomiques et index TTL, donc partagés entre les workers :
 

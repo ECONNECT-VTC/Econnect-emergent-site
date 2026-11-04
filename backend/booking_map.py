@@ -92,8 +92,12 @@ class MapService:
             self.slots.release()
 
     async def fetch(self, url, params):
+        headers = {
+            "User-Agent": "EconnectVTC/1.0 (+https://econnect-vtc.com)",
+            "Accept": "application/json",
+        } if url.startswith(self.geocoder + "/") else {}
         async with httpx.AsyncClient(timeout=httpx.Timeout(10, connect=3), follow_redirects=False, trust_env=False) as client:
-            async with client.stream("GET", url, params=params) as response:
+            async with client.stream("GET", url, params=params, headers=headers) as response:
                 if response.status_code != 200:
                     logger.warning("Map provider failed with status %s", response.status_code)
                     raise HTTPException(503, "Service cartographique indisponible. Réessayez.")
