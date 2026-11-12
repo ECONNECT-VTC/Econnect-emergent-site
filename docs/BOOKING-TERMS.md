@@ -1,145 +1,145 @@
-# Versioned booking terms (backend)
+# Legal documents and booking consent
 
-## Release status: DRAFT — no deployment approval
+## Status and editorial review
 
-`BOOKING_TERMS_ENABLED=false` is the default. Do not enable this feature in
-production until a legal reviewer has approved the text and the real contracting
-company's identity, professional/tax identifiers, address/contact information,
-and competent consumer mediator's identity, contact details, website and referral
-procedure have been completed. Cancellation/refund conditions and passenger
-transport consumer information also need review. This implementation is not
-legal or deployment approval. It does not introduce cancellation or waiting fees.
-Setting the flag to `true` while the current version is the draft **fails backend
-startup** with an explicit error. The `APPROVED_TERMS_VERSIONS` allowlist is empty;
-it must only gain a new, legally reviewed and complete version. The toggle alone
-cannot activate this draft. Readiness is checked again on requests.
+The three French seed drafts (`terms`, `legal-notice`, `privacy`) are **suggestions,
+not legal advice or approval for deployment**. Nothing is published automatically.
+An administrator must complete the real company/professional/tax identifiers,
+contacts, hosting details, consumer mediator and referral procedure, and validate
+transport/cancellation information. Privacy bases, recipients, transfers, retention
+and operational rights handling need validation. Retention proposals are not
+promises of automatic deletion.
 
-The French draft describes the current implementation: a non-payment booking
-starts as `DRAFT`; Stripe charges the full displayed amount for card payment,
-or a 20% card deposit when the selected balance method is transfer/cash.
-Payment confirmation follows server-side verification, including partial payments.
+The privacy proposal reflects JWT HTTPOnly authentication cookies, booking/contact/
+coordinate/payment information, Stripe (not storage of full card numbers), Brevo
+transactional email, backend-proxied Photon/OSRM queries, and browser-side CARTO
+tiles with a public key. **PostHog is loaded by the public HTML; a compliant
+analytics/cookie consent manager is not established by this feature.** Audit its
+actual events/storage, implement any required controls, and complete that explicit
+placeholder before publication. CGV acceptance is not analytics consent.
 
-## Canonical, immutable versions
+Future content updates require **no code changes, deployment or restart**. In the
+admin editor, saving replaces the draft only; publication is a separate deliberate
+action. Each content edit should reset the UI review checkbox. The API saves the
+explicit `review_confirmed` value; publication requires it to be true and rejects
+explicit `[À COMPLÉTER …]`, `[A COMPLETER …]`, TODO, TBD and FIXME markers (422).
+Ordinary prose is not heuristically classified as incomplete. Human review remains
+necessary: this marker gate is not legal validation.
 
-`backend/assets/booking-terms/2026-11-04.json` is the canonical source for both
-the public document and its PDF. Its schema is:
+## Administrator workflow
 
-```json
-{
-  "version": "2026-11-04",
-  "title": "Conditions générales de vente et de transport",
-  "sections": [{"heading": "Section", "paragraphs": ["Paragraph"]}]
-}
-```
+After the initial feature deployment, open **Documents légaux** in the administrator
+menu (`/fr/admin/legal-documents`). Choose CGV, Mentions légales or Confidentialité.
+Edit the title, section headings and paragraph fields; add or remove blocks as
+needed. Preview does not save or publish. Save the draft, confirm the completed
+review, save that confirmation, then publish using the separate confirmation.
+The history opens read-only snapshots, not editable replacements.
 
-Documents are validated on backend import; malformed/missing assets fail loudly.
-Unknown properties are rejected. Version is an ISO-date-shaped string; title,
-headings, sections and paragraph collections must be nonempty. The in-memory
-models and their section/paragraph tuples are frozen. Only explicit version
-entries in `booking_terms.py` are available; request data never selects a path.
+The footer links to `/fr/conditions-generales`, `/fr/mentions-legales` and
+`/fr/politique-confidentialite` (with the active language prefix). Before the first
+publication, those pages indicate that no document has been published. Publishing
+a text does not change application fees, refund logic, retention or tracker behavior.
 
-**Never edit or delete a registered version**, including this draft. Legal
-changes require a new versioned asset, an additional registry entry and an update
-to `CURRENT_TERMS_VERSION`. Keep old versions available indefinitely for stored
-consent. Add that new version to `APPROVED_TERMS_VERSIONS` only after review and
-completion of mandatory information. PDFs are generated from the saved version's text, not the current
-version. The PDF is a copy of the versioned text, not a signature certificate;
-consent evidence is stored separately on the booking. PDF bytes may differ
-between generations due to PDF metadata; the versioned text must not change.
+## API contract
 
-## Public API / frontend contract
+All admin endpoints call the existing `require_admin` helper, which authenticates
+via `get_current_user` and requires role `admin` (401/403 otherwise).
 
-The frontend legal page is `/:lang/conditions-generales?version=<version>`,
-linked from the footer and consent control. Its PDF link targets the
-version-specific backend endpoint below. The shared consent checkbox starts
-unchecked. Loading/error states block checkout; a disabled response omits both
-the checkbox and consent payload. Auth-resumed drafts must be checked against
-the freshly loaded current version: missing acceptance or a stale version
-invalidates the saved consent and requires a fresh explicit choice rather than
-silently starting checkout.
+- `GET /api/admin/legal-documents`: `{documents: [record, ...]}`, all three kinds.
+- `PUT /api/admin/legal-documents/{kind}/draft`:
+  `{revision, title, sections: [{heading, paragraphs: [string]}], review_confirmed}`.
+- `POST /api/admin/legal-documents/{kind}/publish`: `{revision}`.
+- Both writes return the current single record:
+  `{kind, title, draft: {title, sections, review_confirmed}, revision,
+  published_version, history: [{version, published_at, published_by, title}], guidance}`.
+- `GET /api/admin/legal-documents/{kind}/versions/{version}`: immutable snapshot
+  `{kind, version, title, sections, published_at, published_by}`.
+- `GET /api/legal-documents/{kind}?version=<optional>`: current/archived published
+  snapshot `{kind, version, title, sections, published_at}`; no drafts or publisher.
+- `GET /api/legal-documents/{kind}/{version}/pdf`: PDF of that immutable snapshot.
 
-- `GET /api/booking-terms` returns exactly
-  `{enabled, version, title, sections}`. It remains readable when disabled.
-- `GET /api/booking-terms/{version}/pdf` returns an attachment named
-  `cgv-{version}.pdf`, content type `application/pdf`; unregistered versions
-  return 404. Registered historical versions remain downloadable when disabled.
-- `POST /api/bookings` and `POST /api/bookings/checkout` accept
-  `terms_accepted` (strict JSON boolean, default `false`) and `terms_version`
-  (optional strict string, maximum 32 characters). A supplied timestamp is
-  never trusted. Unknown input properties follow the existing model's ignore
-  behavior.
-- When enabled, both consumer routes reject missing/false acceptance or a
-  missing/stale version with HTTP 422 and field-specific `detail` errors,
-  before authentication, booking/database writes or Stripe session creation.
-  The client must reload the canonical document after a stale-version error and
-  request fresh acceptance. The checkbox must start unchecked.
-- Accepted bookings persist and expose `terms_accepted=true`,
-  `terms_version=<current version>`, and server-generated UTC
-  `terms_accepted_at`. When disabled, supplied consent values are ignored and
-  these fields are stored as `false`, `null`, `null`, respectively. Invalid
-  field types still receive normal schema-validation 422 responses.
-- Existing bookings are not migrated. Response defaults for absent evidence
-  are `false`, `null`, `null`. Admin creation and legacy workflows do not create
-  consent. Existing booking-edit field allowlists cannot overwrite consent.
+Unknown kinds/versions and unpublished documents return 404. Title max 200,
+heading max 300, paragraph max 12000 characters; text is trimmed and nonempty.
+Sections and paragraph arrays are nonempty (max 100 sections, 200 paragraphs per
+section), with an overall 200000-character document limit. Extra fields, coerced booleans and noninteger/negative revisions are
+rejected. Version identifiers are opaque 32-character UUID hex strings.
 
-## Payment confirmation / Brevo
+`GET /api/booking-terms` preserves `{enabled, version, title, sections}`. Once CGV
+are published, consent becomes enabled automatically without restarting the server.
+Unset/blank `BOOKING_TERMS_ENABLED` means automatic; explicit `false` is an emergency
+kill switch. `true` cannot activate unpublished text. Without published CGV this
+endpoint returns the legacy draft with `enabled: false`. Generic public endpoints
+never expose this draft as current. An explicit historical terms lookup for the
+registered legacy version returns the pinned original with `published_at: null`
+(no reliable publication timestamp is available). Both generic current JSON
+endpoints send `Cache-Control: no-store`. `GET /api/booking-terms/{version}/pdf` remains compatible
+with published Mongo snapshots and the original legacy asset `2026-11-04`.
 
-For a booking with recorded acceptance, `send_booking_confirmation_to_client`
-attaches both its quote and `cgv-{saved version}.pdf` using the existing Brevo
-multi-attachment transport. This is independent of the current feature flag.
-The fallback HTML includes the accepted version and an absolute PDF download
-link using `BACKEND_URL` (fallback: `FRONTEND_URL`).
+## Persistence, concurrency and archives
 
-Update the `BREVO_TEMPLATE_PAYMENT_CONFIRMED` template to display optional
-`CGV_VERSION`, `CGV_URL`, `TOTAL_AMOUNT`, `PAID_AMOUNT`, `REMAINING_BALANCE`
-and `CANCELLATION_SUMMARY`. The fallback HTML includes the same recap and
-non-automatic cancellation/refund reminder, without inventing fees or a barème.
-Amounts use stored `estimated_price` and `paid_amount`, preserving zero.
-Missing values are shown as unavailable (the balance requires both amounts);
-invalid, negative or nonfinite amounts raise an error instead of sending a
-misleading recap. Remaining balance is floored at zero. For accepted bookings,
-the existing `AMOUNT` parameter also uses the recorded paid amount, never an
-assumed full payment. Other existing parameters remain unchanged. The service
-passes these CGV parameters only for accepted bookings. Historical/admin/disabled
-bookings retain the old confirmation behavior, without CGV claims or attachments.
-This update is required for configured dynamic templates: Brevo chooses the
-template instead of the fallback HTML, so changing only the HTML is insufficient.
-This confirmation previously had no quote attachment; the accepted-terms branch
-adds the quote alongside the CGV, leaving legacy behavior unchanged.
+`legal_documents` uses `_id = kind` and stores `{draft, revision, published_version,
+history}`. First admin reads initialize drafts through `$setOnInsert`. Legal notice
+and privacy seeds live in `backend/assets/legal-documents/`; CGV reuse the immutable
+legacy asset plus an explicit missing-information marker. Initialization never
+replaces saved content and never publishes.
 
-PDF generation/unknown saved version/incomplete accepted evidence errors are
-not swallowed: no email is sent claiming attachments that could not be generated.
-The existing payment/email workflow is not redesigned into a retry queue by
-this change; monitor confirmation failures and arrange operational resend
-handling before release.
+`legal_document_versions` stores immutable snapshots under `_id = kind:uuid`.
+There is deliberately no API to edit/delete archives. Back up both collections
+alongside bookings; restrict database write access. Published versions referenced
+by bookings must not be deleted or altered.
 
-## Rollout
+Both saves and publications atomically compare the submitted revision and increment
+it. A conflicting save/publication returns 409; reload/reconcile rather than
+overwriting another administrator's work. Publication inserts the snapshot first,
+then atomically updates the pointer and pushes history only if the revision still
+matches. It never writes the draft. Standalone MongoDB works without transactions.
+A failed compare-and-swap can leave an orphan snapshot: **all public/admin version
+reads and PDF downloads require membership in the document's published history**,
+so orphans are not accessible. Do not treat raw snapshot presence as publication.
+Database errors propagate explicitly; there is no silent fallback to static text.
+A referenced missing snapshot is an explicit integrity error.
 
-Ship the backend endpoints first with the feature disabled, then the frontend
-that dynamically reads the API. Do not deploy or enable the draft on the basis
-of these changes. Before any separately approved activation, publish the new
-legally reviewed, complete immutable asset, register/approve it in the backend,
-update the configured Brevo template, validate the PDF and both consumer flows,
-and only then opt in using the environment flag. Disabling again stops new
-consent collection but does not remove existing accepted PDFs or confirmation
-attachments.
+## Consent and transactional email
+
+Both client booking creation routes await the current published CGV before any
+booking/payment side effect. When enabled, they require a strict true acceptance
+and the current version; false/missing/stale consent returns 422. The server saves
+`terms_accepted`, `terms_version` and its own UTC `terms_accepted_at`; a client
+timestamp is not trusted. When disabled, supplied consent is discarded. Admin/
+legacy bookings acquire no fabricated consent.
+
+Subsequent publication never changes that saved version. Confirmation emails
+fetch the **accepted archived snapshot**, not the current publication or draft,
+attach its PDF plus the quote, and include the version-specific PDF link in Brevo
+template and fallback HTML. Legacy original-version evidence remains supported.
+Missing versions, snapshot corruption, PDF failures and database errors stop email
+generation rather than silently sending a different document. PDFs contain the
+immutable text, not a signature certificate; bytes may vary with PDF metadata.
+
+If `BREVO_TEMPLATE_PAYMENT_CONFIRMED` selects a hosted Brevo template, update that
+template separately to display the optional parameters `CGV_VERSION`, `CGV_URL`,
+`TOTAL_AMOUNT`, `PAID_AMOUNT`, `REMAINING_BALANCE` and `CANCELLATION_SUMMARY`.
+Attachments are supplied through the Brevo API in either template mode.
+
+## Initial rollout
+
+This feature requires one initial backend/frontend deployment, not authorized by
+this draft PR. Preserve the existing environment. In particular, an existing
+`BOOKING_TERMS_ENABLED=false` remains a kill switch: publication will not enable
+checkout acceptance until that setting is removed/blanked and the backend restarted.
+Do not remove it or publish incomplete texts without an explicit operational and
+legal review. Subsequent text publications in automatic mode need no restart.
+Back up both legal collections and bookings before rollout.
 
 ## Validation
 
-Run targeted backend regressions with the existing backend environment:
+Run the backend unittest suite, or the focused legal/consent/email/payment tests:
 
 ```sh
-python -m unittest tests.test_booking_terms tests.test_stripe_checkout \
-  tests.test_invoice_email tests.test_pdf_generation tests.test_email_service
+python -m unittest tests.test_legal_documents tests.test_booking_terms tests.test_stripe_checkout
 ```
 
-`tests/test_booking_terms.py` covers schema validation, both consumer routes,
-disabled behavior, timestamp provenance, public version/PDF routing, historical
-version selection, Brevo attachments/parameters and non-swallowed PDF failures.
-It also verifies that opting in with the unapproved draft fails startup.
-
-The existing `test_email_template` module mutates global third-party modules at
-import. Plain discovery therefore contaminates unrelated backend tests. For
-whole-suite validation, load and run the other backend modules first, then load
-and run `tests.test_email_template` last in the same process. No production code
-or unrelated tests were changed to work around that legacy test isolation issue.
+Tests use mocked Mongo collections and cover authorization, seeded drafts,
+explicit review/placeholder gates, strict validation, optimistic concurrency,
+orphan isolation, immutable archives/PDFs, live activation, consent evidence and
+Brevo attachments in both template modes. No deployment is implied.

@@ -22,6 +22,7 @@ import booking_terms
 import email_service
 import server
 from tests.test_invoice_email import _make_brevo_sdk
+from tests.legal_document_fakes import legal_database, published_database
 
 
 VERSION = "2026-11-04"
@@ -58,25 +59,28 @@ class TestCanonicalBookingTerms(unittest.TestCase):
         with self.assertRaises(TypeError):
             booking_terms.TERMS_DOCUMENTS["other"] = document
 
-    def test_default_disabled_and_draft_cannot_be_enabled(self):
+    def test_auto_mode_requires_publication_and_false_is_kill_switch(self):
         with patch.dict(os.environ, {}, clear=True):
             self.assertFalse(booking_terms.booking_terms_enabled())
+            self.assertTrue(booking_terms.booking_terms_enabled(True))
         with patch.dict(os.environ, {"BOOKING_TERMS_ENABLED": "true"}):
-            with self.assertRaisesRegex(RuntimeError, "unapproved draft"):
-                booking_terms.booking_terms_enabled()
+            self.assertFalse(booking_terms.booking_terms_enabled())
+            self.assertTrue(booking_terms.booking_terms_enabled(True))
+        with patch.dict(os.environ, {"BOOKING_TERMS_ENABLED": "false"}):
+            self.assertFalse(booking_terms.booking_terms_enabled(True))
 
-    def test_draft_flag_fails_server_startup(self):
+    def test_environment_true_no_longer_requires_static_allowlist_at_startup(self):
         result = subprocess.run(
             [sys.executable, "-c", "import server"],
             cwd=Path(server.__file__).parent,
             env={**os.environ, "BOOKING_TERMS_ENABLED": "true"},
             capture_output=True, text=True, timeout=30,
         )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("unapproved draft", result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_public_document_and_pdf_are_canonical_when_disabled(self):
-        with patch.dict(os.environ, {"BOOKING_TERMS_ENABLED": "false"}):
+        with patch.dict(os.environ, {"BOOKING_TERMS_ENABLED": "false"}), \
+                patch.object(server, "db", legal_database()):
             client = TestClient(server.app)
             response = client.get("/api/booking-terms")
             self.assertEqual(response.status_code, 200)
@@ -102,14 +106,12 @@ class TestCanonicalBookingTerms(unittest.TestCase):
 class TestBookingConsent(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.environment = patch.dict(os.environ, {"BOOKING_TERMS_ENABLED": "true"})
-        # Test-only approval: production explicitly disallows the draft.
-        self.approval = patch.object(booking_terms, "APPROVED_TERMS_VERSIONS", frozenset({VERSION}))
         self.environment.start()
-        self.approval.start()
         self.addCleanup(self.environment.stop)
-        self.addCleanup(self.approval.stop)
         self.bookings = SimpleNamespace(insert_one=AsyncMock(), update_one=AsyncMock())
-        self.database = patch.object(server, "db", SimpleNamespace(bookings=self.bookings))
+        self.database = patch.object(
+            server, "db", published_database(VERSION, bookings=self.bookings),
+        )
         self.auth = patch.object(
             server, "get_current_user",
             AsyncMock(return_value={"id": "u1", "name": "Client", "email": "client@example.com"}),
@@ -324,6 +326,7 @@ class TestTermsConfirmationEmail(unittest.IsolatedAsyncioTestCase):
             {"terms_version": VERSION}, {"terms_accepted_at": datetime.now(timezone.utc)},
         ):
             with self.subTest(overrides=overrides), \
+                    patch.object(server, "db", legal_database()), \
                     patch.object(server, "send_notification_email", AsyncMock()) as send:
                 with self.assertRaisesRegex(ValueError, "evidence"):
                     await server.send_booking_confirmation_to_client(

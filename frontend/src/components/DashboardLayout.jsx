@@ -36,6 +36,7 @@ const DashboardLayout = ({ children, title }) => {
           { name: 'Finance', path: `${p}/admin/financial`, icon: ChartLineUp },
           { name: 'Commissions', path: `${p}/admin/commissions`, icon: Percent },
           { name: 'Documents', path: `${p}/admin/documents`, icon: FileText },
+          { name: 'Documents légaux', path: `${p}/admin/legal-documents`, icon: FileText },
         ];
       case 'driver':
         return [

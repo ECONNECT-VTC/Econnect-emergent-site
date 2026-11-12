@@ -104,10 +104,10 @@ const Footer = () => {
             <a href={`/${lang}/conditions-generales`} className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
               Conditions générales de vente
             </a>
-            <a href="#" className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
+            <a href={`/${lang}/mentions-legales`} className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
               {t('mentionsLegales')}
             </a>
-            <a href="#" className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
+            <a href={`/${lang}/politique-confidentialite`} className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
               {t('politiqueConfidentialite')}
             </a>
           </div>

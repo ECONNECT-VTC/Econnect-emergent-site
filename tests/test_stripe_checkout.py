@@ -12,6 +12,7 @@ backend_dir = os.path.join(os.path.dirname(__file__), "..", "backend")
 sys.path.insert(0, backend_dir)
 
 import server  # noqa: E402
+from tests.legal_document_fakes import legal_database
 
 
 class _InsertResult:
@@ -110,7 +111,7 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
         bookings = InMemoryBookingsCollection()
         vehicle_categories = SimpleNamespace(find_one=AsyncMock(return_value={"id": "berline", "name": "Berline"}))
 
-        fake_db = SimpleNamespace(bookings=bookings, vehicle_categories=vehicle_categories)
+        fake_db = legal_database(bookings=bookings, vehicle_categories=vehicle_categories)
         payload = server.BookingCheckoutCreate(
             pickup_lat=48.85, pickup_lng=2.35, dropoff_lat=49.01, dropoff_lng=2.55,
             pickup_address="Aéroport CDG",
@@ -149,7 +150,7 @@ class TestStripeCheckoutFlow(unittest.IsolatedAsyncioTestCase):
         bookings = InMemoryBookingsCollection()
         vehicle_categories = SimpleNamespace(find_one=AsyncMock(return_value={"id": "berline", "name": "Berline"}))
 
-        fake_db = SimpleNamespace(bookings=bookings, vehicle_categories=vehicle_categories)
+        fake_db = legal_database(bookings=bookings, vehicle_categories=vehicle_categories)
         payload = server.BookingCheckoutCreate(
             pickup_lat=48.85, pickup_lng=2.35, dropoff_lat=49.01, dropoff_lng=2.55,
             pickup_address="Aéroport CDG",

@@ -32,7 +32,11 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from pydantic import ValidationError
 from booking_map import BookingCoordinates, MapPosition, MapRouteRequest, MapSearchRequest, MapService, enforce_map_limits, validate_route_response
-from booking_terms import CURRENT_TERMS_VERSION, TERMS_DOCUMENTS, booking_terms_enabled, generate_booking_terms_pdf
+from booking_terms import (
+    CURRENT_TERMS_VERSION, TERMS_DOCUMENTS, booking_terms_enabled,
+    generate_booking_terms_pdf, generate_legal_document_pdf,
+)
+from legal_documents import DraftUpdate, LegalDocuments, PublishRequest
 from email_service import (
     TEMPLATE_KEY_ACCOUNT_ACTIVATION,
     TEMPLATE_KEY_ADMIN_MESSAGE,
@@ -52,7 +56,6 @@ from email_service import (
 # Load environment variables before accessing os.environ
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
-booking_terms_enabled()  # Fail startup rather than activate an unreviewed draft.
 
 # Logo path for PDF generation — prefer backend/assets/, fallback to frontend/public/photo/
 LOGO_PATH = ROOT_DIR / "assets" / "logo.png"
@@ -3522,9 +3525,14 @@ async def send_booking_confirmation_to_client(booking: dict):
     accepted_amount_label = None
     if booking.get("terms_accepted") is True:
         version = booking.get("terms_version")
-        if version not in TERMS_DOCUMENTS or not booking.get("terms_accepted_at"):
+        if not version or not booking.get("terms_accepted_at"):
             raise ValueError("Accepted booking terms evidence is incomplete or unavailable")
-        terms_pdf = generate_booking_terms_pdf(version)
+        try:
+            terms_pdf = await _saved_booking_terms_pdf(version)
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            raise ValueError("Accepted booking terms evidence is incomplete or unavailable") from exc
         settings = await get_commission_settings()
         quote_pdf, _ = await generate_and_store_document(booking, settings, "quote")
         attachments = [
@@ -4374,26 +4382,95 @@ async def resend_activation(data: ResendActivationRequest):
 # ==================== CLIENT ROUTES ====================
 
 @api_router.get("/booking-terms")
-async def get_booking_terms():
+async def get_booking_terms(response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    published = await LegalDocuments(db).current_terms()
+    if published is not None:
+        return {
+            "enabled": booking_terms_enabled(True),
+            **{key: published[key] for key in ("version", "title", "sections")},
+        }
     return {
-        "enabled": booking_terms_enabled(),
+        "enabled": False,
         **TERMS_DOCUMENTS[CURRENT_TERMS_VERSION].model_dump(mode="json"),
     }
 
 
+@api_router.get("/admin/legal-documents")
+async def list_admin_legal_documents(request: Request):
+    await require_admin(request)
+    return await LegalDocuments(db).list_drafts()
+
+
+@api_router.put("/admin/legal-documents/{kind}/draft")
+async def save_admin_legal_document(kind: str, body: DraftUpdate, request: Request):
+    await require_admin(request)
+    return await LegalDocuments(db).save_draft(kind, body)
+
+
+@api_router.post("/admin/legal-documents/{kind}/publish")
+async def publish_admin_legal_document(kind: str, body: PublishRequest, request: Request):
+    user = await require_admin(request)
+    return await LegalDocuments(db).publish(kind, body, user["id"])
+
+
+@api_router.get("/admin/legal-documents/{kind}/versions/{version}")
+async def get_admin_legal_document_version(kind: str, version: str, request: Request):
+    await require_admin(request)
+    return await LegalDocuments(db).get_published(kind, version, admin=True)
+
+
+@api_router.get("/legal-documents/{kind}")
+async def get_public_legal_document(kind: str, response: Response, version: Optional[str] = None):
+    response.headers["Cache-Control"] = "no-store"
+    if kind == "terms" and version in TERMS_DOCUMENTS:
+        return {
+            "kind": "terms", "published_at": None,
+            **TERMS_DOCUMENTS[version].model_dump(mode="json"),
+        }
+    try:
+        return await LegalDocuments(db).get_published(kind, version)
+    except HTTPException as exc:
+        exc.headers = {**(exc.headers or {}), "Cache-Control": "no-store"}
+        raise
+
+
+@api_router.get("/legal-documents/{kind}/{version}/pdf")
+async def download_public_legal_document_pdf(kind: str, version: str):
+    if kind == "terms" and version in TERMS_DOCUMENTS:
+        return Response(
+            content=generate_booking_terms_pdf(version),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="terms-{version}.pdf"'},
+        )
+    document = await LegalDocuments(db).get_published(kind, version)
+    return Response(
+        content=generate_legal_document_pdf(document),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{kind}-{document["version"]}.pdf"'},
+    )
+
+
+async def _saved_booking_terms_pdf(version: str) -> bytes:
+    # Legacy evidence remains readable without reclassifying the old draft as published.
+    if version in TERMS_DOCUMENTS:
+        return generate_booking_terms_pdf(version)
+    document = await LegalDocuments(db).get_published("terms", version)
+    return generate_legal_document_pdf(document)
+
+
 @api_router.get("/booking-terms/{version}/pdf")
 async def download_booking_terms_pdf(version: str):
-    if version not in TERMS_DOCUMENTS:
-        raise HTTPException(status_code=404, detail="Version des CGV introuvable")
     return Response(
-        content=generate_booking_terms_pdf(version),
+        content=await _saved_booking_terms_pdf(version),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="cgv-{version}.pdf"'},
     )
 
 
-def _record_booking_terms_consent(booking: BookingCreate) -> dict:
-    if not booking_terms_enabled():
+async def _record_booking_terms_consent(booking: BookingCreate) -> dict:
+    published = await LegalDocuments(db).current_terms()
+    if not booking_terms_enabled(published is not None):
         return {"terms_accepted": False, "terms_version": None, "terms_accepted_at": None}
     errors = []
     if booking.terms_accepted is not True:
@@ -4401,7 +4478,7 @@ def _record_booking_terms_consent(booking: BookingCreate) -> dict:
             "loc": ["body", "terms_accepted"], "type": "value_error",
             "msg": "Vous devez accepter les conditions générales de vente et de transport.",
         })
-    if booking.terms_version != CURRENT_TERMS_VERSION:
+    if booking.terms_version != published["version"]:
         errors.append({
             "loc": ["body", "terms_version"], "type": "value_error",
             "msg": "La version des CGV a changé. Veuillez consulter et accepter la version actuelle.",
@@ -4410,7 +4487,7 @@ def _record_booking_terms_consent(booking: BookingCreate) -> dict:
         raise HTTPException(status_code=422, detail=errors)
     return {
         "terms_accepted": True,
-        "terms_version": CURRENT_TERMS_VERSION,
+        "terms_version": published["version"],
         "terms_accepted_at": datetime.now(timezone.utc),
     }
 
@@ -4501,7 +4578,7 @@ async def resolve_vehicle_category_name(category_ref: Optional[str]) -> Optional
 
 @api_router.post("/bookings", response_model=BookingResponse)
 async def create_booking(booking: BookingCreate, request: Request):
-    terms_consent = _record_booking_terms_consent(booking)
+    terms_consent = await _record_booking_terms_consent(booking)
     user = await get_current_user(request)
     require_booking_coordinates(booking)
 
@@ -4516,7 +4593,7 @@ async def create_booking(booking: BookingCreate, request: Request):
 
 @api_router.post("/bookings/checkout", response_model=BookingCheckoutResponse)
 async def create_booking_checkout(booking: BookingCheckoutCreate, request: Request):
-    terms_consent = _record_booking_terms_consent(booking)
+    terms_consent = await _record_booking_terms_consent(booking)
     _ensure_stripe_configured()
     user = await get_current_user(request)
     require_booking_coordinates(booking)

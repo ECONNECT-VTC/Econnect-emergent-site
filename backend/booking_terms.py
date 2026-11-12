@@ -27,8 +27,6 @@ class TermsDocument(BaseModel):
 
 
 CURRENT_TERMS_VERSION = "2026-11-04"
-# Add a NEW version here only after legal review and completion of required details.
-APPROVED_TERMS_VERSIONS = frozenset()
 # Explicit allowlist: no request value is ever used to construct a filesystem path.
 _ASSETS = {
     "2026-11-04": Path(__file__).parent / "assets" / "booking-terms" / "2026-11-04.json",
@@ -42,33 +40,31 @@ for _version, _path in _ASSETS.items():
 TERMS_DOCUMENTS = MappingProxyType(_documents)
 
 
-def booking_terms_enabled() -> bool:
-    enabled = os.environ.get("BOOKING_TERMS_ENABLED", "false").strip().lower() == "true"
-    if enabled and CURRENT_TERMS_VERSION not in APPROVED_TERMS_VERSIONS:
-        raise RuntimeError(
-            "BOOKING_TERMS_ENABLED requires an approved, complete legal version; "
-            f"{CURRENT_TERMS_VERSION} is an unapproved draft"
-        )
-    return enabled
+def booking_terms_enabled(published: bool = False) -> bool:
+    """Publication enables consent live; an explicit false is an emergency kill switch."""
+    return published and os.environ.get("BOOKING_TERMS_ENABLED", "").strip().lower() != "false"
 
 
 def generate_booking_terms_pdf(version: str) -> bytes:
-    document = TERMS_DOCUMENTS[version]
+    return generate_legal_document_pdf(TERMS_DOCUMENTS[version].model_dump(mode="json"))
+
+
+def generate_legal_document_pdf(document: dict) -> bytes:
     output = BytesIO()
     pdf = SimpleDocTemplate(
         output, pagesize=A4, rightMargin=48, leftMargin=48,
-        topMargin=48, bottomMargin=48, title=document.title,
+        topMargin=48, bottomMargin=48, title=document["title"],
     )
     styles = getSampleStyleSheet()
     styles["BodyText"].textColor = colors.HexColor("#222222")
     story = [
-        Paragraph(escape(document.title), styles["Title"]),
-        Paragraph(f"Version : {escape(document.version)}", styles["Normal"]),
+        Paragraph(escape(document["title"]), styles["Title"]),
+        Paragraph(f"Version : {escape(document['version'])}", styles["Normal"]),
         Spacer(1, 16),
     ]
-    for section in document.sections:
-        story.append(Paragraph(escape(section.heading), styles["Heading2"]))
-        for paragraph in section.paragraphs:
+    for section in document["sections"]:
+        story.append(Paragraph(escape(section["heading"]), styles["Heading2"]))
+        for paragraph in section["paragraphs"]:
             story.append(Paragraph(escape(paragraph), styles["BodyText"]))
             story.append(Spacer(1, 8))
     pdf.build(story)
