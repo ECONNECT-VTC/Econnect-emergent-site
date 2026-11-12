@@ -4,6 +4,55 @@ Le formulaire public (`BookingSection`), l'espace client (`NewBooking`) et
 la création administrateur (`AdminBookings`) partagent la recherche d'adresses,
 les sélections sur la carte et le calcul du trajet. Les fenêtres d'édition
 client (`ClientBookings`) et administrateur utilisent la même logique.
+
+## Diagnostic de la saisie sans requête réseau
+
+Sur la page publique, `AppRoutes` rend `LandingPage`, puis `BookingSection`.
+Ses champs `pickup-input` et `dropoff-input` sont des `AddressAutocomplete`,
+pas des champs texte indépendants. Le formulaire client `NewBooking` utilise
+le même composant. L'administration passe par `ReservationLocationFields`
+et `useBookingFormMap`, qui réutilisent ce composant et `useBookingRoute`.
+
+Le chemin de saisie est `Input.onChange` → `changeAddress` → mise à jour de la
+valeur contrôlée → debounce de 400 ms → `searchAddresses` → POST
+`/api/map/search` avec `{"q":"roissy"}`. Le délai démarre quand le champ est
+actif, contient au moins trois caractères et n'est pas déjà une adresse
+sélectionnée. Une nouvelle saisie, une perte de focus ou le démontage annule
+l'ancien délai et sa requête ; les résultats obsolètes sont ignorés.
+Le `AbortController` de recherche est distinct de ceux du routage et du clic
+sur la carte. La réponse Axios est lue dans `response.data.features`.
+Une réponse vide affiche « Aucune adresse trouvée » ; une erreur HTTP/réseau
+affiche un message de service distinct. Un `404` n'est pas un résultat vide.
+
+`API_URL` est résolue via `window.__ECONNECT_CONFIG__.API_URL`, puis
+`REACT_APP_API_URL` / `REACT_APP_BACKEND_URL`, puis la même origine.
+Le `.env` du frontend configure `https://api.econnect-vtc.com` ; une
+configuration runtime ou une variable du serveur de compilation peut la
+remplacer. Le test du client HTTP vérifie explicitement que la configuration
+`API_URL: 'https://api.econnect-vtc.com'` produit bien
+`POST https://api.econnect-vtc.com/api/map/search`.
+La recherche ne dépend pas de l'authentification.
+
+En développement uniquement (`npm start`, Console avec le niveau Verbose
+activé), les traces `[BookingMap]` indiquent `onChange`, `value received`,
+`debounce scheduled`, `debounce executed`, `searchAddresses: POST` et
+`searchAddresses: response`. Elles indiquent la longueur du texte, l'URL de
+l'API, l'annulation et le nombre de résultats, sans journaliser l'adresse ni
+la clé CARTO. Aucune trace n'est émise en production ou pendant les tests.
+La dernière étape observée permet de localiser la rupture. Ne pas injecter
+de logs contenant les adresses dans le site publié.
+
+Les tests d'intégration de `BookingSection` saisissent « roissy » caractère
+par caractère, vérifient l'absence de POST avant 400 ms, puis le POST unique,
+son signal non annulé, les suggestions et leur sélection sans utilisateur
+connecté. `NewBooking.autocomplete.test.js` vérifie le même trajet dans le
+formulaire client, avec son vrai champ `Input`. Ceux de `ReservationLocationFields` exercent le composant et le
+hook réels pour les deux champs administrateur. Les tests de
+`AddressAutocomplete` couvrent aussi l'annulation d'une ancienne recherche,
+la recherche suivante, les résultats vides et les erreurs API.
+Ces tests utilisent un transport HTTP simulé : ils ne prouvent pas que le
+bundle publié correspond au source ni que le backend distant répond.
+
 La carte utilise le fond clair CARTO Positron (`light_all`), deux marqueurs
 Départ/Arrivée et un tracé doré, dans le cadre noir/or du site.
 La clé publique CARTO Basemaps est **obligatoire** : sans elle CARTO renvoie des tuiles
