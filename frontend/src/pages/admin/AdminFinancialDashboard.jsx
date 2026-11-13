@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import API_URL from '@/config';
+import BillingAccountPanel from '@/components/BillingAccountPanel';
 import { logApiError, parseApiError } from '../../utils/apiErrors';
 const formatAmount = (value) => `${(Number(value) || 0).toFixed(2)}€`;
 const MAX_RECENT_BOOKINGS = 50;
@@ -122,10 +123,10 @@ const AdminFinancialDashboard = () => {
 
   const bookingRows = useMemo(() => bookings.map((booking) => {
     const priceTtc = Number(booking.estimated_price || 0);
-    const commissionTtc = booking.commission_override != null
+    const commissionTtc = booking.financial_snapshot?.commission_ttc ?? (booking.commission_override != null
       ? Number(booking.commission_override)
-      : priceTtc * commissionRate;
-    const driverEarning = priceTtc - commissionTtc;
+      : booking.fulfilled_by_admin ? 0 : priceTtc * commissionRate);
+    const driverEarning = booking.financial_snapshot?.driver_earning ?? (booking.fulfilled_by_admin ? 0 : priceTtc - commissionTtc);
 
     return {
       ...booking,
@@ -151,6 +152,7 @@ const AdminFinancialDashboard = () => {
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
+      <BillingAccountPanel key={selectedDriver} role="admin" driverId={selectedDriver} />
 
       <div className="mb-6 max-w-md">
         <label className="text-sm text-[#A1A1AA] block mb-2">Filtrer par chauffeur</label>

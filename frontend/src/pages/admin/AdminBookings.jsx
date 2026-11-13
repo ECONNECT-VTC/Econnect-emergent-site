@@ -30,6 +30,8 @@ import { logApiError, parseApiError } from '../../utils/apiErrors';
 
 import useBookingFormMap from '@/hooks/useBookingFormMap';
 import ReservationLocationFields from '@/components/ReservationLocationFields';
+import PassengerDetails, { passengerDetailsError } from '@/components/PassengerDetails';
+import ChargeDraftEditor from '@/components/ChargeDraftEditor';
 
 const describeLoadFailure = (label, error) => `${label} : ${parseApiError(error, 'Erreur inconnue')}`;
 const PAYMENT_AWAITING_STATUSES = ['pending', 'partially_paid'];
@@ -56,6 +58,9 @@ const getInitialCreateForm = () => ({
   disposition_hours: '',
   passenger_count: '1',
   baby_seat_count: '0',
+  child_count: '0',
+  infant_count: '0',
+  booster_seat_count: '0',
   payment_mode: 'deferred',
   payment_method: '',
   payment_status: 'pending',
@@ -88,6 +93,7 @@ const AdminBookings = () => {
   const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false);
   const [cancellationAction, setCancellationAction] = useState('approve');
   const [refundAmount, setRefundAmount] = useState('');
+  const [retainSupplementary, setRetainSupplementary] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [adminCancelDialogOpen, setAdminCancelDialogOpen] = useState(false);
@@ -274,6 +280,8 @@ const AdminBookings = () => {
   };
 
   const handleCreateBooking = async () => {
+    const passengerError = passengerDetailsError(createForm.passenger_count, createForm.child_count, createForm.infant_count, createForm.baby_seat_count, createForm.booster_seat_count);
+    if (passengerError) { setError(passengerError); return; }
     if (!createMap.valid) {
       setError('Choisissez et géocodez les deux adresses avant de créer la réservation.');
       return;
@@ -293,6 +301,10 @@ const AdminBookings = () => {
           disposition_hours: toOptionalNumber(createForm.disposition_hours),
           passenger_count: Number(createForm.passenger_count),
           baby_seat_count: Number(createForm.baby_seat_count),
+          adult_count: Number(createForm.passenger_count) - Number(createForm.child_count) - Number(createForm.infant_count),
+          child_count: Number(createForm.child_count),
+          infant_count: Number(createForm.infant_count),
+          booster_seat_count: Number(createForm.booster_seat_count),
           payment_mode: createForm.payment_mode || 'deferred',
           payment_method: normalizePaymentMethod(createForm.payment_method) || null,
           payment_status: createForm.payment_status || 'pending',
@@ -443,6 +455,7 @@ const AdminBookings = () => {
     setSelectedBooking(booking);
     setCancellationAction(action);
     setRefundAmount('');
+    setRetainSupplementary(false);
     setCancellationDialogOpen(true);
   };
 
@@ -455,7 +468,8 @@ const AdminBookings = () => {
         `${API_URL}/api/admin/bookings/${selectedBooking.id}/cancellation`,
         {
           approved: cancellationAction === 'approve',
-          refund_amount: cancellationAction === 'approve' && refundAmount !== '' ? Number(refundAmount) : null
+          refund_amount: cancellationAction === 'approve' && refundAmount !== '' ? Number(refundAmount) : null,
+          retain_supplementary_invoices: retainSupplementary,
         },
         { withCredentials: true }
       );
@@ -473,6 +487,7 @@ const AdminBookings = () => {
     setBookingToAdminCancel(booking);
     setAdminCancelReason('');
     setAdminCancelRefundAmount('');
+    setRetainSupplementary(false);
     setAdminCancelDialogOpen(true);
   };
 
@@ -530,6 +545,7 @@ const AdminBookings = () => {
         `${API_URL}/api/admin/bookings/${bookingToAdminCancel.id}/cancel`,
         {
           cancellation_reason: adminCancelReason || null,
+          retain_supplementary_invoices: retainSupplementary,
           refund_amount:
             bookingToAdminCancel.payment_status === 'paid' && adminCancelRefundAmount !== ''
               ? Number(adminCancelRefundAmount)
@@ -823,6 +839,7 @@ const AdminBookings = () => {
                   {booking.baby_seat_count != null && (
                     <p className="text-[#A1A1AA]">👶 Sièges bébé : <span className="text-white">{booking.baby_seat_count}</span></p>
                   )}
+                  {booking.adult_count != null && <p className="text-[#A1A1AA]">Adultes : {booking.adult_count} · Enfants : {booking.child_count} · Bébés : {booking.infant_count} · Rehausseurs : {booking.booster_seat_count}</p>}
                   {booking.distance_km != null && !isNaN(Number(booking.distance_km)) && (
                     <p className="text-[#A1A1AA]">📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>
                       {booking.estimated_price != null && !isNaN(Number(booking.estimated_price)) && (
@@ -939,6 +956,7 @@ const AdminBookings = () => {
                 )}
               </div>
 
+              <ChargeDraftEditor bookingId={booking.id} />
               <BookingComments bookingId={booking.id} />
             </div>
           );
@@ -988,6 +1006,11 @@ const AdminBookings = () => {
               <p className="text-sm text-[#A1A1AA] mb-2">Sièges bébé nécessaires</p>
               <Input type="number" min="0" max={createForm.passenger_count} value={createForm.baby_seat_count} onChange={(e) => updateCreateField('baby_seat_count', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
             </div>
+            <PassengerDetails prefix="admin-passengers" total={createForm.passenger_count} childrenCount={createForm.child_count}
+              infants={createForm.infant_count} boosters={createForm.booster_seat_count}
+              onChildrenChange={(value) => updateCreateField('child_count', value)}
+              onInfantsChange={(value) => updateCreateField('infant_count', value)}
+              onBoostersChange={(value) => updateCreateField('booster_seat_count', value)} />
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Date de prise en charge *</p>
               <Input value={createForm.pickup_date} onChange={(e) => updateCreateField('pickup_date', e.target.value)} placeholder="dd/MM/yyyy" className="bg-[#1E1E1E] border-white/10" />
@@ -1185,6 +1208,10 @@ const AdminBookings = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-[#A1A1AA]">Client: {selectedBooking?.client_name}</p>
+            {cancellationAction === 'approve' && <label className="block text-sm text-amber-200">
+              <input type="checkbox" checked={retainSupplementary} onChange={(event) => setRetainSupplementary(event.target.checked)} />
+              {' '}Maintenir explicitement les factures complémentaires malgré l’annulation. Sinon, émettre leurs avoirs avant de confirmer. Le remboursement ci-dessous concerne uniquement la course initiale.
+            </label>}
             {cancellationAction === 'approve' && selectedBooking?.payment_status === 'paid' && (
               <div>
                 <p className="text-sm text-[#A1A1AA] mb-2">Montant remboursé (€)</p>
@@ -1216,6 +1243,10 @@ const AdminBookings = () => {
             <p className="text-sm text-[#FAFAFA]">
               Cette course sera définitivement annulée. Le client sera notifié.
             </p>
+            <label className="block text-sm text-amber-200">
+              <input type="checkbox" checked={retainSupplementary} onChange={(event) => setRetainSupplementary(event.target.checked)} />
+              {' '}Maintenir explicitement les factures complémentaires malgré l’annulation. Sinon, émettre leurs avoirs avant de confirmer. Le remboursement de course ne rembourse pas les compléments.
+            </label>
             <p className="text-sm text-[#A1A1AA]">
               Client: {bookingToAdminCancel?.client_name}
             </p>

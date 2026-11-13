@@ -149,6 +149,13 @@ describe('AdminBookings', () => {
       setInput('Email du client *', 'client@example.com');
       setInput('Date de prise en charge *', '10/11/2026');
       setInput('Prix estimé (€)', '75');
+      setInput('Nombre de passagers', '4');
+      setInput('Sièges bébé nécessaires', '1');
+      for (const [id, value] of [['admin-passengers-children', '1'], ['admin-passengers-infants', '1'], ['admin-passengers-boosters', '1']]) {
+        const input = container.querySelector(`#${id}`);
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
       container.querySelector('[data-value="10:30"]').click();
     });
     expect(findButton('Créer la course').disabled).toBe(true);
@@ -160,6 +167,8 @@ describe('AdminBookings', () => {
       pickup_address: 'Paris', dropoff_address: 'CDG',
       pickup_lat: 48.85, pickup_lng: 2.35, dropoff_lat: 49.01, dropoff_lng: 2.55,
       distance_km: 28.5, duration_minutes: 36, estimated_price: 75, payment_mode: 'deferred',
+      passenger_count: 4, adult_count: 2, child_count: 1, infant_count: 1,
+      baby_seat_count: 1, booster_seat_count: 1,
     }), expect.objectContaining({ withCredentials: true }));
   });
 

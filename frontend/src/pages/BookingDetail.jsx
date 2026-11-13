@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
+import PassengerSummary from '@/components/PassengerSummary';
 import { useAuth } from '@/contexts/AuthContext';
 import API_URL from '@/config';
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
@@ -214,6 +215,7 @@ const BookingDetail = () => {
                 </div>
               </div>
             </div>
+            <PassengerSummary booking={booking} />
           </div>
 
           {/* Trip info */}

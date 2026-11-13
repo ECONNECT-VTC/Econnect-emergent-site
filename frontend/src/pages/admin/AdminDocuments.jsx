@@ -5,6 +5,7 @@ import { formatBookingReference } from '../../utils/bookingReference';
 import { downloadInvoicePdf } from '@/utils/invoiceGenerator';
 import API_URL from '@/config';
 import LogoDisplay from '@/components/LogoDisplay';
+import BillingAccountPanel from '@/components/BillingAccountPanel';
 
 const ADMIN_DOCS = [
   { type: 'quote', label: 'Devis client', icon: '📄', color: 'text-sky-300' },
@@ -43,8 +44,8 @@ const AdminDocuments = () => {
 
   const statCards = [
     { label: '💰 Total facturé (TTC)', value: formatCurrency(stats.totalClient) },
-    { label: '💼 Commissions perçues (TTC)', value: formatCurrency(stats.totalCommission) },
-    { label: '🚗 Versé aux chauffeurs', value: formatCurrency(stats.totalDriver) },
+    { label: '💼 Commissions facturées (TTC)', value: formatCurrency(stats.totalCommission) },
+    { label: '🚗 Parts chauffeur dues', value: formatCurrency(stats.totalDriver) },
     { label: '📄 Courses facturées', value: stats.count },
   ];
 
@@ -62,6 +63,7 @@ const AdminDocuments = () => {
       )}
 
       {/* Statistics */}
+      <BillingAccountPanel role="admin" />
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {statCards.map((c) => (
           <div key={c.label} className="bg-[#141414] rounded-xl border border-white/10 p-5">

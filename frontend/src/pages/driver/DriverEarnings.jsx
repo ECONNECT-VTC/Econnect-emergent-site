@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import API_URL from '@/config';
+import BillingAccountPanel from '@/components/BillingAccountPanel';
 
 const DriverEarnings = () => {
   const [rows, setRows] = useState([]);
@@ -23,7 +24,7 @@ const DriverEarnings = () => {
 
   const totals = useMemo(() => {
     const total = rows.reduce((sum, row) => sum + Number(row.driver_earning || 0), 0);
-    const count = rows.length;
+    const count = rows.filter((row) => !row.is_supplementary).length;
     const average = count > 0 ? total / count : 0;
     return { total, count, average };
   }, [rows]);
@@ -32,6 +33,7 @@ const DriverEarnings = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
+      <BillingAccountPanel role="driver" />
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="bg-[#141414] rounded-xl border border-white/10 p-5">
           <p className="text-[#A1A1AA] text-sm">Total gagné</p>
@@ -49,7 +51,7 @@ const DriverEarnings = () => {
 
       <div className="space-y-4 md:hidden">
         {!loading && rows.map((row) => (
-          <div key={row.booking_id} className="rounded-xl border border-white/10 bg-[#141414] p-4">
+          <div key={row.entry_id || row.booking_id} className="rounded-xl border border-white/10 bg-[#141414] p-4">
             <p className="break-words font-medium">{row.pickup_address} → {row.dropoff_address}</p>
             <p className="mt-2 text-sm text-[#A1A1AA]">{row.pickup_date} {row.pickup_time}</p>
             <div className="mt-4 grid grid-cols-1 gap-2 text-sm">
@@ -80,7 +82,7 @@ const DriverEarnings = () => {
           </thead>
           <tbody>
             {!loading && rows.map((row) => (
-              <tr key={row.booking_id} className="border-b border-white/5">
+              <tr key={row.entry_id || row.booking_id} className="border-b border-white/5">
                 <td className="py-3">{row.pickup_address} → {row.dropoff_address}</td>
                 <td>{row.pickup_date} {row.pickup_time}</td>
                 <td>{formatAmount(row.price_ttc)}</td>
