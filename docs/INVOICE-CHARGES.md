@@ -20,7 +20,10 @@ advertise this branch as a complete charge, invoicing or payment solution.
   invoice. Payments and balances must distinguish the two.
 
 `backend/booking_charges.py` contains preliminary validation and cent-based
-calculations only; it is not wired to an API, invoice, payment or UI.
+calculations only. `backend/supplementary_invoice_pdf.py` prepares a paginated
+PDF from a frozen invoice snapshot, including the initial invoice reference,
+line items and VAT breakdown. Neither module is wired to an API, payment, email
+or UI, and their presence does not issue invoices.
 
 ## Existing invoice PDFs
 
