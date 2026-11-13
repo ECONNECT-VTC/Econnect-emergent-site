@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pymongo.errors import DuplicateKeyError
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfgen import canvas
@@ -2945,6 +2946,16 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
     return pdf_bytes
 
 async def generate_and_store_document(booking: dict, settings: dict, document_type: str) -> Tuple[bytes, dict]:
+    existing_document = await db.invoices.find_one(
+        {"booking_id": booking["id"], "type": document_type},
+        {"_id": 0}
+    )
+    if existing_document and document_type == "invoice" and "pdf_snapshot" in existing_document:
+        pdf_snapshot = existing_document.pop("pdf_snapshot")
+        if not isinstance(pdf_snapshot, bytes) or not pdf_snapshot.startswith(b"%PDF-"):
+            raise RuntimeError("Archived client invoice PDF is invalid")
+        return bytes(pdf_snapshot), existing_document
+
     enriched_booking = {**booking}
     driver_profile = await get_document_driver_profile(booking)
     enriched_booking["issuer"] = await build_document_issuer_profile(booking, settings, driver=driver_profile)
@@ -2987,12 +2998,12 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
     )
     resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
 
-    existing_document = await db.invoices.find_one(
-        {"booking_id": booking["id"], "type": document_type},
-        {"_id": 0}
-    )
-
     if existing_document:
+        if document_type == "invoice":
+            logger.warning(
+                "Client invoice %s predates PDF archiving; original PDF is unavailable",
+                existing_document["invoice_number"],
+            )
         existing_pdf = generate_financial_pdf(
             enriched_booking,
             settings,
@@ -3043,7 +3054,29 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         "driver_name": booking.get("driver_name"),
         "created_at": datetime.now(timezone.utc)
     }
-    await db.invoices.insert_one(metadata)
+    stored_metadata = dict(metadata)
+    if document_type == "invoice":
+        if not pdf_bytes.startswith(b"%PDF-"):
+            raise RuntimeError("Generated client invoice PDF is invalid")
+        stored_metadata["pdf_snapshot"] = pdf_bytes
+    try:
+        await db.invoices.insert_one(stored_metadata)
+    except DuplicateKeyError:
+        existing = await db.invoices.find_one(
+            {"booking_id": booking["id"], "type": document_type}, {"_id": 0},
+        )
+        if existing is None:
+            raise
+        if document_type == "invoice":
+            snapshot = existing.pop("pdf_snapshot", None)
+            if not isinstance(snapshot, bytes) or not snapshot.startswith(b"%PDF-"):
+                raise RuntimeError("Concurrent invoice exists without an archived PDF")
+            logger.warning(
+                "Concurrent invoice allocation %s was not issued; invoice %s already exists",
+                document_number, existing["invoice_number"],
+            )
+            return bytes(snapshot), existing
+        return generate_financial_pdf(enriched_booking, settings, document_type, existing["invoice_number"]), existing
     return pdf_bytes, metadata
 
 # ==================== EMAIL SERVICE ====================
@@ -6071,7 +6104,7 @@ async def get_financial_invoices(request: Request, driver_id: Optional[str] = No
     if driver_id:
         booking_ids = await db.bookings.distinct("id", {"driver_id": driver_id})
         query["booking_id"] = {"$in": booking_ids}
-    invoices = await db.invoices.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    invoices = await db.invoices.find(query, {"_id": 0, "pdf_snapshot": 0}).sort("created_at", -1).to_list(1000)
     return [InvoiceMetadata(**invoice) for invoice in invoices]
 
 @api_router.get("/admin/financial/completed-bookings")
@@ -6096,7 +6129,7 @@ async def get_completed_bookings_financial(request: Request):
             b.get("commission_override"),
             bool(b.get("fulfilled_by_admin"))
         )
-        client_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "invoice"}, {"_id": 0})
+        client_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "invoice"}, {"_id": 0, "pdf_snapshot": 0})
         driver_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "driver"}, {"_id": 0})
         commission_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "commission"}, {"_id": 0})
 

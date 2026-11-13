@@ -739,6 +739,52 @@ class TestGenerateFinancialPDF(unittest.TestCase):
 
 
 class TestBookingDocumentReferences(unittest.IsolatedAsyncioTestCase):
+    async def test_invalid_archive_fails_instead_of_regenerating_an_invoice(self):
+        invoices = SimpleNamespace(find_one=AsyncMock(return_value={
+            "invoice_number": "000123", "pdf_snapshot": b"corrupt",
+        }))
+        with patch.object(server, "db", SimpleNamespace(invoices=invoices)), \
+                patch.object(server, "generate_financial_pdf") as generate:
+            with self.assertRaisesRegex(RuntimeError, "Archived client invoice PDF is invalid"):
+                await server.generate_and_store_document(
+                    {**SAMPLE_BOOKING, "id": "booking-1"}, SAMPLE_SETTINGS, "invoice",
+                )
+            generate.assert_not_called()
+
+    async def test_concurrent_invoice_uses_winning_archived_pdf(self):
+        from pymongo.errors import DuplicateKeyError
+
+        booking = {**SAMPLE_BOOKING, "id": "booking-1"}
+        winner = {"invoice_number": "000124", "pdf_snapshot": b"%PDF-winner"}
+        invoices = SimpleNamespace(
+            find_one=AsyncMock(side_effect=[None, winner]),
+            insert_one=AsyncMock(side_effect=DuplicateKeyError("duplicate")),
+        )
+        with patch.object(server, "db", SimpleNamespace(invoices=invoices)), \
+                patch.object(server, "get_document_driver_profile", AsyncMock(return_value=None)), \
+                patch.object(server, "build_document_issuer_profile", AsyncMock(return_value={})), \
+                patch.object(server, "get_next_sequential_number", AsyncMock(return_value="000123")), \
+                patch.object(server, "generate_financial_pdf", return_value=b"%PDF-loser"):
+            pdf, metadata = await server.generate_and_store_document(booking, SAMPLE_SETTINGS, "invoice")
+        self.assertEqual(pdf, b"%PDF-winner")
+        self.assertEqual(metadata["invoice_number"], "000124")
+
+    async def test_legacy_invoice_keeps_regeneration_behavior_without_fabricating_an_archive(self):
+        booking = {**SAMPLE_BOOKING, "id": "legacy"}
+        invoices = SimpleNamespace(
+            find_one=AsyncMock(return_value={"invoice_number": "000005"}),
+            insert_one=AsyncMock(),
+        )
+        with patch.object(server, "db", SimpleNamespace(invoices=invoices)), \
+                patch.object(server, "get_document_driver_profile", AsyncMock(return_value=None)), \
+                patch.object(server, "build_document_issuer_profile", AsyncMock(return_value={})), \
+                patch.object(server, "generate_financial_pdf", return_value=b"%PDF-legacy") as generate:
+            with self.assertLogs("server", level="WARNING"):
+                pdf, _ = await server.generate_and_store_document(booking, SAMPLE_SETTINGS, "invoice")
+        self.assertEqual(pdf, b"%PDF-legacy")
+        self.assertEqual(generate.call_args.args[3], "000005")
+        invoices.insert_one.assert_not_awaited()
+
     async def test_document_storage_preserves_full_booking_id_and_sequential_number(self):
         booking = {**SAMPLE_BOOKING, "id": "aBcDeF123456"}
         invoices = SimpleNamespace(find_one=AsyncMock(return_value=None), insert_one=AsyncMock())
@@ -753,16 +799,20 @@ class TestBookingDocumentReferences(unittest.IsolatedAsyncioTestCase):
             _, metadata = await server.generate_and_store_document(booking, SAMPLE_SETTINGS, "invoice")
             self.assertEqual(metadata["booking_id"], booking["id"])
             self.assertEqual(metadata["invoice_number"], "000123")
-            invoices.insert_one.assert_awaited_once_with(metadata)
+            invoices.insert_one.assert_awaited_once_with({**metadata, "pdf_snapshot": b"%PDF-test"})
             self.assertEqual(generate_pdf.call_args.args[0]["id"], booking["id"])
             self.assertEqual(generate_pdf.call_args.args[3], "000123")
             invoices.find_one.assert_awaited_with(
                 {"booking_id": booking["id"], "type": "invoice"}, {"_id": 0}
             )
-            invoices.find_one.return_value = metadata
-            _, existing = await server.generate_and_store_document(booking, SAMPLE_SETTINGS, "invoice")
+            invoices.find_one.return_value = {**metadata, "pdf_snapshot": b"%PDF-test"}
+            existing_pdf, existing = await server.generate_and_store_document(
+                {**booking, "estimated_price": 200}, SAMPLE_SETTINGS, "invoice"
+            )
             self.assertEqual(existing, metadata)
+            self.assertEqual(existing_pdf, b"%PDF-test")
             self.assertEqual(generate_pdf.call_args.args[3], "000123")
+            self.assertEqual(generate_pdf.call_count, 1)
             sequence.assert_awaited_once()
             invoices.insert_one.assert_awaited_once()
 
