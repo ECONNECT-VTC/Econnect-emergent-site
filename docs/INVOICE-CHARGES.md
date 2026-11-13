@@ -19,11 +19,18 @@ advertise this branch as a complete charge, invoicing or payment solution.
   additional charges after issuance require a separately numbered supplementary
   invoice. Payments and balances must distinguish the two.
 
+The administrator can open **Préparer des frais** on a booking and save up to
+40 explicitly priced lines as a draft. Saving does **not** affect a booking
+price or payment, send email or issue an invoice. Drafts are stored in the
+`charge_drafts` collection and use revision checks to prevent concurrent
+overwrites; back up this collection alongside bookings. The corresponding API
+requires an existing booking and administrator authentication.
+
 `backend/booking_charges.py` contains preliminary validation and cent-based
-calculations only. `backend/supplementary_invoice_pdf.py` prepares a paginated
-PDF from a frozen invoice snapshot, including the initial invoice reference,
-line items and VAT breakdown. Neither module is wired to an API, payment, email
-or UI, and their presence does not issue invoices.
+calculations. `backend/supplementary_invoice_pdf.py` prepares a paginated PDF
+from a frozen invoice snapshot, including the initial invoice reference, line
+items and VAT breakdown. The calculation/PDF modules are not wired to invoicing,
+payment or email. **Draft fees cannot yet be issued or collected.**
 
 ## Existing invoice PDFs
 

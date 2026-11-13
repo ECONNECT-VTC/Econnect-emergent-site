@@ -31,6 +31,7 @@ import { logApiError, parseApiError } from '../../utils/apiErrors';
 import useBookingFormMap from '@/hooks/useBookingFormMap';
 import ReservationLocationFields from '@/components/ReservationLocationFields';
 import PassengerDetails, { passengerDetailsError } from '@/components/PassengerDetails';
+import ChargeDraftEditor from '@/components/ChargeDraftEditor';
 
 const describeLoadFailure = (label, error) => `${label} : ${parseApiError(error, 'Erreur inconnue')}`;
 const PAYMENT_AWAITING_STATUSES = ['pending', 'partially_paid'];
@@ -950,6 +951,7 @@ const AdminBookings = () => {
                 )}
               </div>
 
+              <ChargeDraftEditor bookingId={booking.id} />
               <BookingComments bookingId={booking.id} />
             </div>
           );

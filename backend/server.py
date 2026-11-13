@@ -33,6 +33,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from pydantic import ValidationError
 from booking_map import BookingCoordinates, MapPosition, MapRouteRequest, MapSearchRequest, MapService, enforce_map_limits, validate_route_response
+from charge_drafts import ChargeDrafts, ChargeDraftUpdate
 from email_service import (
     TEMPLATE_KEY_ACCOUNT_ACTIVATION,
     TEMPLATE_KEY_ADMIN_MESSAGE,
@@ -5448,6 +5449,21 @@ async def update_booking_commission(booking_id: str, payload: BookingCommissionU
         {"$set": {"commission_override": payload.commission_override}}
     )
     return {"message": "Commission ajustée", "commission_override": payload.commission_override}
+
+@api_router.get("/admin/bookings/{booking_id}/charge-draft")
+async def get_admin_charge_draft(booking_id: str, request: Request):
+    await require_admin(request)
+    if not await db.bookings.find_one({"id": booking_id}, {"_id": 0, "id": 1}):
+        raise HTTPException(404, "Réservation non trouvée")
+    return await ChargeDrafts(db.charge_drafts).get(booking_id)
+
+
+@api_router.put("/admin/bookings/{booking_id}/charge-draft")
+async def save_admin_charge_draft(booking_id: str, payload: ChargeDraftUpdate, request: Request):
+    admin = await require_admin(request)
+    if not await db.bookings.find_one({"id": booking_id}, {"_id": 0, "id": 1}):
+        raise HTTPException(404, "Réservation non trouvée")
+    return await ChargeDrafts(db.charge_drafts).save(booking_id, payload, admin["id"])
 
 @api_router.post("/admin/bookings/{booking_id}/payment-received", response_model=BookingResponse)
 async def record_admin_booking_payment(booking_id: str, payload: BookingManualPaymentUpdate, request: Request):
