@@ -30,6 +30,7 @@ import { logApiError, parseApiError } from '../../utils/apiErrors';
 
 import useBookingFormMap from '@/hooks/useBookingFormMap';
 import ReservationLocationFields from '@/components/ReservationLocationFields';
+import PassengerDetails, { passengerDetailsError } from '@/components/PassengerDetails';
 
 const describeLoadFailure = (label, error) => `${label} : ${parseApiError(error, 'Erreur inconnue')}`;
 const PAYMENT_AWAITING_STATUSES = ['pending', 'partially_paid'];
@@ -56,6 +57,9 @@ const getInitialCreateForm = () => ({
   disposition_hours: '',
   passenger_count: '1',
   baby_seat_count: '0',
+  child_count: '0',
+  infant_count: '0',
+  booster_seat_count: '0',
   payment_mode: 'deferred',
   payment_method: '',
   payment_status: 'pending',
@@ -274,6 +278,8 @@ const AdminBookings = () => {
   };
 
   const handleCreateBooking = async () => {
+    const passengerError = passengerDetailsError(createForm.passenger_count, createForm.child_count, createForm.infant_count, createForm.baby_seat_count, createForm.booster_seat_count);
+    if (passengerError) { setError(passengerError); return; }
     if (!createMap.valid) {
       setError('Choisissez et géocodez les deux adresses avant de créer la réservation.');
       return;
@@ -293,6 +299,10 @@ const AdminBookings = () => {
           disposition_hours: toOptionalNumber(createForm.disposition_hours),
           passenger_count: Number(createForm.passenger_count),
           baby_seat_count: Number(createForm.baby_seat_count),
+          adult_count: Number(createForm.passenger_count) - Number(createForm.child_count) - Number(createForm.infant_count),
+          child_count: Number(createForm.child_count),
+          infant_count: Number(createForm.infant_count),
+          booster_seat_count: Number(createForm.booster_seat_count),
           payment_mode: createForm.payment_mode || 'deferred',
           payment_method: normalizePaymentMethod(createForm.payment_method) || null,
           payment_status: createForm.payment_status || 'pending',
@@ -823,6 +833,7 @@ const AdminBookings = () => {
                   {booking.baby_seat_count != null && (
                     <p className="text-[#A1A1AA]">👶 Sièges bébé : <span className="text-white">{booking.baby_seat_count}</span></p>
                   )}
+                  {booking.adult_count != null && <p className="text-[#A1A1AA]">Adultes : {booking.adult_count} · Enfants : {booking.child_count} · Bébés : {booking.infant_count} · Rehausseurs : {booking.booster_seat_count}</p>}
                   {booking.distance_km != null && !isNaN(Number(booking.distance_km)) && (
                     <p className="text-[#A1A1AA]">📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>
                       {booking.estimated_price != null && !isNaN(Number(booking.estimated_price)) && (
@@ -988,6 +999,11 @@ const AdminBookings = () => {
               <p className="text-sm text-[#A1A1AA] mb-2">Sièges bébé nécessaires</p>
               <Input type="number" min="0" max={createForm.passenger_count} value={createForm.baby_seat_count} onChange={(e) => updateCreateField('baby_seat_count', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
             </div>
+            <PassengerDetails prefix="admin-passengers" total={createForm.passenger_count} childrenCount={createForm.child_count}
+              infants={createForm.infant_count} boosters={createForm.booster_seat_count}
+              onChildrenChange={(value) => updateCreateField('child_count', value)}
+              onInfantsChange={(value) => updateCreateField('infant_count', value)}
+              onBoostersChange={(value) => updateCreateField('booster_seat_count', value)} />
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Date de prise en charge *</p>
               <Input value={createForm.pickup_date} onChange={(e) => updateCreateField('pickup_date', e.target.value)} placeholder="dd/MM/yyyy" className="bg-[#1E1E1E] border-white/10" />

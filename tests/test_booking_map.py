@@ -270,20 +270,27 @@ class TestMapBookingPersistence(unittest.IsolatedAsyncioTestCase):
             bookings=bookings, users=SimpleNamespace(find_one=AsyncMock(return_value={"id": "client-1"})),
         )
         user = {"id": "client-1", "name": "Client", "email": "client@example.com"}
+        passengers = {"passenger_count": 4, "adult_count": 2, "child_count": 1,
+                      "infant_count": 1, "baby_seat_count": 1, "booster_seat_count": 1}
         with patch.object(server, "db", db), \
              patch.object(server, "get_current_user", AsyncMock(return_value=user)), \
              patch.object(server, "require_admin", AsyncMock(return_value={"id": "admin-1"})), \
              patch.object(server, "resolve_vehicle_category_name", AsyncMock(return_value=None)), \
              patch.object(server, "_send_admin_booking_notification", AsyncMock()):
-            client = await server.create_booking(server.BookingCreate(**BOOKING), object())
+            client = await server.create_booking(server.BookingCreate(**BOOKING, **passengers), object())
             admin = await server.create_admin_booking(server.AdminBookingCreate(
-                **BOOKING, client_name="Client", client_email="client@example.com",
+                **BOOKING, **passengers, client_name="Client", client_email="client@example.com",
             ), object())
             await asyncio.sleep(0)
         for key in (*COORDINATES, "distance_km", "duration_minutes"):
             self.assertEqual(getattr(client, key), BOOKING[key])
             self.assertEqual(getattr(admin, key), BOOKING[key])
         self.assertEqual(bookings.insert_one.await_count, 2)
+        for call in bookings.insert_one.await_args_list:
+            for key, value in passengers.items():
+                self.assertEqual(call.args[0][key], value)
+                self.assertEqual(getattr(client, key), value)
+                self.assertEqual(getattr(admin, key), value)
 
     def test_missing_coordinates_block_new_bookings_but_legacy_data_remains_readable(self):
         legacy = {key: value for key, value in BOOKING.items() if key not in COORDINATES}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
+import PassengerSummary from '@/components/PassengerSummary';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -218,6 +219,7 @@ const DriverDashboard = () => {
                   </div>
                 </div>
               </div>
+              <PassengerSummary booking={booking} />
               {booking.distance_km != null && !isNaN(Number(booking.distance_km)) && (
                 <p className="text-xs text-[#A1A1AA] mb-4">
                   📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>

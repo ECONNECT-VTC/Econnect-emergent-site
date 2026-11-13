@@ -26,6 +26,7 @@ import AddressAutocomplete from './AddressAutocomplete';
 import useBookingRoute from '@/hooks/useBookingRoute';
 import { addressesFromBooking, bookingCoordinates, isAddress } from '@/utils/bookingMap';
 import { PremiumWifiIcon } from './VehicleFeatureBadges';
+import PassengerDetails, { passengerDetailsError } from './PassengerDetails';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { VEHICLE_CATEGORY_CONFIG, findDispositionEstimateForCategory, findVehicleCategoryByName } from '@/utils/vehicleCategories';
@@ -66,6 +67,9 @@ const BookingSection = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [passengerCount, setPassengerCount] = useState('1');
   const [babySeatCount, setBabySeatCount] = useState('0');
+  const [childCount, setChildCount] = useState('0');
+  const [infantCount, setInfantCount] = useState('0');
+  const [boosterCount, setBoosterCount] = useState('0');
   const [dispositionHours, setDispositionHours] = useState('');
   const [dispositionPrices, setDispositionPrices] = useState([]);
   const [loadingDispositionPrices, setLoadingDispositionPrices] = useState(false);
@@ -225,6 +229,9 @@ const BookingSection = () => {
     setSelectedCategory('');
     setPassengerCount('1');
     setBabySeatCount('0');
+    setChildCount('0');
+    setInfantCount('0');
+    setBoosterCount('0');
     setDispositionHours('');
     setDistanceKm('');
     setDurationMinutes('');
@@ -255,6 +262,9 @@ const BookingSection = () => {
       alert('Veuillez choisir une gamme de véhicule.');
       return;
     }
+    const passengerError = passengerDetailsError(passengerCount, childCount, infantCount, babySeatCount, boosterCount);
+    if (passengerError) { setBookingError(passengerError); return; }
+    setBookingError('');
     if (!user) {
       setStep('auth');
     } else {
@@ -347,13 +357,17 @@ const BookingSection = () => {
       estimated_price: estimatedPrice,
       passenger_count: Number(passengerCount),
       baby_seat_count: Number(babySeatCount),
+      adult_count: Number(passengerCount) - Number(childCount) - Number(infantCount),
+      child_count: Number(childCount),
+      infant_count: Number(infantCount),
+      booster_seat_count: Number(boosterCount),
       payment_method: paymentMethod,
       notes: null,
       disposition_hours: transferType === 'disposition' && dispositionHours ? parseFloat(dispositionHours) : null,
       success_path: `/${lang}/booking/confirmation`,
       cancel_path: `/${lang}/booking/cancel`,
     };
-  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, durationMinutes, dispositionHours, getEstimatedPrice, lang, paymentMethod, passengerCount, babySeatCount, bookingRoute.addresses, bookingRoute.geocoded, bookingRoute.loading]);
+  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, durationMinutes, dispositionHours, getEstimatedPrice, lang, paymentMethod, passengerCount, babySeatCount, childCount, infantCount, boosterCount, bookingRoute.addresses, bookingRoute.geocoded, bookingRoute.loading]);
 
   const submitCheckout = useCallback(async (payload, draftState = null) => {
     setBookingError('');
@@ -369,6 +383,7 @@ const BookingSection = () => {
       selectedCategory,
       passengerCount,
       babySeatCount,
+      childCount, infantCount, boosterCount,
       paymentMethod,
       dispositionHours,
       distanceKm,
@@ -392,12 +407,15 @@ const BookingSection = () => {
       setBookingNotice('');
       setSubmittingCheckout(false);
     }
-  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm, durationMinutes, bookingRoute.addresses, passengerCount, babySeatCount]);
+  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm, durationMinutes, bookingRoute.addresses, passengerCount, babySeatCount, childCount, infantCount, boosterCount]);
 
   const handleAuthChoice = (authPath) => {
     const payload = buildCheckoutPayload();
-    if (payload) {
-      saveBookingCheckoutDraft({
+    if (!payload) {
+      setBookingError('Impossible de déterminer le montant estimé pour le paiement.');
+      return;
+    }
+    saveBookingCheckoutDraft({
         date: date ? date.toISOString() : null,
         pickup,
         dropoff,
@@ -406,6 +424,7 @@ const BookingSection = () => {
         selectedCategory,
         passengerCount,
         babySeatCount,
+        childCount, infantCount, boosterCount,
         paymentMethod,
         dispositionHours,
         distanceKm,
@@ -414,8 +433,7 @@ const BookingSection = () => {
         step: 3,
         autoPayAfterAuth: true,
         checkoutPayload: payload,
-      });
-    }
+    });
     navigate(`/${lang}/${authPath}`, {
       state: { from: { pathname: `/${lang}`, hash: '#reserver' } },
     });
@@ -439,6 +457,9 @@ const BookingSection = () => {
     if (draft.selectedCategory) setSelectedCategory(draft.selectedCategory);
     if (draft.passengerCount) setPassengerCount(String(draft.passengerCount));
     if (draft.babySeatCount != null) setBabySeatCount(String(draft.babySeatCount));
+    if (draft.childCount != null) setChildCount(String(draft.childCount));
+    if (draft.infantCount != null) setInfantCount(String(draft.infantCount));
+    if (draft.boosterCount != null) setBoosterCount(String(draft.boosterCount));
     if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
     if (draft.dispositionHours) setDispositionHours(String(draft.dispositionHours));
     if (draft.distanceKm) setDistanceKm(String(draft.distanceKm));
@@ -517,6 +538,7 @@ const BookingSection = () => {
         selectedCategory,
         passengerCount,
         babySeatCount,
+        childCount, infantCount, boosterCount,
         paymentMethod,
         dispositionHours,
         distanceKm,
@@ -920,6 +942,9 @@ const BookingSection = () => {
                             </SelectContent>
                           </Select>
                         </div>
+                        <PassengerDetails prefix="public-passengers" total={passengerCount} childrenCount={childCount}
+                          infants={infantCount} boosters={boosterCount} onChildrenChange={setChildCount}
+                          onInfantsChange={setInfantCount} onBoostersChange={setBoosterCount} />
                       </div>
                     )}
 
@@ -996,7 +1021,7 @@ const BookingSection = () => {
                       {date ? `${format(date, 'dd/MM/yyyy', { locale: fr })} à ${time}` : (time || 'Date à confirmer')}
                     </p>
                     <p className="flex items-center gap-2"><CarSimple size={14} className="text-[#D4AF37]" /> {VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.name}</p>
-                    <p className="flex items-center gap-2"><Users size={14} className="text-[#D4AF37]" /> {passengerCount} passager(s) · {babySeatCount} siège(s) bébé</p>
+                    <p className="flex items-center gap-2"><Users size={14} className="text-[#D4AF37]" /> {Number(passengerCount) - Number(childCount) - Number(infantCount)} adulte(s) · {childCount} enfant(s) · {infantCount} bébé(s) · {babySeatCount} siège(s) bébé · {boosterCount} rehausseur(s)</p>
                     {transferType !== 'disposition' && distanceKm && (
                       <p className="flex items-center gap-2"><MapPin size={14} className="text-[#D4AF37]" /> Distance : {distanceKm} km</p>
                     )}

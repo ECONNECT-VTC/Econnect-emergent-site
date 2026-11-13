@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { CalendarCheck, MapPin, DownloadSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
+import PassengerSummary from '@/components/PassengerSummary';
 import { downloadClientInvoicePdf } from '@/utils/invoiceGenerator';
 import { getClientFacingDriverName } from '../../utils/driverDisplay';
 import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, isStatusAtOrAfter, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
@@ -206,6 +207,7 @@ const ClientBookings = () => {
                     </div>
                   </div>
                 </div>
+                <PassengerSummary booking={booking} />
                 <div className="mt-4 pt-4 border-t border-white/10">
                   <p className="text-sm"><span className="text-[#A1A1AA]">Chauffeur:</span> <span className="text-[#D4AF37]">{getClientFacingDriverName(booking)}</span></p>
                 </div>

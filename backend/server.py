@@ -228,7 +228,29 @@ class DriverResponse(BaseModel):
     is_available: bool = True
     created_at: datetime
 
-class BookingBase(BookingCoordinates):
+class PassengerDetails(BaseModel):
+    passenger_count: int = Field(default=1, ge=1, le=7)
+    baby_seat_count: int = Field(default=0, ge=0, le=7)
+    adult_count: Optional[int] = Field(default=None, ge=0, le=7)
+    child_count: Optional[int] = Field(default=None, ge=0, le=7)
+    infant_count: Optional[int] = Field(default=None, ge=0, le=7)
+    booster_seat_count: int = Field(default=0, ge=0, le=7)
+
+    @model_validator(mode="after")
+    def validate_passengers(self):
+        counts = (self.adult_count, self.child_count, self.infant_count)
+        if self.baby_seat_count > self.passenger_count:
+            raise ValueError("Le nombre de sièges bébé ne peut pas dépasser le nombre de passagers")
+        if any(value is not None for value in counts):
+            if any(value is None for value in counts) or sum(counts) != self.passenger_count:
+                raise ValueError("Le total adultes, enfants et bébés doit correspondre au nombre de passagers")
+            if self.booster_seat_count > self.child_count or self.baby_seat_count + self.booster_seat_count > self.child_count + self.infant_count:
+                raise ValueError("Le nombre de sièges demandés dépasse le nombre d'enfants et de bébés")
+        elif self.booster_seat_count:
+            raise ValueError("Précisez le nombre d'adultes, enfants et bébés pour demander un rehausseur")
+        return self
+
+class BookingBase(BookingCoordinates, PassengerDetails):
     pickup_address: str
     dropoff_address: str
     pickup_date: str
@@ -238,19 +260,11 @@ class BookingBase(BookingCoordinates):
     estimated_price: Optional[float] = None
     notes: Optional[str] = None
     disposition_hours: Optional[float] = None
-    passenger_count: int = Field(default=1, ge=1, le=7)
-    baby_seat_count: int = Field(default=0, ge=0, le=7)
-
-    @model_validator(mode="after")
-    def validate_baby_seat_count(self):
-        if self.baby_seat_count > self.passenger_count:
-            raise ValueError("Le nombre de sièges bébé ne peut pas dépasser le nombre de passagers")
-        return self
 
 class BookingCreate(BookingBase):
     pass
 
-class AdminBookingCreate(BookingCoordinates):
+class AdminBookingCreate(BookingCoordinates, PassengerDetails):
     client_name: str
     client_email: EmailStr
     pickup_address: str
@@ -266,14 +280,6 @@ class AdminBookingCreate(BookingCoordinates):
     payment_mode: Optional[str] = None  # "immediate" | "deferred" | None (defaults to deferred)
     payment_method: Optional[str] = None
     payment_status: Optional[str] = None
-    passenger_count: int = Field(default=1, ge=1, le=7)
-    baby_seat_count: int = Field(default=0, ge=0, le=7)
-
-    @model_validator(mode="after")
-    def validate_baby_seat_count(self):
-        if self.baby_seat_count > self.passenger_count:
-            raise ValueError("Le nombre de sièges bébé ne peut pas dépasser le nombre de passagers")
-        return self
 
 class ManualPaymentRecord(BaseModel):
     amount: float
@@ -308,6 +314,10 @@ class BookingResponse(BaseModel):
     disposition_hours: Optional[float] = None
     passenger_count: int = 1
     baby_seat_count: int = 0
+    adult_count: Optional[int] = None
+    child_count: Optional[int] = None
+    infant_count: Optional[int] = None
+    booster_seat_count: int = 0
     status: str  # DRAFT, QUOTE_SENT, QUOTE_ACCEPTED, ORDER_ISSUED, ASSIGNED, IN_PROGRESS, COMPLETED, INVOICED, PAID, cancellation_requested, cancelled
     driver_id: Optional[str] = None
     driver_name: Optional[str] = None
@@ -4327,6 +4337,10 @@ def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_catego
         "disposition_hours": booking.disposition_hours,
         "passenger_count": booking.passenger_count,
         "baby_seat_count": booking.baby_seat_count,
+        "adult_count": booking.adult_count,
+        "child_count": booking.child_count,
+        "infant_count": booking.infant_count,
+        "booster_seat_count": booking.booster_seat_count,
         "status": "DRAFT",
         "payment_status": "pending",
         "payment_method": payment_method,
@@ -5278,6 +5292,10 @@ async def create_admin_booking(booking: AdminBookingCreate, request: Request):
         "disposition_hours": booking.disposition_hours,
         "passenger_count": booking.passenger_count,
         "baby_seat_count": booking.baby_seat_count,
+        "adult_count": booking.adult_count,
+        "child_count": booking.child_count,
+        "infant_count": booking.infant_count,
+        "booster_seat_count": booking.booster_seat_count,
         "status": "QUOTE_ACCEPTED",
         "payment_status": payment_status,
         "payment_method": payment_method,
