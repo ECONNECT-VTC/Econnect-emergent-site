@@ -68,8 +68,7 @@ class TestBillingCapabilities(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("private connection", error.exception.detail)
 
 
-@unittest.skipUnless(os.getenv("MONGO_TEST_URL"), "Requires an isolated MongoDB replica set")
-class TestTransactionalBilling(unittest.IsolatedAsyncioTestCase):
+class BillingDatabaseCase(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.client = AsyncIOMotorClient(os.environ["MONGO_TEST_URL"], serverSelectionTimeoutMS=5000)
         self.database = self.client[f"econnect_billing_test_{uuid.uuid4().hex}"]
@@ -78,6 +77,11 @@ class TestTransactionalBilling(unittest.IsolatedAsyncioTestCase):
         self.environment.start()
         self.addCleanup(self.environment.stop)
         await self.database.counters.insert_one({"_id": "invoice_seq", "seq": 1})
+        await self.database.bookings.insert_one({
+            "id": "booking", "driver_id": "driver", "fulfilled_by_admin": False, "estimated_price": 100,
+            "status": "COMPLETED", "client_id": "client", "client_email": "client@example.test",
+            "paid_amount": 100, "payment_status": "paid",
+        })
         await self.database.invoices.insert_one({
             "booking_id": "booking", "type": "invoice", "invoice_number": "000001", "pdf_snapshot": b"%PDF-original",
         })
@@ -98,6 +102,9 @@ class TestTransactionalBilling(unittest.IsolatedAsyncioTestCase):
         finally:
             self.client.close()
 
+
+@unittest.skipUnless(os.getenv("MONGO_TEST_URL"), "Requires an isolated MongoDB replica set")
+class TestTransactionalBilling(BillingDatabaseCase):
     async def test_real_transaction_commits_number_pdf_and_lines_once_on_concurrent_retry(self):
         first, retry = await asyncio.gather(*[
             issue_supplementary_invoice(self.database, "booking", **self.args) for _ in range(2)

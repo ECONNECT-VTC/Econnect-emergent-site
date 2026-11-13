@@ -60,7 +60,7 @@ describe('supplementary invoices', () => {
     capabilities = { issuance_available: false, reason: 'Transactions MongoDB non confirmées : émission désactivée.' };
     await render();
     expect(container.textContent).toContain('Transactions MongoDB non confirmées');
-    expect(container.textContent).toContain('Ne pas activer en production');
+    expect(container.textContent).toContain('configuration de production à valider');
     expect(button('Émettre la facture complémentaire')).toBeUndefined();
     expect(axios.post).not.toHaveBeenCalled();
   });
@@ -101,6 +101,24 @@ describe('supplementary invoices', () => {
     window.confirm.mockReturnValue(false);
     await act(async () => button('Émettre la facture complémentaire').click());
     expect(axios.post).not.toHaveBeenCalled();
+  });
+
+  it('explicitly routes operator-only fees to the initial invoice without billing transport', async () => {
+    await render();
+    const select = container.querySelector('select');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(select, 'fees_only');
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await fillIssue();
+    axios.post.mockResolvedValueOnce({ data: { id: 'initial', invoice_number: '000002' } });
+    await act(async () => button('Émettre la facture initiale avec les frais').click());
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://api.test/api/admin/bookings/one/initial-invoice-with-charges',
+      expect.objectContaining({ include_transport: false, operator_only: true, revision: 1 }),
+      expect.any(Object),
+    );
+    expect(container.textContent).toContain('Facture initiale n° 000002');
   });
 
   it('records exact cents only against the selected supplementary invoice and safely retries', async () => {

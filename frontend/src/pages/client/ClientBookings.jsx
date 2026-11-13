@@ -10,6 +10,7 @@ import { CalendarCheck, MapPin, DownloadSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
 import PassengerSummary from '@/components/PassengerSummary';
+import BillingAccountPanel from '@/components/BillingAccountPanel';
 import { downloadClientInvoicePdf } from '@/utils/invoiceGenerator';
 import { getClientFacingDriverName } from '../../utils/driverDisplay';
 import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, isStatusAtOrAfter, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
@@ -231,9 +232,9 @@ const ClientBookings = () => {
                   </Button>
                 )}
 
-                {isStatusAtOrAfter(booking.status, 'COMPLETED') && (
+                {(booking.has_issued_invoice || isStatusAtOrAfter(booking.status, 'COMPLETED')) && (
                   <Button
-                    onClick={() => downloadClientInvoicePdf(API_URL, booking.id, booking.status)}
+                    onClick={() => downloadClientInvoicePdf(API_URL, booking.id, booking.has_issued_invoice ? 'INVOICED' : booking.status)}
                     variant="outline"
                     className="mt-3 w-full border-green-500/50 text-green-400 hover:bg-green-500/10"
                   >
@@ -250,6 +251,7 @@ const ClientBookings = () => {
                   </Link>
                 </div>
                 <BookingComments bookingId={booking.id} />
+                <BillingAccountPanel role="client" bookingId={booking.id} />
             </div>
           ))}
         </div>

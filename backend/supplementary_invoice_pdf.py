@@ -12,7 +12,7 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 
 def _money(cents: int) -> str:
-    return f"{cents // 100},{cents % 100:02d} EUR"
+    return f"{'-' if cents < 0 else ''}{abs(cents) // 100},{abs(cents) % 100:02d} EUR"
 
 
 def _text(value) -> str:
@@ -36,14 +36,20 @@ def generate_supplementary_invoice_pdf(snapshot: dict) -> bytes:
     output = BytesIO()
     document = SimpleDocTemplate(output, pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm,
                                  topMargin=15 * mm, bottomMargin=15 * mm,
-                                 title=f"Facture complémentaire {snapshot['invoice_number']}")
+                                 title=f"{snapshot.get('title', 'Facture complémentaire')} {snapshot['invoice_number']}")
     issuer = snapshot["issuer"]
     client = snapshot["client"]
+    title = snapshot.get("title", "FACTURE COMPLÉMENTAIRE")
+    reference_label = "Référence" if "NON FISCAL" in title else "Document"
+    initial_reference = (
+        f"Réservation {_text(snapshot['booking_reference'])}" if title == "FACTURE CLIENT"
+        else f"Facture de référence n° {_text(snapshot['original_invoice_number'])} · Réservation {_text(snapshot['booking_reference'])}"
+    )
     story = [
-        Paragraph("FACTURE COMPLÉMENTAIRE", styles["Title"]),
+        Paragraph(_text(snapshot.get("title", "FACTURE COMPLÉMENTAIRE")), styles["Title"]),
         Spacer(1, 4 * mm),
-        Paragraph(f"Facture n° {_text(snapshot['invoice_number'])} · Émise le {issue_date.strftime('%d/%m/%Y')}", normal),
-        Paragraph(f"Facture initiale n° {_text(snapshot['original_invoice_number'])} · Réservation {_text(snapshot['booking_reference'])}", normal),
+        Paragraph(f"{reference_label} n° {_text(snapshot['invoice_number'])} · Émis le {issue_date.strftime('%d/%m/%Y')}", normal),
+        Paragraph(initial_reference, normal),
         Spacer(1, 5 * mm),
         Paragraph(f"<b>Émetteur :</b> {_text(issuer['name'])}<br/>{_text(issuer['address'])}<br/>"
                   f"SIRET : {_text(issuer['siret'])}<br/>TVA : {_text(issuer['vat_number'])}", normal),
@@ -95,7 +101,10 @@ def generate_supplementary_invoice_pdf(snapshot: dict) -> bytes:
         Paragraph(f"TVA : {_money(snapshot['vat_cents'])}", normal),
         Paragraph(f"<b>Total TTC : {_money(snapshot['amount_ttc_cents'])}</b>", normal),
         Spacer(1, 3 * mm),
-        Paragraph(f"Échéance : {_text(snapshot['due_date'])}", normal),
     ])
+    if "AVOIR" not in title:
+        story.append(Paragraph(f"Échéance : {_text(snapshot['due_date'])}", normal))
+    if snapshot.get("reason"):
+        story.append(Paragraph(f"Motif : {_text(snapshot['reason'])}", normal))
     document.build(story)
     return output.getvalue()

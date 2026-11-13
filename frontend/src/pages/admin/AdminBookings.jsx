@@ -93,6 +93,7 @@ const AdminBookings = () => {
   const [cancellationDialogOpen, setCancellationDialogOpen] = useState(false);
   const [cancellationAction, setCancellationAction] = useState('approve');
   const [refundAmount, setRefundAmount] = useState('');
+  const [retainSupplementary, setRetainSupplementary] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [adminCancelDialogOpen, setAdminCancelDialogOpen] = useState(false);
@@ -454,6 +455,7 @@ const AdminBookings = () => {
     setSelectedBooking(booking);
     setCancellationAction(action);
     setRefundAmount('');
+    setRetainSupplementary(false);
     setCancellationDialogOpen(true);
   };
 
@@ -466,7 +468,8 @@ const AdminBookings = () => {
         `${API_URL}/api/admin/bookings/${selectedBooking.id}/cancellation`,
         {
           approved: cancellationAction === 'approve',
-          refund_amount: cancellationAction === 'approve' && refundAmount !== '' ? Number(refundAmount) : null
+          refund_amount: cancellationAction === 'approve' && refundAmount !== '' ? Number(refundAmount) : null,
+          retain_supplementary_invoices: retainSupplementary,
         },
         { withCredentials: true }
       );
@@ -484,6 +487,7 @@ const AdminBookings = () => {
     setBookingToAdminCancel(booking);
     setAdminCancelReason('');
     setAdminCancelRefundAmount('');
+    setRetainSupplementary(false);
     setAdminCancelDialogOpen(true);
   };
 
@@ -541,6 +545,7 @@ const AdminBookings = () => {
         `${API_URL}/api/admin/bookings/${bookingToAdminCancel.id}/cancel`,
         {
           cancellation_reason: adminCancelReason || null,
+          retain_supplementary_invoices: retainSupplementary,
           refund_amount:
             bookingToAdminCancel.payment_status === 'paid' && adminCancelRefundAmount !== ''
               ? Number(adminCancelRefundAmount)
@@ -1203,6 +1208,10 @@ const AdminBookings = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-[#A1A1AA]">Client: {selectedBooking?.client_name}</p>
+            {cancellationAction === 'approve' && <label className="block text-sm text-amber-200">
+              <input type="checkbox" checked={retainSupplementary} onChange={(event) => setRetainSupplementary(event.target.checked)} />
+              {' '}Maintenir explicitement les factures complémentaires malgré l’annulation. Sinon, émettre leurs avoirs avant de confirmer. Le remboursement ci-dessous concerne uniquement la course initiale.
+            </label>}
             {cancellationAction === 'approve' && selectedBooking?.payment_status === 'paid' && (
               <div>
                 <p className="text-sm text-[#A1A1AA] mb-2">Montant remboursé (€)</p>
@@ -1234,6 +1243,10 @@ const AdminBookings = () => {
             <p className="text-sm text-[#FAFAFA]">
               Cette course sera définitivement annulée. Le client sera notifié.
             </p>
+            <label className="block text-sm text-amber-200">
+              <input type="checkbox" checked={retainSupplementary} onChange={(event) => setRetainSupplementary(event.target.checked)} />
+              {' '}Maintenir explicitement les factures complémentaires malgré l’annulation. Sinon, émettre leurs avoirs avant de confirmer. Le remboursement de course ne rembourse pas les compléments.
+            </label>
             <p className="text-sm text-[#A1A1AA]">
               Client: {bookingToAdminCancel?.client_name}
             </p>

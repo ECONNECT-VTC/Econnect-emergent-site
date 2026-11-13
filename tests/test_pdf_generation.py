@@ -760,7 +760,9 @@ class TestBookingDocumentReferences(unittest.IsolatedAsyncioTestCase):
             find_one=AsyncMock(side_effect=[None, winner]),
             insert_one=AsyncMock(side_effect=DuplicateKeyError("duplicate")),
         )
-        with patch.object(server, "db", SimpleNamespace(invoices=invoices)), \
+        with patch.object(server, "db", SimpleNamespace(
+            invoices=invoices, charge_drafts=SimpleNamespace(find_one=AsyncMock(return_value=None)),
+        )), \
                 patch.object(server, "get_document_driver_profile", AsyncMock(return_value=None)), \
                 patch.object(server, "build_document_issuer_profile", AsyncMock(return_value={})), \
                 patch.object(server, "get_next_sequential_number", AsyncMock(return_value="000123")), \
@@ -789,7 +791,9 @@ class TestBookingDocumentReferences(unittest.IsolatedAsyncioTestCase):
         booking = {**SAMPLE_BOOKING, "id": "aBcDeF123456"}
         invoices = SimpleNamespace(find_one=AsyncMock(return_value=None), insert_one=AsyncMock())
         sequence = AsyncMock(return_value="000123")
-        with patch.object(server, "db", SimpleNamespace(invoices=invoices)), patch.object(
+        with patch.object(server, "db", SimpleNamespace(
+            invoices=invoices, charge_drafts=SimpleNamespace(find_one=AsyncMock(return_value=None)),
+        )), patch.object(
             server, "get_document_driver_profile", AsyncMock(return_value=None)
         ), patch.object(
             server, "build_document_issuer_profile", AsyncMock(return_value={})

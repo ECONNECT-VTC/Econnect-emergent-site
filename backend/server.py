@@ -37,8 +37,17 @@ from booking_map import BookingCoordinates, MapPosition, MapRouteRequest, MapSea
 from charge_drafts import ChargeDrafts, ChargeDraftUpdate
 from supplementary_billing import (
     SupplementaryIssue, SupplementaryPayment, billing_capabilities, issue_supplementary_invoice,
+    BillingRequest, CreditRequest, billing_transaction, next_billing_number, credit_invoice,
+    InitialChargeIssue,
 )
 from supplementary_ledger import SupplementaryLedger
+from billing_operations import (
+    change_invoice, checkout_invoice, invoice_record, refund_payment, reconcile_checkout,
+    send_billing_email, sync_checkout,
+    resolve_checkout,
+)
+from billing_reporting import public_invoice, supplementary_report
+from initial_charge_invoice import issue_initial_with_charges
 from email_service import (
     TEMPLATE_KEY_ACCOUNT_ACTIVATION,
     TEMPLATE_KEY_ADMIN_MESSAGE,
@@ -317,6 +326,8 @@ class BookingResponse(BaseModel):
     distance_km: Optional[float] = None
     duration_minutes: Optional[float] = None
     estimated_price: Optional[float] = None
+    financial_snapshot: Optional[dict[str, float]] = None
+    has_issued_invoice: bool = False
     notes: Optional[str] = None
     disposition_hours: Optional[float] = None
     passenger_count: int = 1
@@ -438,10 +449,12 @@ class BookingCancelRequest(BaseModel):
 class BookingCancellationDecision(BaseModel):
     approved: bool
     refund_amount: Optional[float] = None
+    retain_supplementary_invoices: bool = False
 
 class AdminCancellationRequest(BaseModel):
     cancellation_reason: Optional[str] = None
     refund_amount: Optional[float] = None
+    retain_supplementary_invoices: bool = False
 
 class DriverCancellationRequest(BaseModel):
     cancellation_reason: Optional[str] = None
@@ -762,6 +775,8 @@ def status_at_or_after(status: Optional[str], reference_status: str) -> bool:
 
 
 def ensure_client_invoice_available(booking: dict) -> None:
+    if booking.get("has_issued_invoice"):
+        return
     current_status = normalize_booking_status(booking.get("status"))
     if not status_at_or_after(current_status, "COMPLETED"):
         raise HTTPException(status_code=400, detail="La facture n'est disponible qu'après une course terminée")
@@ -889,6 +904,8 @@ class DriverEarning(BaseModel):
     driver_earning: float
     status: str
     created_at: datetime
+    entry_id: Optional[str] = None
+    is_supplementary: bool = False
 
 class InvoiceMetadata(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -900,7 +917,7 @@ class InvoiceMetadata(BaseModel):
     amount_ttc: float
     amount_ht: float
     tva_amount: float
-    tva_rate: float
+    tva_rate: Optional[float]
     type: str  # "quote", "invoice", "order", "driver", "commission", "activity"
     created_at: datetime
 
@@ -1221,7 +1238,7 @@ def compute_financial_breakdown(
         commission_ttc = float(commission_override)
     else:
         commission_ttc = safe_price_ttc * commission_rate
-    driver_earning = safe_price_ttc - commission_ttc
+    driver_earning = 0.0 if fulfilled_by_admin else safe_price_ttc - commission_ttc
 
     price_ht = safe_price_ttc / (1 + tva_client_rate) if (1 + tva_client_rate) > 0 else safe_price_ttc
     tva_client = safe_price_ttc - price_ht
@@ -1281,7 +1298,7 @@ def generate_financial_pdf(booking: dict, settings: dict, document_type: str, do
         raise HTTPException(status_code=400, detail="Montant de course indisponible")
 
     resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
-    breakdown = compute_financial_breakdown(
+    breakdown = booking.get("financial_snapshot") or compute_financial_breakdown(
         booking["estimated_price"],
         settings["commission_rate"],
         resolved_client_tva_rate,
@@ -2956,12 +2973,29 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
         {"booking_id": booking["id"], "type": document_type},
         {"_id": 0}
     )
-    if existing_document and document_type == "invoice" and "pdf_snapshot" in existing_document:
+    if existing_document and "pdf_snapshot" in existing_document:
         pdf_snapshot = existing_document.pop("pdf_snapshot")
         if not isinstance(pdf_snapshot, bytes) or not pdf_snapshot.startswith(b"%PDF-"):
             raise RuntimeError("Archived client invoice PDF is invalid")
         return bytes(pdf_snapshot), existing_document
 
+    if not existing_document and booking.get("initial_charge_invoice_id") and document_type in {"driver", "activity", "commission"}:
+        kind = "commission" if document_type == "commission" else "driver"
+        document = await db.billing_documents.find_one({"_id": f"{booking['initial_charge_invoice_id']}:{kind}"})
+        if not document:
+            raise HTTPException(409, "Aucun document partenaire archivé pour cette facture ; aucune nouvelle facture créée")
+        frozen = document["snapshot"]
+        return bytes(document["pdf"]), {
+            "id": f"{booking['initial_charge_invoice_id']}:{kind}", "invoice_number": frozen["invoice_number"],
+            "booking_id": booking["id"], "type": document_type, "created_at": frozen["issued_at"],
+        }
+
+    if not existing_document and document_type in {"invoice", "driver", "activity", "commission"}:
+        draft = await db.charge_drafts.find_one({"_id": booking["id"]})
+        if draft and draft.get("lines"):
+            original = await db.invoices.find_one({"booking_id": booking["id"], "type": "invoice"}, {"id": 1})
+            if not original:
+                raise HTTPException(409, "Des frais sont préparés : émettez la facture initiale avec ces frais depuis l’administration")
     enriched_booking = {**booking}
     driver_profile = await get_document_driver_profile(booking)
     enriched_booking["issuer"] = await build_document_issuer_profile(booking, settings, driver=driver_profile)
@@ -3017,6 +3051,59 @@ async def generate_and_store_document(booking: dict, settings: dict, document_ty
             existing_document["invoice_number"]
         )
         return existing_pdf, existing_document
+
+    transactional = os.getenv("SUPPLEMENTARY_INVOICES_ENABLED", "").lower() == "true"
+    if transactional:
+        async def publish(session):
+            existing = await db.invoices.find_one(
+                {"booking_id": booking["id"], "type": document_type}, {"_id": 0}, session=session,
+            )
+            if existing:
+                pdf = existing.pop("pdf_snapshot", None)
+                if not pdf:
+                    raise HTTPException(409, "Document concurrent sans archive ; rechargez")
+                return bytes(pdf), existing
+            latest = await db.bookings.find_one({"id": booking["id"]}, session=session)
+            if not latest or any(latest.get(key) != booking.get(key) for key in (
+                "estimated_price", "driver_id", "fulfilled_by_admin", "commission_override", "initial_charge_invoice_id",
+            )):
+                raise HTTPException(409, "Course modifiée ; rechargez avant d’émettre le document")
+            if document_type in {"invoice", "driver", "activity", "commission"}:
+                draft = await ChargeDrafts(db.charge_drafts, session=session).get(booking["id"])
+                if draft["lines"]:
+                    original = await db.invoices.find_one(
+                        {"booking_id": booking["id"], "type": "invoice"}, {"id": 1}, session=session,
+                    )
+                    if document_type == "invoice" or not original:
+                        raise HTTPException(409, "Des frais sont préparés : utilisez l’émission initiale avec frais")
+                await db.charge_drafts.update_one(
+                    {"_id": booking["id"], "revision": draft["revision"]},
+                    {"$inc": {"revision": 1}}, session=session,
+                )
+            number = await next_billing_number(db, session)
+            pdf = generate_financial_pdf(enriched_booking, settings, document_type, number)
+            snapshot_breakdown = enriched_booking.get("financial_snapshot") or compute_financial_breakdown(
+                booking["estimated_price"], settings["commission_rate"], resolved_client_tva_rate,
+                settings["tva_commission_rate"], booking.get("commission_override"), bool(booking.get("fulfilled_by_admin")),
+            )
+            prefix = "commission" if document_type == "commission" else "driver" if document_type in {"driver", "activity"} else "price"
+            amount = snapshot_breakdown["commission_ttc" if prefix == "commission" else "driver_earning" if prefix == "driver" else "price_ttc"]
+            ht = snapshot_breakdown["commission_ht" if prefix == "commission" else "driver_earning" if prefix == "driver" else "price_ht"]
+            metadata = {
+                "id": str(uuid.uuid4()), "invoice_number": number, "booking_id": booking["id"], "type": document_type,
+                "client_name": booking.get("client_name", "N/A"), "client_email": booking.get("client_email", "N/A"),
+                "driver_id": booking.get("driver_id"), "driver_name": booking.get("driver_name"),
+                "amount_ttc": amount, "amount_ht": ht, "tva_amount": round_amount(amount - ht),
+                "tva_rate": settings["tva_commission_rate"] if prefix == "commission" else 0 if prefix == "driver" else resolved_client_tva_rate,
+                "created_at": datetime.now(timezone.utc), "financial_snapshot": snapshot_breakdown,
+            }
+            await db.invoices.insert_one({**metadata, "pdf_snapshot": pdf}, session=session)
+            if document_type == "invoice":
+                await db.bookings.update_one(
+                    {"id": booking["id"]}, {"$set": {"financial_snapshot": snapshot_breakdown, "has_issued_invoice": True}}, session=session,
+                )
+            return pdf, metadata
+        return await billing_transaction(db, publish)
 
     document_number = await get_next_sequential_number()
     pdf_bytes = generate_financial_pdf(enriched_booking, settings, document_type, document_number)
@@ -4689,6 +4776,9 @@ async def confirm_booking_payment(
 
 
 async def _handle_checkout_session_completed(session: dict):
+    if (_stripe_value(session, "metadata") or {}).get("payment_scope") == "supplementary":
+        await reconcile_checkout(db, session)
+        return
     await _mark_booking_paid(session)
 
 
@@ -4707,9 +4797,16 @@ async def stripe_webhook(request: Request):
     except stripe.error.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Signature webhook Stripe invalide")
 
-    if _stripe_value(event, "type") == "checkout.session.completed":
+    if _stripe_value(event, "type") in {
+        "checkout.session.completed", "checkout.session.async_payment_succeeded", "checkout.session.expired",
+    }:
         data = _stripe_value(event, "data") or {}
-        await _handle_checkout_session_completed(_stripe_value(data, "object", {}))
+        session = _stripe_value(data, "object", {})
+        if _stripe_value(event, "type") != "checkout.session.completed":
+            if (_stripe_value(session, "metadata") or {}).get("payment_scope") == "supplementary":
+                await reconcile_checkout(db, session)
+        else:
+            await _handle_checkout_session_completed(session)
 
     return {"received": True}
 
@@ -5448,6 +5545,8 @@ async def update_booking_commission(booking_id: str, payload: BookingCommissionU
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    if booking.get("financial_snapshot"):
+        raise HTTPException(409, "Commission figée sur facture émise ; utilisez un document correctif")
 
     await db.bookings.update_one(
         {"id": booking_id},
@@ -5520,7 +5619,203 @@ async def issue_admin_supplementary_invoice(booking_id: str, payload: Supplement
         actor_id=admin["id"], commission_rate=Decimal(str(settings["commission_rate"])),
         driver_id=None if fulfilled_by_admin else booking.get("driver_id"),
         fulfilled_by_admin=fulfilled_by_admin, booking_reference=booking_short_reference(booking_id),
+        operator={"name": settings.get("company_name"), "address": settings.get("company_address"),
+                  "siret": settings.get("company_siret"), "vat_number": settings.get("company_vat_number")},
+        commission_vat_rate=Decimal(str(settings["tva_commission_rate"])),
     )
+
+
+@api_router.post("/admin/bookings/{booking_id}/initial-invoice-with-charges")
+async def issue_admin_initial_with_charges(booking_id: str, payload: InitialChargeIssue, request: Request):
+    admin = await require_admin(request)
+    booking = await require_supplementary_booking(booking_id)
+    settings = await get_commission_settings()
+    operator = {"name": settings.get("company_name"), "address": settings.get("company_address"),
+                "siret": settings.get("company_siret"), "vat_number": settings.get("company_vat_number")}
+    if booking.get("fulfilled_by_admin") or payload.operator_only:
+        issuer = operator
+    else:
+        driver = await get_document_driver_profile(booking)
+        if not driver:
+            raise HTTPException(422, "Coordonnées de facturation du chauffeur manquantes")
+        issuer = {"name": driver.get("company_name") or driver.get("name"),
+                  "address": driver.get("company_address") or driver.get("address"),
+                  "siret": driver.get("company_siret"), "vat_number": driver.get("company_vat_number")}
+    base = compute_financial_breakdown(
+        booking.get("estimated_price") or 0, settings["commission_rate"], get_client_tva_rate_for_booking(booking),
+        settings["tva_commission_rate"], booking.get("commission_override"), bool(booking.get("fulfilled_by_admin")),
+    )
+    return await issue_initial_with_charges(
+        db, booking_id, payload, admin["id"], issuer=issuer, operator=operator,
+        commission_rate=Decimal(str(settings["commission_rate"])),
+        commission_vat_rate=Decimal(str(settings["tva_commission_rate"])),
+        client_vat_rate=Decimal(str(get_client_tva_rate_for_booking(booking))), base_breakdown=base,
+        expected_booking=booking,
+    )
+
+
+@api_router.post("/admin/bookings/{booking_id}/supplementary-invoices/{invoice_id}/credit")
+async def credit_admin_supplementary(booking_id: str, invoice_id: str, payload: CreditRequest, request: Request):
+    admin = await require_admin(request)
+    await require_supplementary_booking(booking_id)
+    return await credit_invoice(db, booking_id, invoice_id, payload, admin["id"])
+
+
+@api_router.post("/admin/bookings/{booking_id}/supplementary-invoices/{invoice_id}/refund/{payment_id}")
+async def refund_admin_supplementary(
+    booking_id: str, invoice_id: str, payment_id: str, payload: BillingRequest, request: Request,
+):
+    admin = await require_admin(request)
+    await require_supplementary_booking(booking_id)
+    invoice = await invoice_record(db, booking_id, invoice_id)
+    payment = next((item for item in invoice["payments"] if item["request_id"] == payment_id), None)
+    if payment and payment.get("payment_intent"):
+        _ensure_stripe_configured()
+    return await refund_payment(db, booking_id, invoice_id, payment_id, payload.request_id, admin["id"], stripe_api=stripe)
+
+
+@api_router.post("/admin/bookings/{booking_id}/supplementary-invoices/{invoice_id}/email/{kind}")
+async def email_admin_supplementary(booking_id: str, invoice_id: str, kind: str, request: Request):
+    await require_admin(request)
+    booking = await require_supplementary_booking(booking_id)
+    return await send_billing_email(
+        db, booking_id, invoice_id, recipient=booking.get("client_email"), send=send_notification_email, kind=kind,
+    )
+
+
+class BillingEmailResolution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    sent: bool
+    evidence: str = Field(min_length=5, max_length=600)
+
+
+class BillingCheckoutResolution(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    session_id: str = Field(min_length=4, max_length=255, pattern=r"^cs_[A-Za-z0-9_]+$")
+
+
+@api_router.post("/admin/bookings/{booking_id}/supplementary-invoices/{invoice_id}/resolve-checkout")
+async def resolve_admin_billing_checkout(
+    booking_id: str, invoice_id: str, payload: BillingCheckoutResolution, request: Request,
+):
+    await require_admin(request)
+    await require_supplementary_booking(booking_id)
+    _ensure_stripe_configured()
+    return await resolve_checkout(db, booking_id, invoice_id, payload.session_id, stripe)
+
+
+@api_router.post("/admin/bookings/{booking_id}/supplementary-invoices/{invoice_id}/email/{kind}/resolve")
+async def resolve_admin_billing_email(
+    booking_id: str, invoice_id: str, kind: str, payload: BillingEmailResolution, request: Request,
+):
+    admin = await require_admin(request)
+    await require_supplementary_booking(booking_id)
+    if kind not in {"invoice", "credit"}:
+        raise HTTPException(422, "Type de courriel invalide")
+    field = "email" if kind == "invoice" else "credit_email"
+    def resolve(invoice):
+        state = invoice.get(field, {})
+        if state.get("status") not in {"sending", "unknown"}:
+            raise HTTPException(409, "Aucun envoi incertain à résoudre")
+        if state.get("status") == "sending":
+            started = state["started_at"]
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) - started < timedelta(minutes=30):
+                raise HTTPException(409, "Envoi encore en cours ; attendez avant la vérification manuelle")
+        invoice.setdefault("email_resolutions", []).append({
+            "kind": kind, "previous": dict(state), "sent": payload.sent, "evidence": payload.evidence,
+            "resolved_by": admin["id"], "resolved_at": datetime.now(timezone.utc),
+        })
+        state.update(status="sent" if payload.sent else "retry_allowed")
+        return {"status": state["status"]}
+    return await change_invoice(db, booking_id, invoice_id, resolve)
+
+
+async def authorized_billing_invoice(booking_id, invoice_id, request):
+    user = await get_current_user(request)
+    booking = await require_supplementary_booking(booking_id)
+    invoice = await invoice_record(db, booking_id, invoice_id)
+    role = user.get("role")
+    if role == "admin":
+        return user, booking, invoice
+    if role == "client" and booking.get("client_id") == user["id"]:
+        return user, booking, invoice
+    if role in {"driver", "chauffeur"} and invoice.get("driver_id") == user["id"]:
+        return {**user, "role": "driver"}, booking, invoice
+    raise HTTPException(403, "Accès refusé à cette facture")
+
+
+@api_router.get("/billing/bookings/{booking_id}/invoices")
+async def list_client_supplementary(booking_id: str, request: Request):
+    user = await get_current_user(request)
+    booking = await require_supplementary_booking(booking_id)
+    if user.get("role") != "client" or booking.get("client_id") != user["id"]:
+        raise HTTPException(403, "Accès client requis pour cette réservation")
+    invoices = await SupplementaryLedger(db.charge_drafts).list_issued(booking_id)
+    return [public_invoice(invoice, "client") for invoice in invoices]
+
+
+@api_router.get("/billing/bookings/{booking_id}/invoices/{invoice_id}/documents/{kind}")
+async def download_billing_document(booking_id: str, invoice_id: str, kind: str, request: Request):
+    user, _, invoice = await authorized_billing_invoice(booking_id, invoice_id, request)
+    allowed = {"invoice", "credit"} if user["role"] == "client" else {"driver", "commission", "commission-credit"} if user["role"] == "driver" else {"invoice", "credit", "driver", "commission", "commission-credit"}
+    if kind not in allowed:
+        raise HTTPException(403, "Document non accessible à ce compte")
+    if kind == "invoice":
+        if invoice.get("is_initial"):
+            initial = await db.invoices.find_one({"id": invoice_id, "booking_id": booking_id})
+            pdf = initial["pdf_snapshot"]
+        else:
+            pdf = await SupplementaryLedger(db.charge_drafts).get_pdf(booking_id, invoice_id)
+    else:
+        document = await db.billing_documents.find_one({"_id": f"{invoice_id}:{kind}"})
+        if not document:
+            raise HTTPException(404, "Document archivé introuvable")
+        pdf = document["pdf"]
+    return Response(content=pdf, media_type="application/pdf", headers={
+        "Content-Disposition": f'attachment; filename="{kind}-{invoice["invoice_number"]}.pdf"',
+    })
+
+
+@api_router.post("/billing/bookings/{booking_id}/invoices/{invoice_id}/checkout")
+async def create_supplementary_checkout(booking_id: str, invoice_id: str, payload: BillingRequest, request: Request):
+    user, booking, _ = await authorized_billing_invoice(booking_id, invoice_id, request)
+    if user["role"] != "client":
+        raise HTTPException(403, "Paiement réservé au client de la facture")
+    _ensure_stripe_configured()
+    return await checkout_invoice(
+        db, booking_id, invoice_id, payload.request_id, stripe_api=stripe,
+        frontend_url=FRONTEND_URL, client_email=booking.get("client_email"),
+    )
+
+
+@api_router.post("/billing/bookings/{booking_id}/invoices/{invoice_id}/sync-payment")
+async def sync_supplementary_checkout(booking_id: str, invoice_id: str, request: Request):
+    user, _, _ = await authorized_billing_invoice(booking_id, invoice_id, request)
+    if user["role"] not in {"client", "admin"}:
+        raise HTTPException(403, "Vérification réservée au client ou à l’administrateur")
+    _ensure_stripe_configured()
+    invoice = await sync_checkout(db, booking_id, invoice_id, stripe)
+    return invoice if user["role"] == "admin" else public_invoice(invoice, "client")
+
+
+@api_router.get("/admin/financial/supplementary")
+async def admin_supplementary_report(request: Request, driver_id: Optional[str] = None):
+    await require_admin(request)
+    return await supplementary_report(db, driver_id=driver_id)
+
+
+@api_router.get("/driver/supplementary-invoices")
+async def driver_supplementary_report(request: Request):
+    driver = await require_driver(request)
+    report = await supplementary_report(db, driver_id=driver["id"])
+    async for initial in db.invoices.find(
+        {"type": "invoice", "charge_snapshot.driver_id": driver["id"]}, {"pdf_snapshot": 0},
+    ):
+        report["invoices"].append({**initial["charge_snapshot"], "is_initial": True, "paid_cents": 0})
+    return {"totals": {key: report["totals"][key] for key in ("driver_cents", "commission_cents")},
+            "invoices": [public_invoice(invoice, "driver") for invoice in report["invoices"]]}
 
 
 @api_router.post("/admin/bookings/{booking_id}/supplementary-invoices/{invoice_id}/payments")
@@ -5609,6 +5904,7 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
         raise HTTPException(status_code=400, detail="Cette réservation n'a pas de demande d'annulation en attente")
 
     if payload.approved:
+        await require_cancellation_billing_choice(booking, payload.retain_supplementary_invoices)
         refund_trace = await _refund_booking_payment(
             booking=booking,
             amount=payload.refund_amount,
@@ -5666,6 +5962,7 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
     if normalize_booking_status(booking.get("status")) not in ["DRAFT", "QUOTE_SENT", "QUOTE_ACCEPTED", "ORDER_ISSUED", "ASSIGNED"]:
         raise HTTPException(status_code=400, detail="Cette réservation ne peut pas être annulée")
 
+    await require_cancellation_billing_choice(booking, payload.retain_supplementary_invoices)
     refund_trace = await _refund_booking_payment(
         booking=booking,
         amount=payload.refund_amount,
@@ -5701,6 +5998,18 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
             logger.error(f"Failed to send refund email for booking {booking_id}: {exc}")
 
     return {"message": "Course annulée par l'administration", "status": "cancelled", "refund": refund_trace}
+
+
+async def require_cancellation_billing_choice(booking, retain):
+    if not booking.get("has_supplementary_invoices"):
+        return
+    invoices = await SupplementaryLedger(db.charge_drafts).list_issued(booking["id"])
+    if any(invoice.get("active_operation") for invoice in invoices):
+        raise HTTPException(409, "Réconciliez les opérations complémentaires en cours avant l’annulation")
+    if any(not invoice.get("credit") for invoice in invoices) and not retain:
+        raise HTTPException(
+            409, "Des factures complémentaires restent émises. Émettez leurs avoirs ou confirmez explicitement leur maintien ; le remboursement de course ne les rembourse pas.",
+        )
 
 @api_router.put("/admin/bookings/{booking_id}/status")
 async def update_booking_status_admin(booking_id: str, status_update: BookingStatusUpdate, request: Request):
@@ -5750,6 +6059,9 @@ async def admin_update_booking(booking_id: str, payload: dict, request: Request)
         *BookingCoordinates.model_fields,
     ]
     update_data = {k: v for k, v in payload.items() if k in allowed_fields}
+    if (booking.get("financial_snapshot") and "estimated_price" in update_data
+            and update_data["estimated_price"] != booking.get("estimated_price")):
+        raise HTTPException(409, "Montant figé sur facture émise ; utilisez un document correctif")
     update_data = validate_booking_location_update(booking, update_data)
     if "payment_method" in update_data:
         update_data["payment_method"] = normalize_payment_method_code(update_data.get("payment_method"))
@@ -6121,12 +6433,22 @@ async def estimate_price(
 
 # ==================== FINANCIAL ROUTES ====================
 
+def financial_booking_query():
+    return {
+        "$or": [
+            {"status": {"$regex": "^(COMPLETED|INVOICED|PAID)$", "$options": "i"}},
+            {"financial_snapshot": {"$exists": True}},
+        ],
+        "estimated_price": {"$ne": None},
+    }
+
+
 @api_router.get("/admin/financial/stats", response_model=FinancialStats)
 async def get_financial_stats(request: Request, driver_id: Optional[str] = None):
     await require_admin(request)
     settings = await get_commission_settings()
 
-    query = {"status": build_status_match_query("COMPLETED"), "estimated_price": {"$ne": None}}
+    query = financial_booking_query()
     if driver_id:
         query["driver_id"] = driver_id
 
@@ -6147,7 +6469,7 @@ async def get_financial_stats(request: Request, driver_id: Optional[str] = None)
 
     for booking in completed_bookings:
         resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
-        breakdown = compute_financial_breakdown(
+        breakdown = booking.get("financial_snapshot") or compute_financial_breakdown(
             booking["estimated_price"],
             settings["commission_rate"],
             resolved_client_tva_rate,
@@ -6163,6 +6485,14 @@ async def get_financial_stats(request: Request, driver_id: Optional[str] = None)
         totals["total_tva_commission"] += breakdown["tva_commission"]
         totals["total_driver_earnings"] += breakdown["driver_earning"]
 
+    supplementary = (await supplementary_report(db, driver_id=driver_id))["totals"]
+    for target, source in (
+        ("total_revenue_ttc", "amount_ttc_cents"), ("total_revenue_ht", "amount_ht_cents"),
+        ("total_tva_client", "vat_cents"), ("total_commission_ttc", "commission_cents"),
+        ("total_commission_ht", "commission_ht_cents"), ("total_tva_commission", "commission_vat_cents"),
+        ("total_driver_earnings", "driver_cents"),
+    ):
+        totals[target] += supplementary[source] / 100
     return FinancialStats(
         total_revenue_ttc=round_amount(totals["total_revenue_ttc"]),
         total_revenue_ht=round_amount(totals["total_revenue_ht"]),
@@ -6211,14 +6541,14 @@ async def get_completed_bookings_financial(request: Request):
     settings = await get_commission_settings()
 
     bookings = await db.bookings.find(
-        {"status": build_status_match_query("COMPLETED"), "estimated_price": {"$ne": None}},
+        financial_booking_query(),
         {"_id": 0}
     ).sort("created_at", -1).to_list(1000)
 
     result = []
     for b in bookings:
         resolved_client_tva_rate = get_client_tva_rate_for_booking(b)
-        breakdown = compute_financial_breakdown(
+        breakdown = b.get("financial_snapshot") or compute_financial_breakdown(
             b["estimated_price"],
             settings["commission_rate"],
             resolved_client_tva_rate,
@@ -6269,14 +6599,14 @@ async def get_driver_earnings(request: Request):
     settings = await get_commission_settings()
 
     bookings = await db.bookings.find(
-        {"driver_id": driver["id"], "status": "COMPLETED", "estimated_price": {"$ne": None}},
+        {**financial_booking_query(), "driver_id": driver["id"]},
         {"_id": 0}
     ).sort("created_at", -1).to_list(1000)
 
     earnings = []
     for booking in bookings:
         resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
-        breakdown = compute_financial_breakdown(
+        breakdown = booking.get("financial_snapshot") or compute_financial_breakdown(
             booking["estimated_price"],
             settings["commission_rate"],
             resolved_client_tva_rate,
@@ -6297,6 +6627,19 @@ async def get_driver_earnings(request: Request):
             created_at=booking.get("created_at", datetime.now(timezone.utc))
         ))
 
+    report = await supplementary_report(db, driver_id=driver["id"])
+    for invoice in report["invoices"]:
+        effective = 0 if invoice.get("credit") else 1
+        earnings.append(DriverEarning(
+            booking_id=invoice["booking_id"], entry_id=invoice["id"], is_supplementary=True,
+            pickup_address=f"Facture complémentaire {invoice['invoice_number']}",
+            dropoff_address="Avoir intégral" if invoice.get("credit") else "Frais facturés",
+            pickup_date=invoice["issued_at"].strftime("%d/%m/%Y"), pickup_time="",
+            price_ttc=effective * invoice["amount_ttc_cents"] / 100,
+            commission_ttc=effective * invoice["commission_cents"] / 100,
+            driver_earning=effective * invoice["driver_cents"] / 100, status="INVOICED",
+            created_at=invoice["issued_at"],
+        ))
     return earnings
 
 @api_router.get("/admin/quotes/{booking_id}/pdf")
@@ -6403,14 +6746,14 @@ async def get_driver_invoices(request: Request):
     settings = await get_commission_settings()
 
     bookings = await db.bookings.find(
-        {"driver_id": driver["id"], "status": "COMPLETED", "estimated_price": {"$ne": None}},
+        {**financial_booking_query(), "driver_id": driver["id"]},
         {"_id": 0}
     ).sort("created_at", -1).to_list(1000)
 
     result = []
     for b in bookings:
         resolved_client_tva_rate = get_client_tva_rate_for_booking(b)
-        breakdown = compute_financial_breakdown(
+        breakdown = b.get("financial_snapshot") or compute_financial_breakdown(
             b["estimated_price"],
             settings["commission_rate"],
             resolved_client_tva_rate,

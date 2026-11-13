@@ -24,7 +24,11 @@ def _request_id(value: str) -> str:
 
 
 def _without_pdf(invoice: dict) -> dict:
-    return {key: deepcopy(value) for key, value in invoice.items() if key != "pdf_snapshot"}
+    return {key: deepcopy(value) for key, value in invoice.items() if key not in {"pdf_snapshot", "documents"}}
+
+
+def remaining_cents(invoice: dict) -> int:
+    return 0 if invoice.get("credit") else invoice["amount_ttc_cents"] - invoice["paid_cents"]
 
 
 class SupplementaryLedger:
@@ -133,7 +137,9 @@ class SupplementaryLedger:
                 return _without_pdf(invoice)
         if document["revision"] != revision:
             raise HTTPException(409, "Registre modifié ; rechargez avant d’enregistrer le paiement")
-        if amount_cents > invoice["amount_ttc_cents"] - invoice["paid_cents"]:
+        if invoice.get("active_operation"):
+            raise HTTPException(409, "Une opération de paiement ou de remboursement est en cours ; réconciliez-la avant de continuer")
+        if amount_cents > remaining_cents(invoice):
             raise HTTPException(422, "Le paiement dépasse le solde de la facture complémentaire")
         invoice["payments"].append({"request_id": request_id, "amount_cents": amount_cents,
                                     "received_at": datetime.now(timezone.utc), "recorded_by": actor_id})

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import axios from 'axios';
 import API_URL from '@/config';
 import { parseApiError } from '@/utils/apiErrors';
+import BillingInvoiceActions from './BillingInvoiceActions';
 
 const money = (cents) => (cents / 100).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
 const options = { withCredentials: true, timeout: 15000 };
@@ -15,10 +16,13 @@ export default function SupplementaryInvoices({ bookingId, revision, hasLines, d
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [destination, setDestination] = useState('supplementary');
+  const initial = destination !== 'supplementary';
   const [paymentInvoice, setPaymentInvoice] = useState('');
   const [amount, setAmount] = useState('');
   const pendingIssue = useRef(null);
   const pendingPayment = useRef(null);
+  const pendingInitial = useRef(false);
   const url = `${API_URL}/api/admin/bookings/${encodeURIComponent(bookingId)}/supplementary-invoices`;
 
   const load = useCallback(async () => {
@@ -46,19 +50,27 @@ export default function SupplementaryInvoices({ bookingId, revision, hasLines, d
   const issue = async (event) => {
     event.preventDefault();
     if (!pendingIssue.current && !window.confirm(
-      'Émettre définitivement ces frais sur une facture complémentaire ? La facture initiale ne sera pas modifiée. Aucun paiement ni courriel automatique ne sera déclenché.'
+      initial
+        ? 'Émettre définitivement la première facture avec les lignes choisies ? Aucun paiement ni courriel automatique ne sera déclenché.'
+        : 'Émettre définitivement ces frais sur une facture complémentaire ? La facture initiale ne sera pas modifiée. Aucun paiement ni courriel automatique ne sera déclenché.'
     )) return;
     setBusy(true);
     setError('');
     setNotice('');
     try {
-      if (!pendingIssue.current) pendingIssue.current = {
-        revision: data.revision, request_id: window.crypto.randomUUID(),
-        due_date: dueDate, client: { name: name.trim(), address: address.trim() },
-      };
-      const response = await axios.post(url, pendingIssue.current, options);
+      if (!pendingIssue.current) {
+        pendingInitial.current = initial;
+        pendingIssue.current = {
+          revision: data.revision, request_id: window.crypto.randomUUID(),
+          due_date: dueDate, client: { name: name.trim(), address: address.trim() },
+          ...(destination === 'fees_only' ? { include_transport: false, operator_only: true } : {}),
+        };
+      }
+      const target = pendingInitial.current
+        ? `${API_URL}/api/admin/bookings/${encodeURIComponent(bookingId)}/initial-invoice-with-charges` : url;
+      const response = await axios.post(target, pendingIssue.current, options);
       pendingIssue.current = null;
-      setNotice(`Facture complémentaire n° ${response.data.invoice_number} émise et archivée. Aucun courriel envoyé.`);
+      setNotice(`Facture ${pendingInitial.current ? 'initiale' : 'complémentaire'} n° ${response.data.invoice_number} émise et archivée. Aucun courriel envoyé.`);
       await load();
       await onChanged();
     } catch (err) {
@@ -118,7 +130,7 @@ export default function SupplementaryInvoices({ bookingId, revision, hasLines, d
 
   return <section aria-label="Factures complémentaires" className="space-y-3 border-t border-white/20 pt-4">
     <h3 className="font-semibold text-[#D4AF37]">Factures complémentaires</h3>
-    <p className="text-sm text-amber-200">Parcours en finalisation : les états financiers, les documents chauffeur/commission et les envois Brevo ne sont pas encore raccordés. Ne pas activer en production.</p>
+    <p className="text-sm text-amber-200">Activation et configuration de production à valider avant utilisation réelle. Les factures émises sont figées ; une correction exige un avoir.</p>
     {data && !data.capabilities.issuance_available && <p role="status">{data.capabilities.reason}</p>}
     {error && <p role="alert" className="text-red-300">{error}</p>}
     {notice && <p role="status" className="text-green-300">{notice}</p>}
@@ -126,13 +138,26 @@ export default function SupplementaryInvoices({ bookingId, revision, hasLines, d
     {data && !synchronized && <p>Enregistrez puis rechargez le brouillon avant toute opération de facturation.</p>}
     {data?.invoices.map((invoice) => <article key={invoice.id} className="space-y-1 rounded border border-white/20 p-3 text-sm">
       <p>Facture n° {invoice.invoice_number} — facture initiale n° {invoice.original_invoice_number}</p>
-      <p>Total : {money(invoice.amount_ttc_cents)} · Reçu : {money(invoice.paid_cents)} · Solde : {money(invoice.amount_ttc_cents - invoice.paid_cents)}</p>
+      <p>Total : {money(invoice.amount_ttc_cents)} · Reçu : {money(invoice.paid_cents)} · Remboursé : {money(invoice.refunded_cents || 0)} · Solde : {money(invoice.credit ? 0 : invoice.amount_ttc_cents - invoice.paid_cents)}</p>
       <p>Commission : {money(invoice.commission_cents)} · Part chauffeur : {money(invoice.driver_cents)} · Part Econnect : {money(invoice.admin_retained_cents)}</p>
+      {(invoice.payments || []).map((payment) => <p key={payment.request_id}>
+        Encaissement {payment.recorded_by === 'stripe' ? 'Stripe' : 'manuel'} : {money(payment.amount_cents)} · Référence {payment.request_id}
+      </p>)}
       <button type="button" disabled={busy} onClick={() => download(invoice)}>Télécharger le PDF archivé</button>
+      <BillingInvoiceActions bookingId={bookingId} invoice={invoice} revision={data.revision}
+        disabled={busy || dirty} onChanged={async () => { await load(); await onChanged(); }} />
     </article>)}
     {data?.capabilities.issuance_available && <form onSubmit={issue} className="space-y-3">
       <fieldset disabled={busy || !canIssue || Boolean(pending)} className="space-y-2">
         <legend>Émission distincte de la facture initiale</legend>
+        <label className="block text-sm">Destination des frais
+          <select className={inputClass} value={destination} onChange={(event) => setDestination(event.target.value)}>
+            <option value="supplementary">Facture complémentaire — facture initiale déjà émise</option>
+            <option value="initial">Inclure dans la première facture — course terminée</option>
+            <option value="fees_only">Première facture de frais Econnect seuls — sans facturer de transport</option>
+          </select>
+        </label>
+        {destination === 'fees_only' && <p>Facturation au nom d’Econnect : seuls les frais explicitement saisis sont facturés, sans part chauffeur. Vérifiez le fondement de chaque ligne et sa TVA.</p>}
         <label className="block text-sm">Nom de facturation du client
           <input required maxLength={160} className={inputClass} value={name} onChange={(event) => setName(event.target.value)} />
         </label>
@@ -144,17 +169,17 @@ export default function SupplementaryInvoices({ bookingId, revision, hasLines, d
         </label>
       </fieldset>
       <button type="submit" disabled={busy || !canIssue || Boolean(pendingPayment.current)}>
-        {pendingIssue.current ? 'Réessayer la même émission' : 'Émettre la facture complémentaire'}
+        {pendingIssue.current ? 'Réessayer la même émission' : initial ? 'Émettre la facture initiale avec les frais' : 'Émettre la facture complémentaire'}
       </button>
     </form>}
-    {data?.invoices.some((invoice) => invoice.paid_cents < invoice.amount_ttc_cents) && <form onSubmit={recordPayment} className="space-y-3">
+    {data?.invoices.some((invoice) => !invoice.credit && !invoice.active_operation && invoice.paid_cents < invoice.amount_ttc_cents) && <form onSubmit={recordPayment} className="space-y-3">
       <p className="text-sm">Enregistrez uniquement un encaissement déjà reçu. Cette action ne débite pas le client.</p>
       <fieldset disabled={busy || !synchronized || Boolean(pending)} className="space-y-2">
         <legend>Encaissement complémentaire</legend>
         <label className="block text-sm">Facture à encaisser
           <select required className={inputClass} value={paymentInvoice} onChange={(event) => setPaymentInvoice(event.target.value)}>
             <option value="">Choisir une facture</option>
-            {data.invoices.filter((invoice) => invoice.paid_cents < invoice.amount_ttc_cents).map((invoice) =>
+            {data.invoices.filter((invoice) => !invoice.credit && !invoice.active_operation && invoice.paid_cents < invoice.amount_ttc_cents).map((invoice) =>
               <option key={invoice.id} value={invoice.id}>{invoice.invoice_number} — {money(invoice.amount_ttc_cents - invoice.paid_cents)}</option>)}
           </select>
         </label>
