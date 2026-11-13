@@ -27,6 +27,7 @@ import useBookingRoute from '@/hooks/useBookingRoute';
 import useBookingTerms from '@/hooks/useBookingTerms';
 import BookingTermsAcceptance from '@/components/BookingTermsAcceptance';
 import { bookingCoordinates } from '@/utils/bookingMap';
+import PassengerDetails, { passengerDetailsError } from '@/components/PassengerDetails';
 
 const NewBooking = () => {
   const enableDebugLogging = process.env.NODE_ENV !== 'production';
@@ -40,6 +41,9 @@ const NewBooking = () => {
   const [dispositionHours, setDispositionHours] = useState('');
   const [passengerCount, setPassengerCount] = useState('1');
   const [babySeatCount, setBabySeatCount] = useState('0');
+  const [childCount, setChildCount] = useState('0');
+  const [infantCount, setInfantCount] = useState('0');
+  const [boosterCount, setBoosterCount] = useState('0');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -224,6 +228,8 @@ const NewBooking = () => {
       setError(consentError);
       return;
     }
+    const passengerError = passengerDetailsError(passengerCount, childCount, infantCount, babySeatCount, boosterCount);
+    if (passengerError) { setError(passengerError); return; }
 
     if (!date || !time || !pickup || !dropoff || !transferType) {
       setError('Veuillez remplir tous les champs obligatoires');
@@ -269,6 +275,10 @@ const NewBooking = () => {
         disposition_hours: dispositionHours ? parseFloat(dispositionHours) : null,
         passenger_count: Number(passengerCount),
         baby_seat_count: Number(babySeatCount),
+        adult_count: Number(passengerCount) - Number(childCount) - Number(infantCount),
+        child_count: Number(childCount),
+        infant_count: Number(infantCount),
+        booster_seat_count: Number(boosterCount),
         success_path: `/${lang}/booking/confirmation`,
         cancel_path: `/${lang}/booking/cancel`,
       };
@@ -280,6 +290,11 @@ const NewBooking = () => {
         time,
         transferType,
         selectedCategory,
+        passengerCount,
+        babySeatCount,
+        childCount,
+        infantCount,
+        boosterCount,
         dispositionHours,
         distanceKm: distance,
         durationMinutes: duration,
@@ -479,6 +494,9 @@ const NewBooking = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <PassengerDetails prefix="client-passengers" total={passengerCount} childrenCount={childCount}
+                infants={infantCount} boosters={boosterCount} onChildrenChange={setChildCount}
+                onInfantsChange={setInfantCount} onBoostersChange={setBoosterCount} />
             </div>
 
             {/* Vehicle Category Selection */}

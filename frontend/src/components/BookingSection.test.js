@@ -193,6 +193,7 @@ describe('BookingSection', () => {
     const route = { distanceKm: 28.5, durationMinutes: 36, positions: [pickup.position, dropoff.position] };
     mockReadBookingCheckoutDraft.mockReturnValue({
       step: 1, date: '2026-11-10T10:00:00.000Z', time: '10:30', transferType: 'simple',
+      passengerCount: '3', childCount: '1', infantCount: '1', babySeatCount: '1', boosterCount: '1',
     });
     reverseAddress.mockResolvedValueOnce(pickup).mockResolvedValueOnce(dropoff);
     fetchDrivingRoute.mockResolvedValue(route);
@@ -234,9 +235,11 @@ describe('BookingSection', () => {
       dropoff_lat: dropoff.position[0], dropoff_lng: dropoff.position[1],
       pickup_address: pickup.label, dropoff_address: dropoff.label,
       distance_km: 28.5, duration_minutes: 36, estimated_price: 75,
+      passenger_count: 3, adult_count: 1, child_count: 1, infant_count: 1,
+      baby_seat_count: 1, booster_seat_count: 1,
     }));
     expect(saveBookingCheckoutDraft).toHaveBeenCalledWith(expect.objectContaining({
-      mapAddresses: { pickup, dropoff }, durationMinutes: '36',
+      mapAddresses: { pickup, dropoff }, durationMinutes: '36', childCount: '1', infantCount: '1', boosterCount: '1',
     }));
     expect(container.querySelector('[data-testid="booking-checkout-error"]').textContent).toContain('La version des CGV a changé.');
     expect(container.querySelector('[data-testid="booking-terms-acceptance"]').checked).toBe(false);

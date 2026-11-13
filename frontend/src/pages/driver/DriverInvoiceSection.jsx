@@ -5,6 +5,7 @@ import { formatBookingReference } from '../../utils/bookingReference';
 import { downloadDriverDocPdf } from '@/utils/invoiceGenerator';
 import API_URL from '@/config';
 import LogoDisplay from '@/components/LogoDisplay';
+import BillingAccountPanel from '@/components/BillingAccountPanel';
 
 const DRIVER_DOCS = [
   { type: 'order', label: 'Bon de commande', icon: '📋', color: 'text-purple-300' },
@@ -40,6 +41,7 @@ const DriverInvoiceSection = () => {
           {error}
         </div>
       )}
+      <BillingAccountPanel role="driver" />
 
       {/* Summary cards */}
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">

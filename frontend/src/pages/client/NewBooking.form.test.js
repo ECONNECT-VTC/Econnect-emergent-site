@@ -159,6 +159,15 @@ describe('NewBooking form rendering', () => {
     expect(query.get('distance_km')).toBe('28.5');
     expect(query.get('duration_minutes')).toBe('36');
     await act(async () => container.querySelector('[data-testid="vehicle-berline-id"]').click());
+    await act(async () => {
+      container.querySelector('[data-testid="passenger-count-select"]').parentElement.querySelector('[data-value="3"]').click();
+      container.querySelector('[data-testid="baby-seat-count-select"]').parentElement.querySelector('[data-value="1"]').click();
+      for (const id of ['client-passengers-children', 'client-passengers-infants', 'client-passengers-boosters']) {
+        const input = container.querySelector(`#${id}`);
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '1');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
     await act(async () => container.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
     expect(createCheckoutSession).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="booking-terms-acceptance"]').checked).toBe(false);
@@ -168,9 +177,12 @@ describe('NewBooking form rendering', () => {
       terms_accepted: true, terms_version: '2026-11-04',
       pickup_lat: 48.85, pickup_lng: 2.35, dropoff_lat: 49.01, dropoff_lng: 2.55,
       pickup_address: 'Paris', dropoff_address: 'CDG', distance_km: 28.5, duration_minutes: 36, estimated_price: 75,
+      passenger_count: 3, adult_count: 1, child_count: 1, infant_count: 1,
+      baby_seat_count: 1, booster_seat_count: 1,
     }));
     expect(saveBookingCheckoutDraft).toHaveBeenCalledWith(expect.objectContaining({
       mapAddresses: { pickup, dropoff }, durationMinutes: '36',
+      passengerCount: '3', childCount: '1', infantCount: '1', boosterCount: '1', babySeatCount: '1',
     }));
     jest.useRealTimers();
   });
