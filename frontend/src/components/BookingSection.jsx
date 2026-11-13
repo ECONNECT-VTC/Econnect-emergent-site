@@ -942,7 +942,7 @@ const BookingSection = () => {
                               if (Number(babySeatCount) > Number(value)) setBabySeatCount(value);
                             }}
                           >
-                            <SelectTrigger className="bg-[#1E1E1E] border-white/10" data-testid="passenger-count-select">
+                            <SelectTrigger aria-label="Nombre de passagers" className="bg-[#1E1E1E] border-white/10" data-testid="passenger-count-select">
                               <SelectValue placeholder="Choisir le nombre de passagers" />
                             </SelectTrigger>
                             <SelectContent className="bg-[#1E1E1E] border-white/10">
@@ -955,22 +955,9 @@ const BookingSection = () => {
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-2">
-                          <Label className="text-[#A1A1AA] text-sm">Sièges bébé nécessaires</Label>
-                          <Select value={babySeatCount} onValueChange={setBabySeatCount}>
-                            <SelectTrigger className="bg-[#1E1E1E] border-white/10" data-testid="baby-seat-count-select">
-                              <SelectValue placeholder="Choisir le nombre de sièges bébé" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#1E1E1E] border-white/10">
-                              {Array.from({ length: Number(passengerCount) + 1 }, (_, count) => count).map((count) => (
-                                <SelectItem key={count} value={String(count)}>{count}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
                         <PassengerDetails prefix="public-passengers" total={passengerCount} childrenCount={childCount}
-                          infants={infantCount} boosters={boosterCount} onChildrenChange={setChildCount}
-                          onInfantsChange={setInfantCount} onBoostersChange={setBoosterCount} />
+                          infants={infantCount} babySeats={babySeatCount} boosters={boosterCount} onChildrenChange={setChildCount}
+                          onInfantsChange={setInfantCount} onBabySeatsChange={setBabySeatCount} onBoostersChange={setBoosterCount} />
                       </div>
                     )}
 

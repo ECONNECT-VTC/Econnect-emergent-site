@@ -1000,16 +1000,22 @@ const AdminBookings = () => {
             </div>
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Nombre de passagers</p>
-              <Input type="number" min="1" max="7" value={createForm.passenger_count} onChange={(e) => updateCreateField('passenger_count', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
-            </div>
-            <div>
-              <p className="text-sm text-[#A1A1AA] mb-2">Sièges bébé nécessaires</p>
-              <Input type="number" min="0" max={createForm.passenger_count} value={createForm.baby_seat_count} onChange={(e) => updateCreateField('baby_seat_count', e.target.value)} className="bg-[#1E1E1E] border-white/10" />
+              <Select value={createForm.passenger_count} onValueChange={(value) => updateCreateField('passenger_count', value)}>
+                <SelectTrigger aria-label="Nombre de passagers" className="bg-[#1E1E1E] border-white/10" data-testid="passenger-count-select">
+                  <SelectValue placeholder="Choisir le nombre de passagers" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#1E1E1E] border-white/10">
+                  {Array.from({ length: 7 }, (_, index) => index + 1).map((count) => (
+                    <SelectItem key={count} value={String(count)}>{count}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <PassengerDetails prefix="admin-passengers" total={createForm.passenger_count} childrenCount={createForm.child_count}
-              infants={createForm.infant_count} boosters={createForm.booster_seat_count}
+              infants={createForm.infant_count} babySeats={createForm.baby_seat_count} boosters={createForm.booster_seat_count}
               onChildrenChange={(value) => updateCreateField('child_count', value)}
               onInfantsChange={(value) => updateCreateField('infant_count', value)}
+              onBabySeatsChange={(value) => updateCreateField('baby_seat_count', value)}
               onBoostersChange={(value) => updateCreateField('booster_seat_count', value)} />
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Date de prise en charge *</p>
