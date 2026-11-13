@@ -127,6 +127,17 @@ describe('NewBooking form rendering', () => {
     expect(container.textContent).toContain('Prestige');
     expect(container.querySelector('[data-testid="passenger-count-select"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="baby-seat-count-select"]')).not.toBeNull();
+    const fields = [
+      container.querySelector('[data-testid="passenger-count-select"]'),
+      container.querySelector('#client-passengers-children'),
+      container.querySelector('#client-passengers-infants'),
+      container.querySelector('[data-testid="baby-seat-count-select"]'),
+      container.querySelector('#client-passengers-boosters'),
+    ];
+    fields.forEach((field) => expect(field).not.toBeNull());
+    fields.slice(1).forEach((field, index) => {
+      expect(fields[index].compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
     expect(lastCalendarProps?.disabled).toBeUndefined();
   });
 

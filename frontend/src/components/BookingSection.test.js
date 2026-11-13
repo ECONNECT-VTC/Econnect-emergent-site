@@ -217,6 +217,17 @@ describe('BookingSection', () => {
       new Event('submit', { bubbles: true, cancelable: true })
     ));
     await act(async () => container.querySelector('[data-testid="vehicle-cat-Berline"]').click());
+    const fields = [
+      container.querySelector('[data-testid="passenger-count-select"]'),
+      container.querySelector('#public-passengers-children'),
+      container.querySelector('#public-passengers-infants'),
+      container.querySelector('[data-testid="baby-seat-count-select"]'),
+      container.querySelector('#public-passengers-boosters'),
+    ];
+    fields.forEach((field) => expect(field).not.toBeNull());
+    fields.slice(1).forEach((field, index) => {
+      expect(fields[index].compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
     await act(async () => container.querySelector('[data-testid="continue-booking-step-3"]').closest('form').dispatchEvent(
       new Event('submit', { bubbles: true, cancelable: true })
     ));

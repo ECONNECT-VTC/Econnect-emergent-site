@@ -1,4 +1,5 @@
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function passengerDetailsError(total, children, infants, babySeats, boosters) {
   const values = [total, children, infants, babySeats, boosters].map(Number);
@@ -12,11 +13,10 @@ export function passengerDetailsError(total, children, infants, babySeats, boost
   return '';
 }
 
-export default function PassengerDetails({ prefix, total, childrenCount, infants, boosters, onChildrenChange, onInfantsChange, onBoostersChange }) {
+export default function PassengerDetails({ prefix, total, childrenCount, infants, babySeats, boosters, onChildrenChange, onInfantsChange, onBabySeatsChange, onBoostersChange }) {
   const fields = [
     ['children', 'Enfants (hors bébés)', childrenCount, onChildrenChange],
     ['infants', 'Bébés', infants, onInfantsChange],
-    ['boosters', 'Rehausseurs nécessaires', boosters, onBoostersChange],
   ];
   const adults = Number(total) - Number(childrenCount) - Number(infants);
   return <>
@@ -27,6 +27,24 @@ export default function PassengerDetails({ prefix, total, childrenCount, infants
           value={value} onChange={(event) => onChange(event.target.value)} className="bg-[#1E1E1E] border-white/10" />
       </div>
     ))}
+    <div className="space-y-2">
+      <label htmlFor={`${prefix}-baby-seats`} className="text-sm text-[#A1A1AA]">Sièges bébé nécessaires</label>
+      <Select value={babySeats} onValueChange={onBabySeatsChange}>
+        <SelectTrigger id={`${prefix}-baby-seats`} className="bg-[#1E1E1E] border-white/10" data-testid="baby-seat-count-select">
+          <SelectValue placeholder="Choisir le nombre de sièges bébé" />
+        </SelectTrigger>
+        <SelectContent className="bg-[#1E1E1E] border-white/10">
+          {Array.from({ length: Number(total) + 1 }, (_, count) => (
+            <SelectItem key={count} value={String(count)}>{count}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+    <div className="space-y-2">
+      <label htmlFor={`${prefix}-boosters`} className="text-sm text-[#A1A1AA]">Rehausseurs nécessaires</label>
+      <Input id={`${prefix}-boosters`} type="number" min="0" max="7" step="1" required
+        value={boosters} onChange={(event) => onBoostersChange(event.target.value)} className="bg-[#1E1E1E] border-white/10" />
+    </div>
     <p className="text-sm text-[#A1A1AA]">Adultes : {adults >= 0 ? adults : '—'} (total des passagers moins enfants et bébés)</p>
   </>;
 }

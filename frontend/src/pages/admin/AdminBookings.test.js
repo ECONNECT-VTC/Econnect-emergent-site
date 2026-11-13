@@ -59,7 +59,7 @@ jest.mock('@/components/ui/select', () => {
       const change = React.useContext(Context);
       return <button type="button" data-value={value} onClick={() => change?.(value)}>{children}</button>;
     },
-    SelectTrigger: ({ children }) => <div>{children}</div>,
+    SelectTrigger: ({ children, ...props }) => <div {...props}>{children}</div>,
     SelectValue: ({ children }) => <div>{children}</div>,
   };
 }, { virtual: true });
@@ -138,6 +138,17 @@ describe('AdminBookings', () => {
     fetchDrivingRoute.mockResolvedValue(route);
     reverseAddress.mockResolvedValueOnce(pickup).mockResolvedValueOnce(dropoff);
     await act(async () => root.render(<AdminBookings />));
+    const fields = [
+      container.querySelector('[data-testid="passenger-count-select"]'),
+      container.querySelector('#admin-passengers-children'),
+      container.querySelector('#admin-passengers-infants'),
+      container.querySelector('[data-testid="baby-seat-count-select"]'),
+      container.querySelector('#admin-passengers-boosters'),
+    ];
+    fields.forEach((field) => expect(field).not.toBeNull());
+    fields.slice(1).forEach((field, index) => {
+      expect(fields[index].compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
     const setInput = (label, value) => {
       const paragraph = Array.from(container.querySelectorAll('p')).find((element) => element.textContent === label);
       const input = paragraph.parentElement.querySelector('input');
@@ -149,8 +160,6 @@ describe('AdminBookings', () => {
       setInput('Email du client *', 'client@example.com');
       setInput('Date de prise en charge *', '10/11/2026');
       setInput('Prix estimé (€)', '75');
-      setInput('Nombre de passagers', '4');
-      setInput('Sièges bébé nécessaires', '1');
       for (const [id, value] of [['admin-passengers-children', '1'], ['admin-passengers-infants', '1'], ['admin-passengers-boosters', '1']]) {
         const input = container.querySelector(`#${id}`);
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
@@ -158,6 +167,8 @@ describe('AdminBookings', () => {
       }
       container.querySelector('[data-value="10:30"]').click();
     });
+    await act(async () => container.querySelector('[data-testid="passenger-count-select"]').parentElement.querySelector('[data-value="4"]').click());
+    await act(async () => container.querySelector('[data-testid="baby-seat-count-select"]').parentElement.querySelector('[data-value="1"]').click());
     expect(findButton('Créer la course').disabled).toBe(true);
     await act(async () => mockMaps['admin-create'].selectMapPosition(pickup.position));
     await act(async () => mockMaps['admin-create'].selectMapPosition(dropoff.position));
