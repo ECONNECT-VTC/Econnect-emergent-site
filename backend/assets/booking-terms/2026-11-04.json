@@ -1,0 +1,56 @@
+{
+  "version": "2026-11-04",
+  "title": "Conditions générales de vente et de transport",
+  "sections": [
+    {
+      "heading": "1. Projet soumis à validation juridique — non approuvé pour la mise en service",
+      "paragraphs": [
+        "Ce document est un PROJET de conditions générales, en attente de revue juridique. Il ne constitue pas une validation des pratiques commerciales ou de leur conformité. L'acceptation obligatoire doit rester désactivée tant que cette revue et les informations obligatoires ne sont pas finalisées.",
+        "Informations à compléter avant toute activation : identité juridique de l'exploitant et du cocontractant, forme juridique, adresse du siège, coordonnées de contact, immatriculation et identifiants professionnels et fiscaux applicables. L'identité et les coordonnées du médiateur de la consommation compétent ainsi que les modalités de saisine doivent également être renseignées dans une nouvelle version validée."
+      ]
+    },
+    {
+      "heading": "2. Objet et informations de réservation",
+      "paragraphs": [
+        "Le service permet de demander un transport privé avec chauffeur : transfert simple, retour ou mise à disposition, selon les options proposées. Le client renseigne les lieux, la date, l'heure, la catégorie de véhicule, le nombre de passagers, les sièges bébé et les éventuelles indications utiles.",
+        "Le client est invité à vérifier le récapitulatif, les adresses, les horaires, le prix affiché et les modalités de paiement avant de poursuivre. Une réservation créée sans paiement peut rester à l'état de brouillon ; sa seule création ne vaut pas confirmation de paiement ni affectation d'un chauffeur. Un devis peut être soumis séparément à acceptation dans l'espace client."
+      ]
+    },
+    {
+      "heading": "3. Prix et paiement",
+      "paragraphs": [
+        "Le montant de la course est présenté dans le parcours de réservation ou dans le devis. Le client doit pouvoir vérifier le montant total et la somme à payer avant de s'engager. Toute modification du service ayant une incidence sur le prix doit faire l'objet d'une information et d'un accord préalables appropriés.",
+        "Dans le parcours de paiement en ligne actuel, le paiement par carte est traité via Stripe. Le choix carte conduit au règlement du montant total affiché. Le choix virement ou espèces conduit au paiement en ligne par carte d'un acompte de 20 % du montant affiché ; le solde reste dû selon le mode choisi et les instructions communiquées par l'exploitant. Ces modalités doivent être clairement rappelées avant le paiement.",
+        "Un paiement partiel ne vaut pas règlement du solde. La confirmation est envoyée après vérification du paiement par le serveur. Les documents et le suivi de paiement sont disponibles selon l'état de la réservation dans l'espace client."
+      ]
+    },
+    {
+      "heading": "4. Exécution du transport",
+      "paragraphs": [
+        "Les informations du chauffeur sont communiquées lorsqu'un chauffeur est affecté. Le client doit fournir des coordonnées utilisables et signaler toute erreur ou tout besoin particulier, notamment concernant l'accessibilité, les bagages ou la sécurité des enfants, pour permettre de vérifier la faisabilité du service.",
+        "Les horaires et itinéraires peuvent dépendre des conditions réelles de circulation et de sécurité. En cas de difficulté, les parties doivent se contacter pour rechercher une solution adaptée, sans préjudice des obligations légales du professionnel et des droits du client. Aucun tarif d'attente ni supplément non annoncé et accepté n'est défini par ce projet."
+      ]
+    },
+    {
+      "heading": "5. Modifications, annulations et remboursements",
+      "paragraphs": [
+        "Certaines informations peuvent être modifiées depuis l'espace client tant que l'état de la réservation le permet. Une demande d'annulation peut être transmise au professionnel ; son traitement et l'éventuel remboursement font l'objet d'une décision et d'une information au client. Un remboursement n'est pas automatiquement acquis par le seul envoi d'une demande.",
+        "Ce projet ne fixe aucun barème de pénalités d'annulation, d'absence ou de remboursement. Les conditions applicables doivent être précisées, validées et communiquées avant tout engagement ; ce document n'autorise pas l'application de frais non convenus. Les droits légaux du client restent réservés."
+      ]
+    },
+    {
+      "heading": "6. Droits légaux, réclamations et médiation",
+      "paragraphs": [
+        "Les règles légales applicables aux prestations de transport de passagers doivent être prises en compte lors de la validation de ce projet, notamment pour l'information sur la rétractation. Aucune acceptation de ce texte ne constitue une renonciation générale aux droits impératifs du consommateur ni une exclusion générale de responsabilité du professionnel.",
+        "Le client peut adresser une réclamation au professionnel aux coordonnées à compléter avant activation. Après une réclamation préalable restée sans solution, il peut recourir au dispositif de médiation de la consommation compétent, dont l'identité, les coordonnées et le site doivent être complétés avant activation. Ce projet ne désigne aucun médiateur fictif et ne limite pas les recours légaux."
+      ]
+    },
+    {
+      "heading": "7. Version, acceptation et conservation",
+      "paragraphs": [
+        "Lorsque la fonctionnalité est activée après validation, le client doit accepter expressément la version présentée avant la création de sa réservation ou l'ouverture du paiement. Le serveur conserve la version acceptée et la date et l'heure UTC de cette acceptation avec la réservation.",
+        "La confirmation de paiement comporte une copie PDF de la version acceptée et un lien de téléchargement de cette même version. Une évolution ultérieure des conditions ne remplace pas la version enregistrée pour une réservation antérieure. Les réservations anciennes ou créées hors de ce parcours ne reçoivent pas d'acceptation rétroactive."
+      ]
+    }
+  ]
+}

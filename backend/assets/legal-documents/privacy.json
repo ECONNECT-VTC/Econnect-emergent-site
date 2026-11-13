@@ -1,0 +1,52 @@
+{
+  "title": "Politique de confidentialité — proposition à valider",
+  "sections": [
+    {
+      "heading": "Responsable et périmètre",
+      "paragraphs": [
+        "Cette proposition décrit les fonctionnalités observées du service Econnect VTC ; elle ne constitue pas un conseil juridique. Les finalités, bases légales, destinataires et durées ci-dessous doivent être validés au regard des pratiques réelles avant publication.",
+        "[À COMPLÉTER : identité et coordonnées du responsable de traitement, contact pour les droits et coordonnées du délégué à la protection des données si applicable.]"
+      ]
+    },
+    {
+      "heading": "Comptes, réservations et paiements",
+      "paragraphs": [
+        "Le service traite des données de compte et de contact, les adresses et coordonnées géographiques de départ et d'arrivée, les dates et horaires, les options et consignes de transport, les devis, réservations et informations de paiement. Les informations nécessaires sont à distinguer des indications facultatives ; évitez d'inscrire des données sensibles dans les champs libres.",
+        "L'authentification utilise des jetons JWT dans des cookies HTTPOnly. Les mécanismes de sécurité et journaux techniques doivent être documentés selon la configuration réellement déployée.",
+        "Stripe traite les paiements par carte. L'application conserve les références et états de paiement nécessaires au suivi, pas les numéros complets de carte. Brevo intervient dans l'envoi des courriels transactionnels, notamment les confirmations et documents de réservation."
+      ]
+    },
+    {
+      "heading": "Finalités et bases légales proposées",
+      "paragraphs": [
+        "Propositions à confirmer : mesures précontractuelles et exécution du contrat pour les demandes, réservations et transports ; obligations légales pour la comptabilité et la facturation ; intérêt légitime évalué pour la sécurité et la prévention des abus. La conservation de la version des CGV acceptée et de l'horodatage vise la preuve de l'accord et doit être encadrée.",
+        "Les fonctionnalités de mesure d'audience et traceurs non nécessaires doivent faire l'objet d'une analyse spécifique ; le consentement doit être recueilli lorsqu'il est requis. L'acceptation des CGV n'est pas un consentement global aux traitements ni aux traceurs.",
+        "[À COMPLÉTER : bases légales validées par finalité, intérêts légitimes et garanties, données obligatoires et conséquences de leur absence.]"
+      ]
+    },
+    {
+      "heading": "Cartographie, audience et destinataires",
+      "paragraphs": [
+        "Les recherches d'adresses et itinéraires utilisent Photon et OSRM via un proxy backend : les requêtes d'adresses et coordonnées nécessaires sont communiquées à ces services. Les tuiles CARTO sont chargées côté navigateur avec une clé publique ; les requêtes peuvent révéler notamment l'adresse IP et les zones affichées au fournisseur.",
+        "PostHog est chargé depuis la page HTML publique. Les événements, cookies ou autres stockages, destinataires et transferts effectivement activés doivent être audités. Aucun dispositif conforme de consentement analytique n'est garanti par ce texte ; vérifier et mettre en place les contrôles requis avant publication.",
+        "Les personnes habilitées de l'exploitant et les chauffeurs affectés accèdent aux informations nécessaires à leur mission. Les rôles exacts, contrats et garanties des prestataires doivent être confirmés.",
+        "[À COMPLÉTER : hébergeurs, destinataires effectifs, pays de traitement, éventuels transferts hors EEE et garanties, configuration réelle de PostHog et mécanisme de choix des traceurs.]"
+      ]
+    },
+    {
+      "heading": "Conservation — propositions à confirmer",
+      "paragraphs": [
+        "Une politique distincte est à définir pour les comptes actifs et inactifs, réservations, pièces comptables, preuves d'acceptation des CGV, courriels et journaux. Les obligations légales et délais de prescription doivent être vérifiés ; ces suggestions ne promettent aucune suppression automatique actuellement implémentée.",
+        "[À COMPLÉTER : durées ou critères validés par catégorie, point de départ, archivage restreint, purge ou anonymisation effectivement mise en œuvre, sauvegardes et accès autorisés.]"
+      ]
+    },
+    {
+      "heading": "Droits et réclamations",
+      "paragraphs": [
+        "Selon les conditions légales applicables, vous pouvez demander l'accès, la rectification, l'effacement, la limitation, la portabilité et vous opposer à certains traitements. Lorsqu'un traitement repose sur le consentement, son retrait n'affecte pas la licéité des opérations antérieures. Les obligations légales peuvent justifier la conservation de certaines données.",
+        "[À COMPLÉTER : canal opérationnel pour exercer les droits, procédure de vérification proportionnée, traitement des demandes et modalités de retrait du consentement aux traceurs.]",
+        "Vous pouvez adresser une réclamation à la CNIL (www.cnil.fr). Les mesures techniques et organisationnelles ainsi que la procédure de gestion des incidents doivent être validées par l'exploitant."
+      ]
+    }
+  ]
+}

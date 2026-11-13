@@ -1,0 +1,34 @@
+{
+  "title": "Mentions légales — proposition à valider",
+  "sections": [
+    {
+      "heading": "Éditeur et activité",
+      "paragraphs": [
+        "Le site présente un service de réservation de transport privé avec chauffeur sous le nom Econnect VTC. Cette proposition ne constitue pas un conseil juridique.",
+        "[À COMPLÉTER : dénomination et forme juridique de l'exploitant, capital le cas échéant, siège, SIREN/SIRET et registre d'immatriculation, numéro de TVA applicable, inscription professionnelle VTC et autorisations requises.]",
+        "[À COMPLÉTER : adresse de contact, téléphone, courriel du professionnel et nom du directeur de la publication.]"
+      ]
+    },
+    {
+      "heading": "Hébergement et intervenants techniques",
+      "paragraphs": [
+        "[À COMPLÉTER : identité exacte de l'hébergeur du site, de l'API et de la base de données, dénomination sociale, adresse et téléphone ; confirmer les lieux d'hébergement et les prestataires réels.]",
+        "Le service utilise notamment Stripe pour les paiements et Brevo pour les courriels transactionnels. Des services cartographiques interviennent dans la recherche d'adresses, les itinéraires et l'affichage des cartes ; leur rôle est décrit dans la politique de confidentialité à valider."
+      ]
+    },
+    {
+      "heading": "Réclamations et médiation",
+      "paragraphs": [
+        "[À COMPLÉTER : contact de réclamation, médiateur de la consommation effectivement compétent, coordonnées, site et modalités de saisine après réclamation préalable.]",
+        "Les informations du site et les conditions du service doivent respecter les droits impératifs du consommateur. Cette proposition ne limite pas les recours légaux."
+      ]
+    },
+    {
+      "heading": "Contenus, liens et données personnelles",
+      "paragraphs": [
+        "Les droits applicables aux textes, images, marques et données cartographiques de tiers doivent être respectés. Les conditions de réutilisation et les attributions requises sont à vérifier auprès des titulaires concernés.",
+        "Consultez la politique de confidentialité pour les traitements de données. Le chargement de PostHog dans la page publique impose de vérifier les traceurs réellement utilisés et le recueil du consentement lorsqu'il est requis ; cette proposition ne certifie pas la conformité du dispositif."
+      ]
+    }
+  ]
+}

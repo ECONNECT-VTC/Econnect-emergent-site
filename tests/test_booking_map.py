@@ -17,6 +17,7 @@ os.environ.setdefault("JWT_SECRET", "test-jwt-secret")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 import server
 from booking_map import BookingCoordinates, MapService, enforce_map_limits, upstream_url
+from tests.legal_document_fakes import legal_database
 
 
 COORDINATES = {"pickup_lat": 48.85, "pickup_lng": 2.35, "dropoff_lat": 49.01, "dropoff_lng": 2.55}
@@ -266,7 +267,7 @@ class TestMapProtection(unittest.IsolatedAsyncioTestCase):
 class TestMapBookingPersistence(unittest.IsolatedAsyncioTestCase):
     async def test_client_and_admin_create_save_identical_location_fields(self):
         bookings = SimpleNamespace(insert_one=AsyncMock())
-        db = SimpleNamespace(
+        db = legal_database(
             bookings=bookings, users=SimpleNamespace(find_one=AsyncMock(return_value={"id": "client-1"})),
         )
         user = {"id": "client-1", "name": "Client", "email": "client@example.com"}

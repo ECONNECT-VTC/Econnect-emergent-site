@@ -5,7 +5,7 @@ import LogoDisplay from '@/components/LogoDisplay';
 import { CONTACT_PHONE, CONTACT_PHONE_DISPLAY } from '@/config';
 
 const Footer = () => {
-  const { t } = useLanguage();
+  const { t, language: lang = 'fr' } = useLanguage();
 
   const navLinks = [
     { key: 'footerNavAccueil', href: '#accueil' },
@@ -101,10 +101,13 @@ const Footer = () => {
             {t('copyright')}
           </p>
           <div className="flex flex-wrap gap-4 sm:gap-6">
-            <a href="#" className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
+            <a href={`/${lang}/conditions-generales`} className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
+              Conditions générales de vente
+            </a>
+            <a href={`/${lang}/mentions-legales`} className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
               {t('mentionsLegales')}
             </a>
-            <a href="#" className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
+            <a href={`/${lang}/politique-confidentialite`} className="text-[#A1A1AA] text-sm hover:text-[#D4AF37] transition-colors">
               {t('politiqueConfidentialite')}
             </a>
           </div>

@@ -95,12 +95,14 @@ describe('NewBooking form rendering', () => {
     root = createRoot(container);
     axios.get.mockReset();
     axios.post.mockReset();
-    axios.get.mockResolvedValue({
+    axios.get.mockImplementation((url) => Promise.resolve(url.endsWith('/api/booking-terms') ? {
+      data: { enabled: false, version: '2026-11-04', title: 'CGV', sections: [] },
+    } : {
       data: [
         { id: 'berline-id', name: 'Berline', min_fare: 30, max_passengers: 4, max_luggage: 4, has_wifi: true },
         { id: 'luxe-id', name: 'Luxe', min_fare: 90, max_passengers: 4, max_luggage: 4, has_wifi: true },
       ],
-    });
+    }));
   });
 
   afterEach(async () => {
@@ -129,6 +131,10 @@ describe('NewBooking form rendering', () => {
   });
 
   it('uses map-selected addresses, distance and duration for client estimates and checkout', async () => {
+    const get = axios.get.getMockImplementation();
+    axios.get.mockImplementation((url, options) => url.endsWith('/api/booking-terms')
+      ? Promise.resolve({ data: { enabled: true, version: '2026-11-04', title: 'CGV', sections: [] } })
+      : get(url, options));
     jest.useFakeTimers();
     const pickup = { label: 'Paris', position: [48.85, 2.35] };
     const dropoff = { label: 'CDG', position: [49.01, 2.55] };
@@ -163,7 +169,12 @@ describe('NewBooking form rendering', () => {
       }
     });
     await act(async () => container.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(createCheckoutSession).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="booking-terms-acceptance"]').checked).toBe(false);
+    await act(async () => container.querySelector('[data-testid="booking-terms-acceptance"]').click());
+    await act(async () => container.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
     expect(createCheckoutSession).toHaveBeenCalledWith(expect.objectContaining({
+      terms_accepted: true, terms_version: '2026-11-04',
       pickup_lat: 48.85, pickup_lng: 2.35, dropoff_lat: 49.01, dropoff_lng: 2.55,
       pickup_address: 'Paris', dropoff_address: 'CDG', distance_km: 28.5, duration_minutes: 36, estimated_price: 75,
       passenger_count: 3, adult_count: 1, child_count: 1, infant_count: 1,

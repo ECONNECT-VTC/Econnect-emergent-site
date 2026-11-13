@@ -6,6 +6,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const mockLogout = jest.fn();
 const mockNavigate = jest.fn();
+let mockRole = 'client';
 
 jest.mock('react-router-dom', () => {
   const React = require('react');
@@ -18,7 +19,7 @@ jest.mock('react-router-dom', () => {
 
 jest.mock('@/contexts/AuthContext', () => ({
   useAuth: () => ({
-    user: { name: 'Client Test', role: 'client' },
+    user: { name: 'Client Test', role: mockRole },
     logout: mockLogout,
   }),
 }), { virtual: true });
@@ -69,6 +70,7 @@ describe('DashboardLayout mobile drawer', () => {
   let root;
 
   beforeEach(() => {
+    mockRole = 'client';
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -128,5 +130,11 @@ describe('DashboardLayout mobile drawer', () => {
     expect(headerShell).not.toBeNull();
     expect(contentShell).not.toBeNull();
     expect(layout.className).toContain('overflow-x-hidden');
+  });
+
+  it.each(['admin', 'client', 'driver'])('only exposes legal document management in the %s navigation when authorized', async (role) => {
+    mockRole = role;
+    await act(async () => root.render(<DashboardLayout title="Espace"><div>Contenu</div></DashboardLayout>));
+    expect(container.querySelector('[data-testid="nav-documents-légaux"]') !== null).toBe(role === 'admin');
   });
 });

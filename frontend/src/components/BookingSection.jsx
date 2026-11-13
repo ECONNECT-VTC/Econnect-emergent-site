@@ -24,6 +24,9 @@ import { fr } from 'date-fns/locale';
 import InteractiveMap from './InteractiveMap';
 import AddressAutocomplete from './AddressAutocomplete';
 import useBookingRoute from '@/hooks/useBookingRoute';
+import useBookingTerms from '@/hooks/useBookingTerms';
+import BookingTermsAcceptance from './BookingTermsAcceptance';
+import { parseApiError } from '@/utils/apiErrors';
 import { addressesFromBooking, bookingCoordinates, isAddress } from '@/utils/bookingMap';
 import { PremiumWifiIcon } from './VehicleFeatureBadges';
 import PassengerDetails, { passengerDetailsError } from './PassengerDetails';
@@ -58,6 +61,10 @@ const BookingSection = () => {
   const location = useLocation();
   const { lang = 'fr' } = useParams();
   const { user } = useAuth();
+  const consent = useBookingTerms();
+  const resetConsent = consent.setAccepted;
+  const validateConsent = consent.validate;
+  const refreshConsentAfterError = consent.refreshAfterError;
   const [step, setStep] = useState(1);
   const [date, setDate] = useState();
   const [pickup, setPickup] = useState('');
@@ -236,6 +243,7 @@ const BookingSection = () => {
     setDistanceKm('');
     setDurationMinutes('');
     resetRoute();
+    resetConsent(false);
     setPaymentMethod('cb');
     setDispositionPrices([]);
     setPriceEstimates([]);
@@ -248,7 +256,7 @@ const BookingSection = () => {
     autoCheckoutStartedRef.current = false;
     clearBookingCheckoutDraft();
     scrollToFormPanel();
-  }, [scrollToFormPanel, resetRoute]);
+  }, [scrollToFormPanel, resetRoute, resetConsent]);
 
   const handleStep1Submit = (e) => {
     e.preventDefault();
@@ -345,6 +353,7 @@ const BookingSection = () => {
     const estimatedPrice = getEstimatedPrice();
     if (!estimatedPrice) return null;
     return {
+      ...consent.payload,
       ...bookingCoordinates(bookingRoute.addresses),
       pickup_address: pickup,
       dropoff_address: dropoff,
@@ -367,9 +376,15 @@ const BookingSection = () => {
       success_path: `/${lang}/booking/confirmation`,
       cancel_path: `/${lang}/booking/cancel`,
     };
-  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, durationMinutes, dispositionHours, getEstimatedPrice, lang, paymentMethod, passengerCount, babySeatCount, childCount, infantCount, boosterCount, bookingRoute.addresses, bookingRoute.geocoded, bookingRoute.loading]);
+  }, [date, time, pickup, dropoff, transferType, selectedCategory, distanceKm, durationMinutes, dispositionHours, getEstimatedPrice, lang, paymentMethod, passengerCount, babySeatCount, childCount, infantCount, boosterCount, bookingRoute.addresses, bookingRoute.geocoded, bookingRoute.loading, consent.payload]);
 
   const submitCheckout = useCallback(async (payload, draftState = null) => {
+    const consentError = validateConsent(payload);
+    if (consentError) {
+      setBookingError(consentError);
+      setStep(3);
+      return;
+    }
     setBookingError('');
     setBookingNotice('Vous allez être redirigé vers la plateforme de paiement sécurisée Stripe...');
     setSubmittingCheckout(true);
@@ -403,13 +418,19 @@ const BookingSection = () => {
       clearBookingCheckoutDraft();
       window.location.href = checkout.checkout_url;
     } catch (error) {
-      setBookingError(error?.response?.data?.detail || 'Impossible de lancer le paiement Stripe.');
+      refreshConsentAfterError(error);
+      setBookingError(parseApiError(error, 'Impossible de lancer le paiement Stripe.'));
       setBookingNotice('');
       setSubmittingCheckout(false);
     }
-  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm, durationMinutes, bookingRoute.addresses, passengerCount, babySeatCount, childCount, infantCount, boosterCount]);
+  }, [date, pickup, dropoff, time, transferType, selectedCategory, paymentMethod, dispositionHours, distanceKm, durationMinutes, bookingRoute.addresses, passengerCount, babySeatCount, childCount, infantCount, boosterCount, validateConsent, refreshConsentAfterError]);
 
   const handleAuthChoice = (authPath) => {
+    const consentError = consent.validate(consent.payload);
+    if (consentError) {
+      setBookingError(consentError);
+      return;
+    }
     const payload = buildCheckoutPayload();
     if (!payload) {
       setBookingError('Impossible de déterminer le montant estimé pour le paiement.');
@@ -492,7 +513,7 @@ const BookingSection = () => {
   // Effect 2: Auto-checkout when user logs in after saving a draft (Bug 1 fix)
   // Depends only on `user`; uses submitCheckoutRef to avoid stale-closure issues.
   useEffect(() => {
-    if (!user) return;
+    if (!user || consent.loading) return;
     const draft = readBookingCheckoutDraft();
     if (!draft?.autoPayAfterAuth || !draft?.checkoutPayload || autoCheckoutStartedRef.current) return;
     autoCheckoutStartedRef.current = true;
@@ -504,7 +525,7 @@ const BookingSection = () => {
       return;
     }
     submitCheckoutRef.current(payload, { ...draft, autoPayAfterAuth: false });
-  }, [user]);
+  }, [user, consent.loading]);
 
   useEffect(() => {
     if (previousStepRef.current !== step) {
@@ -521,6 +542,11 @@ const BookingSection = () => {
 
   const handleStep3Submit = async (e) => {
     e.preventDefault();
+    const consentError = consent.validate(consent.payload);
+    if (consentError) {
+      setBookingError(consentError);
+      return;
+    }
     const payload = buildCheckoutPayload();
     if (!payload) {
       setBookingError('Impossible de déterminer le montant estimé pour le paiement.');
@@ -1076,6 +1102,7 @@ const BookingSection = () => {
                     )}
                   </div>
 
+                  <BookingTermsAcceptance consent={consent} lang={lang} />
                   <div className="flex gap-3 mt-auto">
                     <Button
                       type="button"
@@ -1087,7 +1114,7 @@ const BookingSection = () => {
                     </Button>
                     <Button
                       type="submit"
-                      disabled={submittingCheckout}
+                      disabled={submittingCheckout || !consent.ready}
                       className="flex-1 bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-6 text-lg transition-all duration-300 hover:scale-[1.02]"
                       data-testid="submit-booking"
                     >
@@ -1135,12 +1162,15 @@ const BookingSection = () => {
                     <p className="flex items-center gap-2"><CarSimple size={14} className="text-[#D4AF37]" /> {VEHICLE_CATEGORIES.find((c) => c.id === selectedCategory)?.name}</p>
                   </div>
 
+                  <BookingTermsAcceptance consent={consent} lang={lang} />
+                  {bookingError && <p role="alert" className="text-sm text-red-300">{bookingError}</p>}
                   {/* Auth actions */}
                   <div className="flex flex-col gap-3">
                     <Button
                       type="button"
                       className="w-full bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A] font-semibold py-5 text-base"
                       onClick={() => handleAuthChoice('login')}
+                      disabled={!consent.ready}
                       data-testid="auth-login-btn"
                     >
                       Se connecter
@@ -1151,6 +1181,7 @@ const BookingSection = () => {
                       variant="outline"
                       className="w-full border-[#D4AF37]/50 text-[#D4AF37] hover:bg-[#D4AF37]/10 py-5 text-base"
                       onClick={() => handleAuthChoice('register')}
+                      disabled={!consent.ready}
                       data-testid="auth-register-btn"
                     >
                       Créer un compte

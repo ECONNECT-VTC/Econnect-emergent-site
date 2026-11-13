@@ -34,6 +34,11 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from pydantic import ValidationError
 from booking_map import BookingCoordinates, MapPosition, MapRouteRequest, MapSearchRequest, MapService, enforce_map_limits, validate_route_response
+from booking_terms import (
+    CURRENT_TERMS_VERSION, TERMS_DOCUMENTS, booking_terms_enabled,
+    generate_booking_terms_pdf, generate_legal_document_pdf,
+)
+from legal_documents import DraftUpdate, LegalDocuments, PublishRequest
 from charge_drafts import ChargeDrafts, ChargeDraftUpdate
 from supplementary_billing import (
     SupplementaryIssue, SupplementaryPayment, billing_capabilities, issue_supplementary_invoice,
@@ -278,7 +283,8 @@ class BookingBase(BookingCoordinates, PassengerDetails):
     disposition_hours: Optional[float] = None
 
 class BookingCreate(BookingBase):
-    pass
+    terms_accepted: bool = Field(default=False, strict=True)
+    terms_version: Optional[str] = Field(default=None, strict=True, max_length=32)
 
 class AdminBookingCreate(BookingCoordinates, PassengerDetails):
     client_name: str
@@ -366,6 +372,9 @@ class BookingResponse(BaseModel):
     payment_mode: Optional[str] = None
     created_at: datetime
     assigned_at: Optional[datetime] = None
+    terms_accepted: bool = False
+    terms_version: Optional[str] = None
+    terms_accepted_at: Optional[datetime] = None
 
 class BookingCheckoutCreate(BookingCreate):
     payment_method: Optional[str] = None
@@ -3646,8 +3655,76 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
 
 
 async def send_booking_confirmation_to_client(booking: dict):
-    paid_amount = booking.get("paid_amount") if booking.get("paid_amount") is not None else booking.get("estimated_price")
-    amount_label = f"{float(paid_amount):.2f} €" if paid_amount is not None else "Montant indisponible"
+    attachments = []
+    terms_params = {}
+    terms_html = ""
+    accepted_amount_label = None
+    if booking.get("terms_accepted") is True:
+        version = booking.get("terms_version")
+        if not version or not booking.get("terms_accepted_at"):
+            raise ValueError("Accepted booking terms evidence is incomplete or unavailable")
+        try:
+            terms_pdf = await _saved_booking_terms_pdf(version)
+        except HTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            raise ValueError("Accepted booking terms evidence is incomplete or unavailable") from exc
+        settings = await get_commission_settings()
+        quote_pdf, _ = await generate_and_store_document(booking, settings, "quote")
+        attachments = [
+            (f"devis-{booking_short_reference(booking.get('id'))}.pdf", quote_pdf),
+            (f"cgv-{version}.pdf", terms_pdf),
+        ]
+        terms_url = f"{os.environ.get('BACKEND_URL', FRONTEND_URL).rstrip('/')}/api/booking-terms/{version}/pdf"
+        def recap_amount(field: str) -> Optional[float]:
+            value = booking.get(field)
+            if value is None:
+                return None
+            try:
+                amount = float(value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"Invalid booking confirmation amount: {field}") from exc
+            if isinstance(value, bool) or not math.isfinite(amount) or amount < 0:
+                raise ValueError(f"Invalid booking confirmation amount: {field}")
+            return round_amount(amount)
+
+        def recap_label(amount: Optional[float]) -> str:
+            return f"{amount:.2f} €" if amount is not None else "Montant indisponible"
+
+        total_amount = recap_amount("estimated_price")
+        recorded_paid_amount = recap_amount("paid_amount")
+        remaining_amount = (
+            round_amount(max(total_amount - recorded_paid_amount, 0.0))
+            if total_amount is not None and recorded_paid_amount is not None else None
+        )
+        accepted_amount_label = recap_label(recorded_paid_amount)
+        cancellation_summary = (
+            "Vous pouvez transmettre une demande d'annulation depuis votre espace client. "
+            "Elle est examinée par le professionnel ; son envoi ne déclenche pas automatiquement "
+            "un remboursement. Consultez les conditions acceptées et contactez le professionnel "
+            "pour les modalités applicables, sans préjudice de vos droits légaux."
+        )
+        terms_params = {
+            "CGV_VERSION": version, "CGV_URL": terms_url,
+            "TOTAL_AMOUNT": recap_label(total_amount),
+            "PAID_AMOUNT": accepted_amount_label,
+            "REMAINING_BALANCE": recap_label(remaining_amount),
+            "CANCELLATION_SUMMARY": cancellation_summary,
+        }
+        terms_html = (
+            f'<p>Montant total : {terms_params["TOTAL_AMOUNT"]}<br>'
+            f'Montant payé : {terms_params["PAID_AMOUNT"]}<br>'
+            f'Solde restant : {terms_params["REMAINING_BALANCE"]}</p>'
+            f'<p>{html_escape(cancellation_summary)}</p>'
+            f'<p>Les conditions générales de vente et de transport acceptées '
+            f'(version {html_escape(version)}) sont jointes en PDF, avec votre devis. '
+            f'<a href="{html_escape(terms_url, quote=True)}">Télécharger cette version des CGV</a>.</p>'
+        )
+    if accepted_amount_label is not None:
+        amount_label = accepted_amount_label
+    else:
+        paid_amount = booking.get("paid_amount") if booking.get("paid_amount") is not None else booking.get("estimated_price")
+        amount_label = f"{float(paid_amount):.2f} €" if paid_amount is not None else "Montant indisponible"
     currency = (booking.get("paid_currency") or "EUR").upper()
     subject = f"✅ Confirmation de réservation #{booking_short_reference(booking.get('id'))} - Econnect VTC"
 
@@ -3663,6 +3740,7 @@ async def send_booking_confirmation_to_client(booking: dict):
 </table>
 """
 
+    body_html += terms_html
     html_content = build_email_html(
         title="Réservation confirmée",
         body_html=body_html,
@@ -3674,6 +3752,7 @@ async def send_booking_confirmation_to_client(booking: dict):
         subject,
         html_content,
         template_key=TEMPLATE_KEY_PAYMENT_CONFIRMED,
+        attachments=attachments,
         template_params={
             "CLIENT_NAME": booking.get("client_name", "Client"),
             "BOOKING_ID": booking_short_reference(booking.get("id")),
@@ -3685,6 +3764,7 @@ async def send_booking_confirmation_to_client(booking: dict):
             "AMOUNT": amount_label,
             "CURRENCY": currency,
             "BOOKING_URL": f"{FRONTEND_URL}/fr/client/bookings",
+            **terms_params,
         },
     )
 
@@ -4437,10 +4517,125 @@ async def resend_activation(data: ResendActivationRequest):
 
 # ==================== CLIENT ROUTES ====================
 
-def _build_client_booking_doc(user: dict, booking: BookingCreate, vehicle_category_name: Optional[str]) -> dict:
+@api_router.get("/booking-terms")
+async def get_booking_terms(response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    published = await LegalDocuments(db).current_terms()
+    if published is not None:
+        return {
+            "enabled": booking_terms_enabled(True),
+            **{key: published[key] for key in ("version", "title", "sections")},
+        }
+    return {
+        "enabled": False,
+        **TERMS_DOCUMENTS[CURRENT_TERMS_VERSION].model_dump(mode="json"),
+    }
+
+
+@api_router.get("/admin/legal-documents")
+async def list_admin_legal_documents(request: Request):
+    await require_admin(request)
+    return await LegalDocuments(db).list_drafts()
+
+
+@api_router.put("/admin/legal-documents/{kind}/draft")
+async def save_admin_legal_document(kind: str, body: DraftUpdate, request: Request):
+    await require_admin(request)
+    return await LegalDocuments(db).save_draft(kind, body)
+
+
+@api_router.post("/admin/legal-documents/{kind}/publish")
+async def publish_admin_legal_document(kind: str, body: PublishRequest, request: Request):
+    user = await require_admin(request)
+    return await LegalDocuments(db).publish(kind, body, user["id"])
+
+
+@api_router.get("/admin/legal-documents/{kind}/versions/{version}")
+async def get_admin_legal_document_version(kind: str, version: str, request: Request):
+    await require_admin(request)
+    return await LegalDocuments(db).get_published(kind, version, admin=True)
+
+
+@api_router.get("/legal-documents/{kind}")
+async def get_public_legal_document(kind: str, response: Response, version: Optional[str] = None):
+    response.headers["Cache-Control"] = "no-store"
+    if kind == "terms" and version in TERMS_DOCUMENTS:
+        return {
+            "kind": "terms", "published_at": None,
+            **TERMS_DOCUMENTS[version].model_dump(mode="json"),
+        }
+    try:
+        return await LegalDocuments(db).get_published(kind, version)
+    except HTTPException as exc:
+        exc.headers = {**(exc.headers or {}), "Cache-Control": "no-store"}
+        raise
+
+
+@api_router.get("/legal-documents/{kind}/{version}/pdf")
+async def download_public_legal_document_pdf(kind: str, version: str):
+    if kind == "terms" and version in TERMS_DOCUMENTS:
+        return Response(
+            content=generate_booking_terms_pdf(version),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="terms-{version}.pdf"'},
+        )
+    document = await LegalDocuments(db).get_published(kind, version)
+    return Response(
+        content=generate_legal_document_pdf(document),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{kind}-{document["version"]}.pdf"'},
+    )
+
+
+async def _saved_booking_terms_pdf(version: str) -> bytes:
+    # Legacy evidence remains readable without reclassifying the old draft as published.
+    if version in TERMS_DOCUMENTS:
+        return generate_booking_terms_pdf(version)
+    document = await LegalDocuments(db).get_published("terms", version)
+    return generate_legal_document_pdf(document)
+
+
+@api_router.get("/booking-terms/{version}/pdf")
+async def download_booking_terms_pdf(version: str):
+    return Response(
+        content=await _saved_booking_terms_pdf(version),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="cgv-{version}.pdf"'},
+    )
+
+
+async def _record_booking_terms_consent(booking: BookingCreate) -> dict:
+    published = await LegalDocuments(db).current_terms()
+    if not booking_terms_enabled(published is not None):
+        return {"terms_accepted": False, "terms_version": None, "terms_accepted_at": None}
+    errors = []
+    if booking.terms_accepted is not True:
+        errors.append({
+            "loc": ["body", "terms_accepted"], "type": "value_error",
+            "msg": "Vous devez accepter les conditions générales de vente et de transport.",
+        })
+    if booking.terms_version != published["version"]:
+        errors.append({
+            "loc": ["body", "terms_version"], "type": "value_error",
+            "msg": "La version des CGV a changé. Veuillez consulter et accepter la version actuelle.",
+        })
+    if errors:
+        raise HTTPException(status_code=422, detail=errors)
+    return {
+        "terms_accepted": True,
+        "terms_version": published["version"],
+        "terms_accepted_at": datetime.now(timezone.utc),
+    }
+
+
+def _build_client_booking_doc(
+    user: dict, booking: BookingCreate, vehicle_category_name: Optional[str],
+    terms_consent: Optional[dict] = None,
+) -> dict:
     payment_method = normalize_payment_method_code(getattr(booking, "payment_method", None))
     return {
         "id": str(uuid.uuid4()),
+        **(terms_consent or {}),
         "client_id": user["id"],
         "client_name": user["name"],
         "client_email": user["email"],
@@ -4523,12 +4718,13 @@ async def resolve_vehicle_category_name(category_ref: Optional[str]) -> Optional
 
 @api_router.post("/bookings", response_model=BookingResponse)
 async def create_booking(booking: BookingCreate, request: Request):
+    terms_consent = await _record_booking_terms_consent(booking)
     user = await get_current_user(request)
     require_booking_coordinates(booking)
 
     vehicle_category_name = await resolve_vehicle_category_name(booking.vehicle_category_id)
 
-    booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name)
+    booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name, terms_consent)
 
     await db.bookings.insert_one(booking_doc)
     booking_doc.pop("_id", None)
@@ -4537,6 +4733,7 @@ async def create_booking(booking: BookingCreate, request: Request):
 
 @api_router.post("/bookings/checkout", response_model=BookingCheckoutResponse)
 async def create_booking_checkout(booking: BookingCheckoutCreate, request: Request):
+    terms_consent = await _record_booking_terms_consent(booking)
     _ensure_stripe_configured()
     user = await get_current_user(request)
     require_booking_coordinates(booking)
@@ -4549,7 +4746,7 @@ async def create_booking_checkout(booking: BookingCheckoutCreate, request: Reque
 
     vehicle_category_name = await resolve_vehicle_category_name(booking.vehicle_category_id)
 
-    booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name)
+    booking_doc = _build_client_booking_doc(user, booking, vehicle_category_name, terms_consent)
     await db.bookings.insert_one(booking_doc)
 
     charge_amount = _get_checkout_charge_amount(estimated_price, payment_method)

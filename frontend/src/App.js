@@ -5,6 +5,9 @@ import DashboardLayout from '@/components/DashboardLayout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import ForgotPassword from '@/pages/ForgotPassword';
 import LandingPage from '@/pages/LandingPage';
+import BookingTerms from '@/pages/BookingTerms';
+import LegalDocument from '@/pages/LegalDocument';
+import AdminLegalDocuments from '@/pages/admin/AdminLegalDocuments';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import ResetPassword from '@/pages/ResetPassword';
@@ -45,6 +48,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route index element={<LandingPage />} />
+      <Route path="conditions-generales" element={<BookingTerms />} />
+      <Route path="mentions-legales" element={<LegalDocument kind="legal-notice" />} />
+      <Route path="politique-confidentialite" element={<LegalDocument kind="privacy" />} />
       <Route path="login" element={<LoginPage />} />
       <Route path="register" element={<RegisterPage />} />
       <Route path="forgot-password" element={<ForgotPassword />} />
@@ -55,6 +61,11 @@ function AppRoutes() {
       <Route path="booking/cancel" element={<BookingPaymentCancel />} />
 
       {/* Admin routes */}
+      <Route path="admin/legal-documents" element={
+        <ProtectedRoute role="admin">
+          <DashboardLayout title="Documents légaux"><AdminLegalDocuments /></DashboardLayout>
+        </ProtectedRoute>
+      } />
       <Route
         path="admin"
         element={
