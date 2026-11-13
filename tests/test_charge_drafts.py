@@ -40,6 +40,8 @@ class MemoryCollection:
             return SimpleNamespace(matched_count=0)
         document.update(deepcopy(update["$set"]))
         document["revision"] += update["$inc"]["revision"]
+        for field, value in update.get("$push", {}).items():
+            document.setdefault(field, []).append(deepcopy(value))
         return SimpleNamespace(matched_count=1)
 
 

@@ -32,6 +32,14 @@ from a frozen invoice snapshot, including the initial invoice reference, line
 items and VAT breakdown. The calculation/PDF modules are not wired to invoicing,
 payment or email. **Draft fees cannot yet be issued or collected.**
 
+`backend/supplementary_ledger.py` contains unexposed primitives for atomic
+publication and manual payment records, with idempotent retries and per-invoice
+archived PDFs. These primitives are not yet integrated with authorization,
+original-invoice checks, reporting, payment UI, email, initial-invoice charges
+or the driver/commission documents. Number allocation currently precedes the
+atomic publish and a failed concurrent publish can leave a logged gap; the
+production numbering/recovery policy must be resolved before enabling it.
+
 ## Existing invoice PDFs
 
 New client invoice PDFs are saved with their metadata and reused verbatim.

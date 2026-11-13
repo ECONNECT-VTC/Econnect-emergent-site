@@ -32,7 +32,7 @@ class ChargeDrafts:
         document = await self.collection.find_one({"_id": booking_id})
         if document is None:
             raise RuntimeError("Initialisation du brouillon de frais impossible")
-        return {key: value for key, value in document.items() if key != "_id"}
+        return {key: document[key] for key in ("revision", "lines", "updated_at", "updated_by")}
 
     async def save(self, booking_id: str, payload: ChargeDraftUpdate, actor_id: str) -> dict:
         await self.get(booking_id)
