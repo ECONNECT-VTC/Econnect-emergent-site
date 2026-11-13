@@ -10,6 +10,7 @@ import secrets
 import unicodedata
 import uuid
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from html import escape as html_escape
 from io import BytesIO
 from pathlib import Path
@@ -34,6 +35,10 @@ from starlette.responses import JSONResponse
 from pydantic import ValidationError
 from booking_map import BookingCoordinates, MapPosition, MapRouteRequest, MapSearchRequest, MapService, enforce_map_limits, validate_route_response
 from charge_drafts import ChargeDrafts, ChargeDraftUpdate
+from supplementary_billing import (
+    SupplementaryIssue, SupplementaryPayment, billing_capabilities, issue_supplementary_invoice,
+)
+from supplementary_ledger import SupplementaryLedger
 from email_service import (
     TEMPLATE_KEY_ACCOUNT_ACTIVATION,
     TEMPLATE_KEY_ADMIN_MESSAGE,
@@ -5464,6 +5469,82 @@ async def save_admin_charge_draft(booking_id: str, payload: ChargeDraftUpdate, r
     if not await db.bookings.find_one({"id": booking_id}, {"_id": 0, "id": 1}):
         raise HTTPException(404, "Réservation non trouvée")
     return await ChargeDrafts(db.charge_drafts).save(booking_id, payload, admin["id"])
+
+
+@api_router.get("/admin/billing-capabilities")
+async def get_admin_billing_capabilities(request: Request):
+    await require_admin(request)
+    return await billing_capabilities(db)
+
+
+async def require_supplementary_booking(booking_id: str) -> dict:
+    booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(404, "Réservation non trouvée")
+    return booking
+
+
+@api_router.get("/admin/bookings/{booking_id}/supplementary-invoices")
+async def get_admin_supplementary_invoices(booking_id: str, request: Request):
+    await require_admin(request)
+    await require_supplementary_booking(booking_id)
+    return await SupplementaryLedger(db.charge_drafts).state(booking_id)
+
+
+@api_router.post("/admin/bookings/{booking_id}/supplementary-invoices")
+async def issue_admin_supplementary_invoice(booking_id: str, payload: SupplementaryIssue, request: Request):
+    admin = await require_admin(request)
+    booking = await require_supplementary_booking(booking_id)
+    settings = await get_commission_settings()
+    fulfilled_by_admin = bool(booking.get("fulfilled_by_admin"))
+    if fulfilled_by_admin:
+        issuer = {
+            "name": settings.get("company_name"), "address": settings.get("company_address"),
+            "siret": settings.get("company_siret"),
+            "vat_number": settings.get("company_vat_number") or settings.get("company_tva_number"),
+        }
+    else:
+        driver = await get_document_driver_profile(booking)
+        if not driver:
+            raise HTTPException(422, "Affectez un chauffeur avec ses coordonnées de facturation complètes")
+        # A partner's legal identity must never fall back to the operator's.
+        issuer = {
+            "name": driver.get("company_name") or driver.get("name"),
+            "address": driver.get("company_address") or driver.get("address"),
+            "siret": driver.get("company_siret"),
+            "vat_number": driver.get("company_vat_number") or driver.get("company_tva_number"),
+        }
+    return await issue_supplementary_invoice(
+        db, booking_id, revision=payload.revision, request_id=str(payload.request_id),
+        issuer=issuer, client=payload.client.model_dump(), due_date=payload.due_date.isoformat(),
+        actor_id=admin["id"], commission_rate=Decimal(str(settings["commission_rate"])),
+        driver_id=None if fulfilled_by_admin else booking.get("driver_id"),
+        fulfilled_by_admin=fulfilled_by_admin, booking_reference=booking_short_reference(booking_id),
+    )
+
+
+@api_router.post("/admin/bookings/{booking_id}/supplementary-invoices/{invoice_id}/payments")
+async def record_admin_supplementary_payment(
+    booking_id: str, invoice_id: str, payload: SupplementaryPayment, request: Request,
+):
+    admin = await require_admin(request)
+    await require_supplementary_booking(booking_id)
+    return await SupplementaryLedger(db.charge_drafts).record_payment(
+        booking_id, invoice_id, revision=payload.revision, request_id=str(payload.request_id),
+        amount_cents=payload.amount_cents, actor_id=admin["id"],
+    )
+
+
+@api_router.get("/admin/bookings/{booking_id}/supplementary-invoices/{invoice_id}/pdf")
+async def download_admin_supplementary_pdf(booking_id: str, invoice_id: str, request: Request):
+    await require_admin(request)
+    await require_supplementary_booking(booking_id)
+    pdf = await SupplementaryLedger(db.charge_drafts).get_pdf(booking_id, invoice_id)
+    return Response(
+        content=pdf, media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=facture-complementaire.pdf"},
+    )
+
 
 @api_router.post("/admin/bookings/{booking_id}/payment-received", response_model=BookingResponse)
 async def record_admin_booking_payment(booking_id: str, payload: BookingManualPaymentUpdate, request: Request):

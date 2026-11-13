@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import API_URL from '@/config';
 import { parseApiError } from '@/utils/apiErrors';
+import SupplementaryInvoices from './SupplementaryInvoices';
 
 const blankLine = () => ({
   description: '', quantity: '1', unit_price_ttc: '', tax_treatment: 'vat', vat_percent: '', tax_reason: '',
@@ -14,9 +15,11 @@ export default function ChargeDraftEditor({ bookingId }) {
   const [lines, setLines] = useState([]);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [billingBusy, setBillingBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const url = `${API_URL}/api/admin/bookings/${encodeURIComponent(bookingId)}/charge-draft`;
+  const locked = busy || billingBusy;
 
   useEffect(() => {
     const warn = (event) => {
@@ -88,7 +91,7 @@ export default function ChargeDraftEditor({ bookingId }) {
     {busy && <p role="status">Chargement…</p>}
     {!busy && !draft && <button type="button" onClick={load}>Réessayer</button>}
     {draft && <form onSubmit={save} className="space-y-4">
-      {lines.map((line, index) => <fieldset disabled={busy} key={index} className="space-y-2 rounded border border-white/10 p-3">
+      {lines.map((line, index) => <fieldset disabled={locked} key={index} className="space-y-2 rounded border border-white/10 p-3">
         <legend>Frais {index + 1}</legend>
         <label className="block text-sm">Libellé
           <input required maxLength={160} className={inputClass} value={line.description}
@@ -115,12 +118,14 @@ export default function ChargeDraftEditor({ bookingId }) {
         <button type="button" onClick={() => { setLines(lines.filter((_, position) => position !== index)); setDirty(true); }}>Supprimer ce frais</button>
       </fieldset>)}
       <div className="flex flex-wrap gap-3 text-sm">
-        <button type="button" disabled={busy || lines.length >= 40} onClick={() => { setLines([...lines, blankLine()]); setDirty(true); }}>Ajouter un frais</button>
-        <button type="submit" disabled={busy || !dirty}>Enregistrer le brouillon</button>
-        <button type="button" disabled={busy} onClick={load}>Recharger</button>
-        <button type="button" disabled={busy} onClick={close}>Fermer</button>
+        <button type="button" disabled={locked || lines.length >= 40} onClick={() => { setLines([...lines, blankLine()]); setDirty(true); }}>Ajouter un frais</button>
+        <button type="submit" disabled={locked || !dirty}>Enregistrer le brouillon</button>
+        <button type="button" disabled={locked} onClick={load}>Recharger</button>
+        <button type="button" disabled={locked} onClick={close}>Fermer</button>
       </div>
     </form>}
+    {draft && <SupplementaryInvoices bookingId={bookingId} revision={draft.revision}
+      hasLines={draft.lines.length > 0} dirty={dirty} onChanged={load} onBusyChange={setBillingBusy} />}
     {!draft && !busy && <button type="button" onClick={close}>Fermer</button>}
   </section>;
 }

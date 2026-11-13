@@ -6,6 +6,7 @@ import ChargeDraftEditor from './ChargeDraftEditor';
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 jest.mock('axios');
 jest.mock('@/config', () => 'http://api.test', { virtual: true });
+jest.mock('./SupplementaryInvoices', () => () => null);
 
 describe('admin charge draft', () => {
   let container;

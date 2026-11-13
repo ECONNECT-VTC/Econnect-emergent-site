@@ -1,7 +1,8 @@
 # Supplementary booking charges: implementation in progress
 
-The supplementary-invoice workflow is **not yet available**. Do not deploy or
+The supplementary-invoice workflow is **not production-ready**. Do not deploy or
 advertise this branch as a complete charge, invoicing or payment solution.
+Issuance is disabled by default; draft preparation remains available.
 
 ## Accounting decisions recorded
 
@@ -26,19 +27,82 @@ price or payment, send email or issue an invoice. Drafts are stored in the
 overwrites; back up this collection alongside bookings. The corresponding API
 requires an existing booking and administrator authentication.
 
-`backend/booking_charges.py` contains preliminary validation and cent-based
+`backend/booking_charges.py` contains validation and cent-based
 calculations. `backend/supplementary_invoice_pdf.py` prepares a paginated PDF
 from a frozen invoice snapshot, including the initial invoice reference, line
-items and VAT breakdown. The calculation/PDF modules are not wired to invoicing,
-payment or email. **Draft fees cannot yet be issued or collected.**
+items and VAT breakdown.
 
-`backend/supplementary_ledger.py` contains unexposed primitives for atomic
-publication and manual payment records, with idempotent retries and per-invoice
-archived PDFs. These primitives are not yet integrated with authorization,
-original-invoice checks, reporting, payment UI, email, initial-invoice charges
-or the driver/commission documents. Number allocation currently precedes the
-atomic publish and a failed concurrent publish can leave a logged gap; the
-production numbering/recovery policy must be resolved before enabling it.
+## Administrative supplementary-invoice preparation
+
+The draft editor now includes an administrative supplementary-invoice panel.
+The authenticated administrator can inspect issued snapshots, download their
+archived PDFs and record money **already received** against an individual
+supplementary invoice. These manual records never debit a card or alter the
+original booking's price, payments or invoice. Payments accept positive integer
+cents, reject overpayments and use a revision plus a UUID request identifier.
+Retries use the same request and cannot record the same payment twice.
+
+The issuance API requires an existing initial invoice, saved draft lines, an
+explicit client billing name/address and due date, and a complete issuer legal
+identity. Partner identity is never replaced with the operator's identity.
+Placeholder legal information is rejected. Issued lines, commission allocation
+and PDF bytes are frozen. An issuance request identifier cannot be reused with
+a different source revision, client or due date.
+
+`backend/supplementary_billing.py` allocates the shared sequential number and
+publishes the supplementary invoice in **one MongoDB transaction**. Failure
+rolls back both changes. Competing draft revisions conflict; retrying the same
+issuance returns the already-published invoice. The browser retains the exact
+pending request after a failed response; reloading the registry allows the
+administrator to check whether the request committed.
+
+This removes numbering gaps caused by failed **supplementary** publication.
+It does not change legacy number allocation for initial invoices, quotes,
+driver documents or commissions, which still needs a separate numbering review.
+
+## MongoDB capability and staging-only activation
+
+The production MongoDB topology is **unknown**. An external database and the
+absence of a `replicaSet` option in application code prove neither standalone
+nor replica-set operation. No production connection details have been inspected.
+
+`GET /api/admin/billing-capabilities` is restricted to administrators. It runs
+`hello` using the API's existing database connection and returns only:
+`enabled`, `transactions` (`available`, `unsupported` or `unverified`),
+`issuance_available` and a user-facing `reason`. It never returns connection
+strings, hosts, replica-set names or credentials. Driver exception text is not
+logged by this diagnostic.
+
+Issuance requires both `SUPPLEMENTARY_INVOICES_ENABLED=true` and a replica-set
+or sharded topology supporting sessions and the necessary wire version.
+An unreachable or unauthorized diagnostic, standalone MongoDB, or transaction
+failure produces an explicit error. There is **no nontransactional fallback**.
+The topology check is preliminary; the actual transaction must still succeed.
+Do not enable the flag in production while the following work remains:
+
+- Charges entered before the initial invoice are not included in that invoice.
+- Driver/commission documents and aggregate financial reports do not yet include
+  supplementary amounts. The panel shows their frozen allocation separately.
+- Customer/driver supplementary-invoice screens, Stripe collection, credits,
+  cancellation/refund integration and separate Brevo delivery remain unwired.
+
+Administrator APIs under
+`/api/admin/bookings/{booking_id}/supplementary-invoices` provide list/issue,
+`/{invoice_id}/pdf` and `/{invoice_id}/payments`. Reading archives and recording
+received payments remain available if issuance is subsequently disabled.
+
+Focused validation:
+
+```sh
+python -m unittest tests.test_charge_drafts tests.test_supplementary_ledger \
+  tests.test_supplementary_billing tests.test_supplementary_api
+```
+
+Real-database transaction/concurrency/rollback tests run when `MONGO_TEST_URL`
+points to an **isolated test replica set**. Standalone refusal is verified when
+`MONGO_STANDALONE_TEST_URL` points to an **isolated standalone test server**.
+They create disposable `econnect_billing_test_*` databases, never production
+collections. No real payment, email or production invoice is triggered.
 
 ## Existing invoice PDFs
 

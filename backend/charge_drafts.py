@@ -17,8 +17,9 @@ class ChargeDraftUpdate(BaseModel):
 
 
 class ChargeDrafts:
-    def __init__(self, collection):
+    def __init__(self, collection, *, session=None):
         self.collection = collection
+        self.options = {"session": session} if session is not None else {}
 
     async def get(self, booking_id: str) -> dict:
         try:
@@ -26,10 +27,11 @@ class ChargeDrafts:
                 {"_id": booking_id},
                 {"$setOnInsert": {"revision": 0, "lines": [], "updated_at": None, "updated_by": None}},
                 upsert=True,
+                **self.options,
             )
         except DuplicateKeyError:
             pass
-        document = await self.collection.find_one({"_id": booking_id})
+        document = await self.collection.find_one({"_id": booking_id}, **self.options)
         if document is None:
             raise RuntimeError("Initialisation du brouillon de frais impossible")
         return {key: document[key] for key in ("revision", "lines", "updated_at", "updated_by")}
@@ -41,6 +43,7 @@ class ChargeDrafts:
             {"_id": booking_id, "revision": payload.revision},
             {"$set": {"lines": [line.model_dump(mode="json") for line in payload.lines],
                       "updated_at": updated_at, "updated_by": actor_id}, "$inc": {"revision": 1}},
+            **self.options,
         )
         if result.matched_count != 1:
             raise HTTPException(409, "Brouillon modifié par un autre administrateur. Rechargez avant de réessayer.")

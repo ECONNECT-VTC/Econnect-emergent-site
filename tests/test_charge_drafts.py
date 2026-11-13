@@ -27,10 +27,10 @@ class MemoryCollection:
     def __init__(self):
         self.docs = {}
 
-    async def find_one(self, query):
+    async def find_one(self, query, **options):
         return deepcopy(self.docs.get(query["_id"]))
 
-    async def update_one(self, query, update, upsert=False):
+    async def update_one(self, query, update, upsert=False, **options):
         key = query["_id"]
         if upsert:
             self.docs.setdefault(key, {"_id": key, **deepcopy(update["$setOnInsert"])})

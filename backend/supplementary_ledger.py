@@ -1,7 +1,6 @@
-"""Atomic supplementary-invoice ledger primitives, not yet exposed as an API."""
+"""Frozen supplementary invoices and separate, revision-controlled payments."""
 
 import uuid
-import logging
 from copy import deepcopy
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -15,7 +14,6 @@ from supplementary_invoice_pdf import generate_supplementary_invoice_pdf
 
 MAX_ISSUED = 80
 MAX_PDF_BYTES = 128 * 1024
-logger = logging.getLogger(__name__)
 
 
 def _request_id(value: str) -> str:
@@ -30,29 +28,40 @@ def _without_pdf(invoice: dict) -> dict:
 
 
 class SupplementaryLedger:
-    def __init__(self, collection):
+    def __init__(self, collection, *, session=None):
         self.collection = collection
+        self.session = session
+        self.options = {"session": session} if session is not None else {}
 
     async def _document(self, booking_id: str) -> dict:
-        await ChargeDrafts(self.collection).get(booking_id)
-        document = await self.collection.find_one({"_id": booking_id})
+        await ChargeDrafts(self.collection, session=self.session).get(booking_id)
+        document = await self.collection.find_one({"_id": booking_id}, **self.options)
         if document is None:
             raise RuntimeError("Registre de frais introuvable")
         return document
 
     async def list_issued(self, booking_id: str) -> list[dict]:
+        return (await self.state(booking_id))["invoices"]
+
+    async def state(self, booking_id: str) -> dict:
         document = await self._document(booking_id)
-        return [_without_pdf(invoice) for invoice in document.get("issued", [])]
+        return {
+            "revision": document["revision"],
+            "invoices": [_without_pdf(invoice) for invoice in document.get("issued", [])],
+        }
 
     async def issue(self, booking_id: str, *, revision: int, request_id: str, original_number: str,
                     issuer: dict, client: dict, due_date: str, actor_id: str, commission_rate: Decimal,
                     driver_id: str | None, fulfilled_by_admin: bool, allocate_number, booking_reference: str) -> dict:
+        if self.session is None or not self.session.in_transaction:
+            raise RuntimeError("L’émission exige une transaction MongoDB active")
         request_id = _request_id(request_id)
         document = await self._document(booking_id)
         for invoice in document.get("issued", []):
             if invoice["request_id"] == request_id:
-                if invoice["source_revision"] != revision:
-                    raise HTTPException(409, "Identifiant déjà utilisé pour une autre révision")
+                if (invoice["source_revision"] != revision or invoice["client"] != client
+                        or invoice["due_date"] != due_date):
+                    raise HTTPException(409, "Identifiant déjà utilisé pour une autre demande d’émission")
                 return _without_pdf(invoice)
         if document["revision"] != revision:
             raise HTTPException(409, "Brouillon modifié ; rechargez avant émission")
@@ -63,7 +72,11 @@ class SupplementaryLedger:
         if not fulfilled_by_admin and not driver_id:
             raise HTTPException(422, "Affectez un chauffeur ou précisez que la course est réalisée par l’administrateur")
         for person, keys in ((issuer, ("name", "address", "siret", "vat_number")), (client, ("name", "address"))):
-            if not isinstance(person, dict) or any(not isinstance(person.get(key), str) or not person[key].strip() for key in keys):
+            if not isinstance(person, dict) or any(
+                not isinstance(person.get(key), str) or not person[key].strip()
+                or person[key].strip().casefold() in {"à compléter", "n/a"}
+                for key in keys
+            ):
                 raise HTTPException(422, "Identité et adresse de facturation incomplètes")
         try:
             totals = calculate_charges([BookingCharge.model_validate(line) for line in document["lines"]],
@@ -87,13 +100,9 @@ class SupplementaryLedger:
             {"_id": booking_id, "revision": revision},
             {"$push": {"issued": invoice}, "$set": {"lines": [], "updated_at": issued_at, "updated_by": actor_id},
              "$inc": {"revision": 1}},
+            **self.options,
         )
         if result.matched_count != 1:
-            logger.warning("Supplementary invoice number %s was allocated but not published due to a concurrent update", number)
-            latest = await self._document(booking_id)
-            for existing in latest.get("issued", []):
-                if existing["request_id"] == request_id and existing["source_revision"] == revision:
-                    return _without_pdf(existing)
             raise HTTPException(409, "Brouillon modifié pendant l’émission ; aucune nouvelle facture publiée")
         return _without_pdf(invoice)
 
@@ -132,6 +141,7 @@ class SupplementaryLedger:
         result = await self.collection.update_one(
             {"_id": booking_id, "revision": revision},
             {"$set": {"issued": invoices}, "$inc": {"revision": 1}},
+            **self.options,
         )
         if result.matched_count != 1:
             latest = await self._document(booking_id)

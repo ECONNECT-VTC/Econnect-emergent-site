@@ -3,6 +3,7 @@ import unittest
 import uuid
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from fastapi import HTTPException
@@ -16,7 +17,7 @@ from tests.test_charge_drafts import LINE, MemoryCollection
 class TestSupplementaryLedger(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.collection = MemoryCollection()
-        self.ledger = SupplementaryLedger(self.collection)
+        self.ledger = SupplementaryLedger(self.collection, session=SimpleNamespace(in_transaction=True))
         await ChargeDrafts(self.collection).save("booking-1", ChargeDraftUpdate(revision=0, lines=[LINE]), "admin")
         self.allocate = AsyncMock(return_value="000002")
         self.request_id = str(uuid.uuid4())
@@ -38,6 +39,9 @@ class TestSupplementaryLedger(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("pdf_snapshot", (await self.ledger.list_issued("booking-1"))[0])
         self.assertEqual(await self.ledger.issue("booking-1", **self.args), issued)
         self.allocate.assert_awaited_once()
+        with self.assertRaises(HTTPException) as conflict:
+            await self.ledger.issue("booking-1", **{**self.args, "due_date": "2027-01-01"})
+        self.assertEqual(conflict.exception.status_code, 409)
         await ChargeDrafts(self.collection).save(
             "booking-1", ChargeDraftUpdate(revision=2, lines=[{**LINE, "description": "Autre"}]), "admin",
         )
@@ -72,14 +76,14 @@ class TestSupplementaryLedger(unittest.IsolatedAsyncioTestCase):
         original_update = self.collection.update_one
         triggered = False
 
-        async def race(query, update, upsert=False):
+        async def race(query, update, upsert=False, **options):
             nonlocal triggered
             if "$push" in update and not triggered:
                 triggered = True
                 await ChargeDrafts(self.collection).save(
                     "booking-1", ChargeDraftUpdate(revision=1, lines=[{**LINE, "description": "Gagnant"}]), "other",
                 )
-            return await original_update(query, update, upsert=upsert)
+            return await original_update(query, update, upsert=upsert, **options)
 
         self.collection.update_one = race
         with self.assertRaises(HTTPException) as error:
@@ -94,6 +98,19 @@ class TestSupplementaryLedger(unittest.IsolatedAsyncioTestCase):
         self.collection.docs["booking-1"]["issued"][0]["pdf_snapshot"] = b"invalid"
         with self.assertRaises(RuntimeError):
             await self.ledger.get_pdf("booking-1", issued["id"])
+
+    async def test_issuance_without_transaction_is_rejected_before_number_allocation(self):
+        with self.assertRaisesRegex(RuntimeError, "transaction"):
+            await SupplementaryLedger(self.collection).issue("booking-1", **self.args)
+        self.allocate.assert_not_awaited()
+
+    async def test_placeholder_legal_identity_is_rejected(self):
+        with self.assertRaises(HTTPException) as error:
+            await self.ledger.issue("booking-1", **{
+                **self.args, "issuer": {**self.args["issuer"], "siret": "À compléter"},
+            })
+        self.assertEqual(error.exception.status_code, 422)
+        self.allocate.assert_not_awaited()
 
 
 if __name__ == "__main__":
