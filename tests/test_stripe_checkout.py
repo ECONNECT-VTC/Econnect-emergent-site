@@ -22,6 +22,7 @@ class _InsertResult:
 class _UpdateResult:
     def __init__(self, modified_count):
         self.modified_count = modified_count
+        self.matched_count = modified_count
 
 
 class InMemoryBookingsCollection:

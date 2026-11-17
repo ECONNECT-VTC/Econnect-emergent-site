@@ -1,0 +1,53 @@
+/* The body attribute exists only while a private dashboard is mounted, including its portals. */
+body[data-dashboard-theme="dark"] {
+  color-scheme: dark;
+}
+
+body[data-dashboard-theme="light"] {
+  color-scheme: light;
+  background: #f3f5f7;
+  color: #172a38;
+  --background: 210 20% 97%;
+  --foreground: 207 42% 15%;
+  --card: 0 0% 100%;
+  --card-foreground: 207 42% 15%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 207 42% 15%;
+  --muted: 210 18% 92%;
+  --muted-foreground: 215 16% 36%;
+  --secondary: 210 18% 92%;
+  --secondary-foreground: 207 42% 15%;
+  --border: 215 20% 80%;
+  --input: 215 20% 80%;
+}
+
+body[data-dashboard-theme="light"] :is([class*="bg-[#0A0A0A]"], [class*="bg-[#141414]"], [class*="bg-[#1E1E1E]"], [class*="bg-[#101010]"], [class*="bg-[#18181B]"], [class*="bg-[#111111]"], [class*="bg-[#252525]"], .glass) {
+  background-color: #ffffff !important;
+  background-image: none;
+}
+
+body[data-dashboard-theme="light"] :is([class*="text-white"], [class*="text-[#FAFAFA]"], .text-card-foreground) {
+  color: #172a38;
+}
+
+body[data-dashboard-theme="light"] :is([class*="text-[#A1A1AA]"], [class*="text-[#C7B588]"], .text-gray-300, .text-gray-400, .text-zinc-300, .text-zinc-400, .text-slate-300, .text-slate-400) {
+  color: #526174;
+}
+
+body[data-dashboard-theme="light"] :is([class*="border-white/"], [class*="border-[#D4AF37]"]) {
+  border-color: #b9c3cf;
+}
+
+body[data-dashboard-theme="light"] :is([class*="text-[#D4AF37]"], [class*="text-[#F3D67A]"], [class*="text-[#F0C74A]"], .text-amber-200, .text-yellow-200) {
+  color: #785400;
+}
+
+body[data-dashboard-theme="light"] :is(.text-green-300, .text-green-400, .text-green-500, .text-emerald-300, .text-emerald-400, .text-emerald-500) { color: #17603d; }
+body[data-dashboard-theme="light"] :is(.text-red-300, .text-red-400, .text-red-500) { color: #ab2020; }
+body[data-dashboard-theme="light"] :is(.text-blue-300, .text-blue-400, .text-blue-500, .text-sky-300, .text-sky-400, .text-cyan-300, .text-cyan-400) { color: #155677; }
+body[data-dashboard-theme="light"] :is(.text-purple-300, .text-purple-400, .text-indigo-300, .text-indigo-400, .text-fuchsia-300, .text-fuchsia-400) { color: #633b8c; }
+body[data-dashboard-theme="light"] :is(.text-amber-300, .text-amber-400, .text-orange-300, .text-orange-400, .text-yellow-300, .text-yellow-400) { color: #805100; }
+body[data-dashboard-theme="light"] :is(button.bg-purple-600, button.bg-green-600, button.bg-emerald-600, button.bg-red-600, button.bg-blue-600) { color: #ffffff; }
+body[data-dashboard-theme="light"] input::placeholder,
+body[data-dashboard-theme="light"] textarea::placeholder { color: #64748b; opacity: 1; }
+body[data-dashboard-theme="light"] .leaflet-container { color-scheme: dark; }

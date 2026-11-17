@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
 import PassengerSummary from '@/components/PassengerSummary';
+import { ArriveButton, WaitingTimer, RouteChangeNotice } from '@/components/BookingOperations';
 import { useAuth } from '@/contexts/AuthContext';
 import API_URL from '@/config';
 import { getCategoryDisplayName } from '@/utils/vehicleCategories';
@@ -65,6 +66,8 @@ const BookingDetail = () => {
       }
     };
     if (userRole) fetchBooking();
+    const timer = userRole ? setInterval(fetchBooking, 15000) : null;
+    return () => clearInterval(timer);
   }, [bookingId, userRole]);
 
   const refreshBooking = async () => {
@@ -157,6 +160,10 @@ const BookingDetail = () => {
                 <h2 className="text-xl font-bold font-['Cormorant_Garamond'] text-[#D4AF37]">Détail de la course</h2>
                 <p className="text-xs text-[#A1A1AA] mt-1">Réservation : {formatBookingReference(booking.id)}</p>
               </div>
+              <WaitingTimer waiting={booking.waiting} />
+              {booking.driver_id === user?.id && ['driver', 'admin'].includes(userRole)
+                && <ArriveButton booking={booking} onChanged={refreshBooking} />}
+              <RouteChangeNotice change={booking.route_change} />
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusStyle}`}>{statusLabel}</span>
             </div>
 

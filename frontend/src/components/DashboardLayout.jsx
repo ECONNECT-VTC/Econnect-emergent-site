@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import LogoDisplay from '@/components/LogoDisplay';
 import LanguageDropdown from '@/components/LanguageDropdown';
+import DashboardThemeToggle from '@/components/DashboardThemeToggle';
 import {
   House, CalendarCheck, Car, Users, SignOut, List, X, ChartBar, CarSimple, UserCircle, CurrencyEur, ChartLineUp, Percent, FileText, Money
 } from '@phosphor-icons/react';
@@ -134,7 +135,7 @@ const DashboardLayout = ({ children, title }) => {
       <div className="min-w-0 flex-1 overflow-x-hidden lg:ml-64">
         {/* Top bar */}
         <header className="sticky top-0 z-30 border-b border-white/10 bg-[#0A0A0A]/80 backdrop-blur-lg">
-          <div className="app-shell flex items-center justify-between gap-3 py-4">
+          <div className="app-shell flex flex-wrap items-center justify-between gap-3 py-4">
             <div className="flex min-w-0 items-center gap-3 sm:gap-4">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -147,6 +148,7 @@ const DashboardLayout = ({ children, title }) => {
               <h1 className="min-w-0 break-words text-lg font-bold font-['Cormorant_Garamond'] sm:text-xl md:text-2xl">{title}</h1>
             </div>
             <div className="flex items-center gap-3">
+              <DashboardThemeToggle />
               <Button
                 onClick={handleLogout}
                 variant="outline"

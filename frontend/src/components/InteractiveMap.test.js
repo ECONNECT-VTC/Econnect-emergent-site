@@ -127,6 +127,18 @@ describe('InteractiveMap', () => {
     expect(container.querySelector('button')).toBeNull();
   });
 
+  it('locks pickup selection after driver arrival while preserving destination selection', async () => {
+    const change = jest.fn();
+    await act(async () => root.render(<InteractiveMap pickupReadOnly activeField="dropoff"
+      onSelectPosition={jest.fn()} onActiveFieldChange={change} />));
+    const buttons = container.querySelectorAll('button');
+    expect(buttons[0].disabled).toBe(true);
+    await act(async () => buttons[0].click());
+    expect(change).not.toHaveBeenCalled();
+    await act(async () => buttons[1].click());
+    expect(change).toHaveBeenCalledWith('dropoff');
+  });
+
   it('reports unavailable background tiles without disabling address selection', async () => {
     process.env.REACT_APP_CARTO_API_KEY = 'test-key';
     await act(async () => root.render(<InteractiveMap onSelectPosition={jest.fn()} />));

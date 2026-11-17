@@ -107,7 +107,7 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(response["driver_name"], self.driver["name"])
         query, update = self.bookings.update_one.await_args_list[0].args
-        self.assertEqual(query, {"id": self.booking["id"], "status": "ASSIGNED", "driver_id": "old"})
+        self.assertEqual(query, {"id": self.booking["id"], "status": "ASSIGNED", "driver_id": "old", "waiting": None})
         self.assertEqual(set(update["$set"]), {"driver_id", "driver_name", "driver_display_name", "status", "assigned_at"})
         self.assertEqual(update["$set"]["status"], "ASSIGNED")
         order_booking = server.generate_and_store_document.await_args.args[0]
@@ -152,7 +152,7 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
                     await handler(self.booking["id"], payload, SimpleNamespace())
                 self.assertEqual(exc.exception.status_code, 409)
                 self.assertEqual(self.bookings.update_one.await_args.args[0], {
-                    "id": self.booking["id"], "driver_id": "old", "status": "ASSIGNED",
+                    "id": self.booking["id"], "driver_id": "old", "status": "ASSIGNED", "waiting": None,
                 })
 
     async def test_replacement_losing_concurrent_update_sends_no_notifications(self):

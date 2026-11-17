@@ -53,6 +53,28 @@ restent possibles via l'API sans changer les données géographiques.
 Les éditions conservent les règles existantes de prix et paiement : recalculer
 l'itinéraire ne modifie pas automatiquement un montant déjà payé.
 
+### Modification par le client
+
+Le client peut modifier sa réservation jusqu'au statut `IN_PROGRESS` inclus.
+Après l'arrivée du chauffeur ou le départ, seuls la destination et les commentaires
+restent modifiables ; le départ et l'horaire sont verrouillés côté API et interface.
+Les modifications d'adresses sont immédiatement enregistrées. Le serveur recalcule
+les kilomètres, la durée et une estimation via OSRM et le barème de la catégorie ;
+les métriques envoyées par le navigateur ne constituent pas une autorité de prix.
+Les quotas cartographiques par compte s'appliquent aussi à ce recalcul.
+Une indisponibilité du routage/tarif est signalée sans enregistrer un trajet partiel.
+
+Le prix initial, les paiements, le statut et les gains chauffeur ne changent pas.
+Une proposition `route_change` est présentée à l'admin : il peut conserver le prix
+ou saisir un supplément TTC et sa TVA, préparé dans le brouillon de frais existant.
+L'estimation porte sur le trajet entier : **pas de supplément prérempli**, ni de
+réduction/remboursement automatique. L'admin tient compte des suppléments déjà
+validés avant d'en approuver un autre. Une nouvelle modification remplace une
+proposition non traitée ; les 100 dernières propositions sont archivées et une
+ancienne proposition ne peut plus être validée.
+Les listes client/chauffeur et le détail se rafraîchissent toutes les 15 secondes.
+Le client est invité à prévenir également son chauffeur pendant la course.
+
 ## Protection anti-abus
 
 Le navigateur n'appelle plus directement Photon/OSRM. Les routes backend

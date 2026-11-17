@@ -36,7 +36,7 @@ const MapInteraction = ({ pickup, dropoff, route, onSelectPosition }) => {
 
 const InteractiveMap = ({
   pickup, dropoff, route, activeField = 'pickup', onActiveFieldChange, onSelectPosition,
-  loading = false, error = '', editable = true,
+  loading = false, error = '', editable = true, pickupReadOnly = false,
 }) => {
   const [tileError, setTileError] = useState(false);
   // CARTO serves "API KEY REQUIRED" tiles without a key, so tiles are only requested with one.
@@ -48,10 +48,11 @@ const InteractiveMap = ({
     <div className="w-full h-full flex flex-col rounded-2xl overflow-hidden border border-[#D4AF37]/30 bg-[#0A0A0A]" data-testid="interactive-map">
       {onSelectPosition && editable && (
         <div className="p-4 space-y-3 text-sm text-[#C7B588]">
-          <p>Choisissez une adresse proposée ou cliquez sur la carte.</p>
+          <p>{pickupReadOnly ? 'Seule la destination peut être modifiée sur la carte.' : 'Choisissez une adresse proposée ou cliquez sur la carte.'}</p>
           <div className="flex gap-2" role="group" aria-label="Adresse à sélectionner sur la carte">
             {[['pickup', 'Départ'], ['dropoff', 'Arrivée']].map(([field, label]) => (
               <button key={field} type="button" aria-pressed={activeField === field}
+                disabled={pickupReadOnly && field === 'pickup'}
                 onClick={() => onActiveFieldChange?.(field)}
                 className={`rounded-full border border-[#D4AF37]/50 px-4 py-2 ${activeField === field ? 'bg-[#D4AF37] text-black' : 'text-[#D4AF37]'}`}>
                 {label}

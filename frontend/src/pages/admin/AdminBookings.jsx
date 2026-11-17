@@ -32,10 +32,11 @@ import useBookingFormMap from '@/hooks/useBookingFormMap';
 import ReservationLocationFields from '@/components/ReservationLocationFields';
 import PassengerDetails, { passengerDetailsError } from '@/components/PassengerDetails';
 import ChargeDraftEditor from '@/components/ChargeDraftEditor';
+import { ArriveButton, WaitingTimer, RouteChangeNotice, AdminOperationReviews } from '@/components/BookingOperations';
 
 const describeLoadFailure = (label, error) => `${label} : ${parseApiError(error, 'Erreur inconnue')}`;
 const canReplaceDriver = (booking) => statusEquals(booking?.status, 'ASSIGNED')
-  && Boolean(booking.driver_id) && !booking.fulfilled_by_admin;
+  && Boolean(booking.driver_id) && !booking.fulfilled_by_admin && !booking.waiting;
 const PAYMENT_AWAITING_STATUSES = ['pending', 'partially_paid'];
 const normalizeAmount = (value) => {
   const parsed = Number(value);
@@ -666,7 +667,8 @@ const AdminBookings = () => {
       {error && <div className="mb-4 bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">{error}</div>}
       {successMessage && <div className="mb-4 bg-green-500/10 border border-green-500/50 text-green-400 px-4 py-2 rounded-lg text-sm">{successMessage}</div>}
 
-      <div className="flex justify-end mb-4">
+      <div className="flex flex-wrap justify-end gap-3 mb-4">
+        <Button variant="outline" onClick={() => fetchData(filter === 'awaiting_payment')}>Actualiser les courses</Button>
         <Button className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => setCreateDialogOpen(true)}>
           + Nouvelle course
         </Button>
@@ -968,7 +970,11 @@ const AdminBookings = () => {
                 )}
               </div>
 
-              <ChargeDraftEditor bookingId={booking.id} />
+              <WaitingTimer waiting={booking.waiting} />
+              <RouteChangeNotice change={booking.route_change} />
+              {booking.fulfilled_by_admin && <ArriveButton booking={booking} onChanged={() => fetchData(filter === 'awaiting_payment')} />}
+              <AdminOperationReviews booking={booking} onChanged={() => fetchData(filter === 'awaiting_payment')} />
+              <ChargeDraftEditor key={`${booking.id}-${booking.route_change?.review?.reviewed_at}-${booking.waiting?.review?.reviewed_at}`} bookingId={booking.id} />
               <BookingComments bookingId={booking.id} />
             </div>
           );

@@ -25,7 +25,7 @@ import stripe
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorClient
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 from pymongo.errors import DuplicateKeyError, PyMongoError
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader, simpleSplit
@@ -40,6 +40,7 @@ from booking_terms import (
 )
 from legal_documents import DraftUpdate, LegalDocuments, PublishRequest
 from charge_drafts import ChargeDrafts, ChargeDraftUpdate
+from booking_operations import BookingOperations, EDITABLE_STATUSES, OperationReview, WaitingRules, stop_waiting_fields, utc, waiting_summary
 from supplementary_billing import (
     SupplementaryIssue, SupplementaryPayment, billing_capabilities, issue_supplementary_invoice,
     BillingRequest, CreditRequest, billing_transaction, next_billing_number, credit_invoice,
@@ -313,6 +314,17 @@ class ManualPaymentRecord(BaseModel):
 
 class BookingResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
+
+    @field_validator("waiting", mode="before")
+    @classmethod
+    def serialize_waiting(cls, value):
+        return waiting_summary(value)
+
+    @field_validator("route_change", mode="before")
+    @classmethod
+    def serialize_route_change(cls, value):
+        return {**value, "changed_at": utc(value["changed_at"])} if value else value
+
     id: str
     client_id: Optional[str] = None
     client_name: str
@@ -332,6 +344,9 @@ class BookingResponse(BaseModel):
     distance_km: Optional[float] = None
     duration_minutes: Optional[float] = None
     estimated_price: Optional[float] = None
+    waiting: Optional[dict] = None
+    route_change: Optional[dict] = None
+    route_revision: int = 0
     financial_snapshot: Optional[dict[str, float]] = None
     has_issued_invoice: bool = False
     notes: Optional[str] = None
@@ -5020,17 +5035,19 @@ async def request_booking_cancellation(booking_id: str, payload: BookingCancelRe
     if normalize_booking_status(booking.get("status")) not in ["DRAFT", "ASSIGNED"]:
         raise HTTPException(status_code=400, detail="Cette réservation ne peut pas être annulée")
 
-    await db.bookings.update_one(
-        {"id": booking_id},
+    result = await db.bookings.update_one(
+        {"id": booking_id, "status": booking["status"], "driver_id": booking.get("driver_id"), "waiting": booking.get("waiting")},
         {"$set": {
             "status": "cancellation_requested",
             "cancellation_reason": payload.cancellation_reason,
             "cancellation_previous_status": booking.get("status")
         }}
     )
+    if result.matched_count != 1:
+        raise HTTPException(409, "La course a changé. Rechargez avant de réessayer.")
     return {"message": "Demande d'annulation envoyée"}
 
-@api_router.put("/bookings/{booking_id}")
+@api_router.put("/bookings/{booking_id}", response_model=BookingResponse)
 async def update_booking(booking_id: str, payload: dict, request: Request):
     user = await get_current_user(request)
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
@@ -5038,13 +5055,92 @@ async def update_booking(booking_id: str, payload: dict, request: Request):
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
     if booking.get("client_id") != user["id"]:
         raise HTTPException(status_code=403, detail="Accès refusé")
-    if normalize_booking_status(booking.get("status")) not in ("DRAFT", "QUOTE_SENT", "QUOTE_ACCEPTED"):
+    status = normalize_booking_status(booking.get("status"))
+    if status not in EDITABLE_STATUSES:
         raise HTTPException(status_code=400, detail="Impossible de modifier cette réservation")
-    allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", "transfer_type", *BookingCoordinates.model_fields]
+    allowed_fields = ["pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes", *BookingCoordinates.model_fields]
     update_data = {k: v for k, v in payload.items() if k in allowed_fields}
     update_data = validate_booking_location_update(booking, update_data)
-    await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
+    for key in ("pickup_address", "dropoff_address", "pickup_date", "pickup_time", "notes"):
+        if key in update_data and (not isinstance(update_data[key], str) or len(update_data[key]) > 2000
+                                   or (key != "notes" and not update_data[key].strip())):
+            raise HTTPException(422, "Texte de réservation invalide.")
+    if status == "IN_PROGRESS" or booking.get("waiting"):
+        if any(key in update_data and update_data[key] != booking.get(key)
+               for key in ("pickup_address", "pickup_lat", "pickup_lng", "pickup_date", "pickup_time")):
+            raise HTTPException(422, "Après l’arrivée du chauffeur, seuls la destination et les commentaires peuvent changer.")
+    route_fields = ("pickup_address", "dropoff_address", "pickup_lat", "pickup_lng", "dropoff_lat", "dropoff_lng")
+    changed = any(key in update_data and update_data[key] != booking.get(key) for key in route_fields)
+    if changed:
+        await enforce_map_limits(db, None, user["id"], JWT_SECRET, include_public=False)
+        merged = {**booking, **update_data}
+        route = await calculate_map_route(MapRouteRequest(
+            pickup=MapPosition(lat=merged["pickup_lat"], lng=merged["pickup_lng"]),
+            dropoff=MapPosition(lat=merged["dropoff_lat"], lng=merged["dropoff_lng"]),
+        ))
+        route = route["routes"][0]
+        update_data.update(distance_km=round(route["distance"] / 1000, 3), duration_minutes=round(route["duration"] / 60, 2))
+        estimates = await estimate_price(
+            distance_km=update_data["distance_km"], duration_minutes=update_data["duration_minutes"],
+            transfer_type=booking["transfer_type"], disposition_hours=booking.get("disposition_hours"),
+        )
+        estimate = next((item for item in estimates if item.category_id == booking.get("vehicle_category_id")), None)
+        if estimate is None:
+            raise HTTPException(422, "Catégorie ou tarif indisponible : contactez l’administration.")
+        update_data["route_change"] = {
+            "id": uuid.uuid4().hex, "changed_at": datetime.now(timezone.utc), "changed_by": user["id"],
+            "previous_route": {key: booking.get(key) for key in (*route_fields, "distance_km", "duration_minutes")},
+            "new_route": {key: update_data.get(key, booking.get(key)) for key in (*route_fields, "distance_km", "duration_minutes")},
+            "initial_price": booking.get("estimated_price"), "suggested_total": estimate.final_price,
+            "suggested_supplement": max(0, round(estimate.final_price - (booking.get("estimated_price") or 0), 2)),
+            "review": None, "estimate_notice": "Estimation indicative du trajet complet, pas un prix final ni un supplément automatique.",
+        }
+    elif any(key in update_data and update_data[key] != booking.get(key) for key in ("distance_km", "duration_minutes")):
+        # Metrics are derived from the route, never edited separately by the passenger.
+        update_data.pop("distance_km", None)
+        update_data.pop("duration_minutes", None)
+    revision = booking.get("route_revision", 0)
+    query = {"id": booking_id, "client_id": user["id"], "status": booking["status"],
+             "driver_id": booking.get("driver_id"), "waiting": booking.get("waiting"),
+             "route_change": booking.get("route_change"),
+             "$or": [{"route_revision": revision}, {"route_revision": {"$exists": False}}] if revision == 0 else [{"route_revision": revision}]}
+    update = {"$set": update_data, "$inc": {"route_revision": 1}}
+    if changed and booking.get("route_change"):
+        update["$push"] = {"route_change_history": {"$each": [booking["route_change"]], "$slice": -100}}
+    result = await db.bookings.update_one(query, update)
+    if result.matched_count != 1:
+        raise HTTPException(409, "La course a changé. Rechargez avant de réessayer.")
     return await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+
+
+@api_router.get("/admin/waiting-rules")
+async def get_waiting_rules(request: Request):
+    await require_admin(request)
+    return (await BookingOperations(db).rules()).model_dump(mode="json")
+
+
+@api_router.put("/admin/waiting-rules")
+async def save_waiting_rules(body: WaitingRules, request: Request):
+    admin = await require_admin(request)
+    await db.operational_settings.update_one(
+        {"_id": "waiting"}, {"$set": {"rules": body.model_dump(mode="json"), "updated_by": admin["id"],
+                                     "updated_at": datetime.now(timezone.utc)}}, upsert=True,
+    )
+    return body.model_dump(mode="json")
+
+
+@api_router.post("/bookings/{booking_id}/arrive")
+async def arrive_at_booking(booking_id: str, request: Request):
+    user, booking = await _get_course_for_user(booking_id, request)
+    if user.get("role") not in {"driver", "admin"} or booking.get("driver_id") != user["id"]:
+        raise HTTPException(403, "Seul le chauffeur affecté peut signaler son arrivée.")
+    return await BookingOperations(db).arrive(booking, user["id"])
+
+
+@api_router.post("/admin/bookings/{booking_id}/operations/{operation_id}/review")
+async def review_booking_operation(booking_id: str, operation_id: str, body: OperationReview, request: Request):
+    admin = await require_admin(request)
+    return await BookingOperations(db).review(booking_id, operation_id, body, admin["id"])
 
 
 async def _get_course_for_user(course_id: str, request: Request) -> Tuple[dict, dict]:
@@ -5082,7 +5178,14 @@ async def update_course_status(course_id: str, payload: BookingStatusUpdate, req
             raise HTTPException(status_code=403, detail="Seul l'administrateur peut effectuer cette transition")
 
     validate_booking_status_transition(previous_status, next_status)
-    await db.bookings.update_one({"id": course_id}, {"$set": {"status": next_status}})
+    result = await db.bookings.update_one({
+        "id": course_id, "status": booking["status"], "driver_id": booking.get("driver_id"),
+        "waiting": booking.get("waiting"),
+    }, {"$set": {
+        "status": next_status, **(stop_waiting_fields(booking) if next_status != "ASSIGNED" else {}),
+    }})
+    if result.matched_count != 1:
+        raise HTTPException(409, "La course a changé. Rechargez avant de réessayer.")
     await log_booking_status_transition(course_id, previous_status, next_status, user.get("id"))
 
     if next_status == "COMPLETED" and previous_status != "COMPLETED":
@@ -5281,8 +5384,8 @@ async def update_booking_status_driver(booking_id: str, status_update: BookingSt
     validate_booking_status_transition(previous_status, next_status)
 
     result = await db.bookings.update_one(
-        {"id": booking_id, "driver_id": user["id"], "status": previous_status},
-        {"$set": {"status": next_status}}
+        {"id": booking_id, "driver_id": user["id"], "status": previous_status, "waiting": booking.get("waiting")},
+        {"$set": {"status": next_status, **(stop_waiting_fields(booking) if next_status != "ASSIGNED" else {})}}
     )
     if result.matched_count != 1:
         raise HTTPException(409, "La course ou son affectation a changé. Actualisez la liste.")
@@ -5328,9 +5431,11 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
         "driver_cancellation_reason": payload.cancellation_reason,
         "cancellation_previous_status": booking.get("status")
     }
+    if booking.get("waiting"):
+        raise HTTPException(409, "L’attente a commencé. Contactez l’administrateur pour un remplacement.")
 
     result = await db.bookings.update_one(
-        {"id": booking_id, "driver_id": driver["id"], "status": booking["status"]},
+        {"id": booking_id, "driver_id": driver["id"], "status": booking["status"], "waiting": booking.get("waiting")},
         {"$set": update_data},
     )
     if result.matched_count != 1:
@@ -5467,10 +5572,12 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
     next_status = normalize_booking_status(status_update.status)
     validate_booking_status_transition(previous_status, next_status)
 
-    await db.bookings.update_one(
-        {"id": booking_id},
-        {"$set": {"status": next_status}}
+    result = await db.bookings.update_one(
+        {"id": booking_id, "driver_id": admin["id"], "status": previous_status, "waiting": booking.get("waiting")},
+        {"$set": {"status": next_status, **(stop_waiting_fields(booking) if next_status != "ASSIGNED" else {})}}
     )
+    if result.matched_count != 1:
+        raise HTTPException(409, "La course a changé. Rechargez avant de réessayer.")
     await log_booking_status_transition(booking_id, previous_status, next_status, admin.get("id"))
 
     if next_status == "COMPLETED" and normalize_booking_status(previous_status) != "COMPLETED":
@@ -5686,6 +5793,8 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     status = normalize_booking_status(booking.get("status"))
     replacing = assign_data.expected_driver_id is not None
     if replacing:
+        if booking.get("waiting"):
+            raise HTTPException(409, "L’attente a commencé : contactez le chauffeur avant de modifier cette course.")
         if status != "ASSIGNED" or booking.get("driver_id") != assign_data.expected_driver_id or booking.get("fulfilled_by_admin"):
             raise HTTPException(409, "L’affectation a changé ou la course ne peut plus être réaffectée.")
         if assign_data.driver_id == assign_data.expected_driver_id:
@@ -5709,7 +5818,7 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     if not replacing:
         update_fields["pre_assignment_status"] = status
     result = await db.bookings.update_one(
-        {"id": booking_id, "status": booking["status"], "driver_id": booking.get("driver_id")},
+        {"id": booking_id, "status": booking["status"], "driver_id": booking.get("driver_id"), "waiting": booking.get("waiting")},
         {"$set": update_fields},
     )
     if result.matched_count != 1:
@@ -6133,10 +6242,11 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
         resolved_payment_status = booking.get("payment_status")
         if refund_trace.get("refund_status") == "succeeded":
             resolved_payment_status = _resolve_refund_payment_status(booking, refund_trace.get("refund_amount")) or booking.get("payment_status")
-        await db.bookings.update_one(
-            {"id": booking_id},
+        result = await db.bookings.update_one(
+            {"id": booking_id, "status": booking["status"], "waiting": booking.get("waiting")},
             {"$set": {
                 "status": "cancelled",
+                **stop_waiting_fields(booking),
                 "refund_amount": refund_trace.get("refund_amount"),
                 "refunded_at": refund_trace.get("refunded_at"),
                 "stripe_refund_id": refund_trace.get("stripe_refund_id"),
@@ -6146,6 +6256,8 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
                 "payment_status": resolved_payment_status,
             }}
         )
+        if result.matched_count != 1:
+            raise HTTPException(409, "La course a changé. Vérifiez le statut du remboursement avant de réessayer.")
         if refund_trace.get("refund_status") == "succeeded":
             try:
                 await send_refund_confirmation_to_client(booking, refund_trace)
@@ -6194,6 +6306,7 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
 
     update_data = {
         "status": "cancelled",
+        **stop_waiting_fields(booking),
         "cancellation_reason": payload.cancellation_reason,
         "driver_id": None,
         "driver_name": None,
@@ -6209,7 +6322,12 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
         "payment_status": resolved_payment_status
     }
 
-    await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
+    result = await db.bookings.update_one(
+        {"id": booking_id, "status": booking["status"], "driver_id": booking.get("driver_id"), "waiting": booking.get("waiting")},
+        {"$set": update_data},
+    )
+    if result.matched_count != 1:
+        raise HTTPException(409, "La course a changé. Vérifiez le statut du remboursement avant de réessayer.")
 
     if refund_trace.get("refund_status") == "succeeded":
         try:
@@ -6243,10 +6361,12 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
     next_status = normalize_booking_status(status_update.status)
     validate_booking_status_transition(previous_status, next_status)
 
-    await db.bookings.update_one(
-        {"id": booking_id},
-        {"$set": {"status": next_status}}
+    result = await db.bookings.update_one(
+        {"id": booking_id, "status": booking["status"], "driver_id": booking.get("driver_id"), "waiting": booking.get("waiting")},
+        {"$set": {"status": next_status, **(stop_waiting_fields(booking) if next_status != "ASSIGNED" else {})}}
     )
+    if result.matched_count != 1:
+        raise HTTPException(409, "La course a changé. Rechargez avant de réessayer.")
     await log_booking_status_transition(booking_id, previous_status, next_status, admin.get("id"))
 
     if next_status == "COMPLETED" and normalize_booking_status(previous_status) != "COMPLETED":

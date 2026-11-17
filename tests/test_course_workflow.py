@@ -47,7 +47,8 @@ class _Collection:
         for key, doc in self.docs.items():
             if all(doc.get(qk) == qv for qk, qv in query.items()):
                 self.docs[key] = {**doc, **update.get("$set", {})}
-                return
+                return SimpleNamespace(matched_count=1)
+        return SimpleNamespace(matched_count=0)
 
     def find(self, query, _projection=None):
         docs = []
