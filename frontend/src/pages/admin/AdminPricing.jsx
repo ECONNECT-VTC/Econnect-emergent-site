@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Car, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
 import API_URL from '@/config';
+import WaitingRulesEditor from '@/components/WaitingRulesEditor';
 import {
   getCategoryDisplayName,
   getVehicleCategoryImageUrl,
@@ -213,6 +214,7 @@ const AdminPricing = () => {
 
   return (
     <div className="bg-[#0A0A0A] text-white min-h-full">
+      <WaitingRulesEditor />
       {/* Tab buttons */}
       <div className="flex gap-2 mb-6">
         <button

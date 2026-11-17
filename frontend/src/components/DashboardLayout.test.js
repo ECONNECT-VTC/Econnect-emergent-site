@@ -71,6 +71,7 @@ describe('DashboardLayout mobile drawer', () => {
 
   beforeEach(() => {
     mockRole = 'client';
+    localStorage.clear();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -130,6 +131,20 @@ describe('DashboardLayout mobile drawer', () => {
     expect(headerShell).not.toBeNull();
     expect(contentShell).not.toBeNull();
     expect(layout.className).toContain('overflow-x-hidden');
+  });
+
+  it('persists the private theme, includes body portals and removes it on exit', async () => {
+    localStorage.setItem('econnect-dashboard-theme', 'light');
+    await act(async () => root.render(<DashboardLayout title="Espace">Contenu</DashboardLayout>));
+    expect(document.body.dataset.dashboardTheme).toBe('light');
+    const toggle = container.querySelector('[aria-label="Mode clair"]');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    await act(async () => toggle.click());
+    expect(document.body.dataset.dashboardTheme).toBe('dark');
+    expect(localStorage.getItem('econnect-dashboard-theme')).toBe('dark');
+    await act(async () => root.render(<div>Accueil public</div>));
+    expect(document.body.hasAttribute('data-dashboard-theme')).toBe(false);
+    expect(container.textContent).toBe('Accueil public');
   });
 
   it.each(['admin', 'client', 'driver'])('only exposes legal document management in the %s navigation when authorized', async (role) => {

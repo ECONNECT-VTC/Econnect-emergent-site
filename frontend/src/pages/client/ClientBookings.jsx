@@ -11,6 +11,7 @@ import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
 import PassengerSummary from '@/components/PassengerSummary';
 import BillingAccountPanel from '@/components/BillingAccountPanel';
+import { WaitingTimer, RouteChangeNotice } from '@/components/BookingOperations';
 import { downloadClientInvoicePdf } from '@/utils/invoiceGenerator';
 import { getClientFacingDriverName } from '../../utils/driverDisplay';
 import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, isStatusAtOrAfter, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
@@ -54,6 +55,8 @@ const ClientBookings = () => {
 
   useEffect(() => {
     fetchBookings();
+    const timer = setInterval(fetchBookings, 15000);
+    return () => clearInterval(timer);
   }, []);
 
   const requestCancellation = async () => {
@@ -76,6 +79,7 @@ const ClientBookings = () => {
 
   const openEditDialog = (booking) => {
     editMap.restoreBooking(booking);
+    if (booking.status === 'IN_PROGRESS' || booking.waiting) editMap.setActiveField('dropoff');
     setEditingBooking(booking);
     setEditForm({
       pickup_address: booking.pickup_address || '',
@@ -222,7 +226,9 @@ const ClientBookings = () => {
                   </Button>
                 )}
 
-                {(statusEquals(booking.status, 'DRAFT') || statusEquals(booking.status, 'QUOTE_SENT')) && (
+                <WaitingTimer waiting={booking.waiting} />
+                <RouteChangeNotice change={booking.route_change} />
+                {['DRAFT', 'QUOTE_SENT', 'QUOTE_ACCEPTED', 'ORDER_ISSUED', 'ASSIGNED', 'IN_PROGRESS'].some((status) => statusEquals(booking.status, status)) && (
                   <Button
                     onClick={() => openEditDialog(booking)}
                     variant="outline"
@@ -284,15 +290,18 @@ const ClientBookings = () => {
             <DialogTitle className="text-[#D4AF37]">Modifier la réservation</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <ReservationLocationFields form={editForm} map={editMap} idPrefix="client-edit" />
+            <p className="text-sm text-amber-200">Les adresses seront modifiées immédiatement et visibles au chauffeur. Le tarif initial reste inchangé ; l’administration étudiera tout supplément avant facturation. Prévenez aussi votre chauffeur pendant la course.</p>
+            {(editingBooking?.status === 'IN_PROGRESS' || editingBooking?.waiting) && <p className="text-sm">Après l’arrivée du chauffeur, seuls la destination et les commentaires peuvent changer.</p>}
+            <ReservationLocationFields form={editForm} map={editMap} idPrefix="client-edit"
+              pickupReadOnly={editingBooking?.status === 'IN_PROGRESS' || Boolean(editingBooking?.waiting)} />
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-[#A1A1AA] mb-2">Date</p>
-                <Input value={editForm.pickup_date || ''} onChange={(e) => setEditForm({ ...editForm, pickup_date: e.target.value })} className="bg-[#1E1E1E] border-white/10" placeholder="dd/MM/yyyy" />
+                <Input disabled={editingBooking?.status === 'IN_PROGRESS' || Boolean(editingBooking?.waiting)} value={editForm.pickup_date || ''} onChange={(e) => setEditForm({ ...editForm, pickup_date: e.target.value })} className="bg-[#1E1E1E] border-white/10" placeholder="dd/MM/yyyy" />
               </div>
               <div>
                 <p className="text-sm text-[#A1A1AA] mb-2">Heure</p>
-                <Input value={editForm.pickup_time || ''} onChange={(e) => setEditForm({ ...editForm, pickup_time: e.target.value })} className="bg-[#1E1E1E] border-white/10" placeholder="HH:MM" />
+                <Input disabled={editingBooking?.status === 'IN_PROGRESS' || Boolean(editingBooking?.waiting)} value={editForm.pickup_time || ''} onChange={(e) => setEditForm({ ...editForm, pickup_time: e.target.value })} className="bg-[#1E1E1E] border-white/10" placeholder="HH:MM" />
               </div>
             </div>
             <div>

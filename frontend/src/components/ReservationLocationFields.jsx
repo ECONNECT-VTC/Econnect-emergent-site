@@ -2,7 +2,7 @@ import AddressAutocomplete from './AddressAutocomplete';
 import InteractiveMap from './InteractiveMap';
 import { Label } from '@/components/ui/label';
 
-export default function ReservationLocationFields({ form, map, idPrefix }) {
+export default function ReservationLocationFields({ form, map, idPrefix, pickupReadOnly = false }) {
   return (
     <div className="space-y-4">
       {[['pickup', 'Adresse de départ'], ['dropoff', 'Adresse d’arrivée']].map(([field, label]) => (
@@ -17,13 +17,16 @@ export default function ReservationLocationFields({ form, map, idPrefix }) {
             onFocus={() => map.setActiveField(field)}
             placeholder="Adresse et ville"
             className="bg-[#1E1E1E] border-white/10"
+            disabled={pickupReadOnly && field === 'pickup'}
           />
         </div>
       ))}
       <InteractiveMap
         pickup={map.addresses.pickup} dropoff={map.addresses.dropoff}
-        route={map.route} activeField={map.activeField}
-        onActiveFieldChange={map.setActiveField} onSelectPosition={map.selectMapPosition}
+        route={map.route} activeField={pickupReadOnly ? 'dropoff' : map.activeField}
+        onActiveFieldChange={pickupReadOnly ? () => map.setActiveField('dropoff') : map.setActiveField}
+        onSelectPosition={map.selectMapPosition}
+        pickupReadOnly={pickupReadOnly}
         loading={map.loading} error={map.error}
       />
     </div>

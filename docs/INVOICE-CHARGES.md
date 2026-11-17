@@ -219,6 +219,38 @@ points to an **isolated test replica set**. Standalone refusal is verified when
 They create disposable `econnect_billing_test_*` databases, never production
 collections. No real payment, email or production invoice is triggered.
 
+## Attente chauffeur et validation des ajustements
+
+Dans **Tarification**, l'admin configure l'activation, les minutes incluses et le
+prix TTC par minute supplémentaire (`GET/PUT /api/admin/waiting-rules`).
+Par défaut, aucun tarif n'est supposé : les estimations d'attente sont désactivées.
+
+Le chauffeur affecté (ou l'admin qui réalise lui-même la course) clique sur
+**Arrivé / En attente** (`POST /api/bookings/{id}/arrive`). Le serveur enregistre
+l'heure et une copie du barème ; un double clic ou un rechargement ne relance pas
+l'attente. La course reste `ASSIGNED`, avec une sous-information d'attente :
+aucun nouveau statut global susceptible de casser facturation ou documents.
+Le compteur conserve son historique au rechargement et s'arrête au départ ou à
+l'annulation effective, pas à une simple demande d'annulation. Toute minute
+entamée au-delà de la franchise est proposée, jamais facturée automatiquement.
+Le barème modifié ensuite ne change pas une attente commencée.
+La réaffectation et le retrait chauffeur sont bloqués après l'arrivée pour ne pas
+attribuer l'attente d'un chauffeur au suivant ; traiter alors la course avec
+l'administration plutôt que réutiliser ce compteur pour un autre chauffeur.
+
+Après l'arrêt du compteur, l'admin valide/refuse l'attente dans la liste des courses.
+Les modifications d'adresse client disposent du même contrôle tarifaire :
+`POST /api/admin/bookings/{id}/operations/{operation_id}/review`.
+L'approbation exige une ligne TTC avec TVA ou motif d'exonération/hors champ.
+L'ajout au brouillon et la décision sont enregistrés **dans la même transaction
+MongoDB** ; une proposition déjà traitée ou remplacée est refusée sans doublon.
+Un replica set MongoDB compatible transactions est donc nécessaire pour ce
+contrôle, même si l'émission de factures complémentaires est désactivée.
+Sans transactions, erreur explicite 503, aucun ajout partiel ni validation fictive.
+L'émission, le paiement et la répartition des suppléments suivent ensuite le
+circuit de facturation existant. Le prix initial et le gain initial du chauffeur
+ne sont jamais abaissés automatiquement.
+
 ## Existing invoice PDFs
 
 New client invoice PDFs are saved with their metadata and reused verbatim.

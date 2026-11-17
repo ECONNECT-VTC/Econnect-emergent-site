@@ -5,11 +5,13 @@ import { fetchDrivingRoute } from '@/utils/bookingMap';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let mockEditMap;
+let mockPickupReadOnly;
 
 jest.mock('axios');
 jest.mock('@/components/InteractiveMap', () => () => <div />);
 jest.mock('@/components/ReservationLocationFields', () => (props) => {
   mockEditMap = props.map;
+  mockPickupReadOnly = props.pickupReadOnly;
   return <div data-testid="edit-locations" />;
 });
 jest.mock('@/utils/bookingMap', () => ({
@@ -103,6 +105,20 @@ describe('ClientBookings invoice visibility', () => {
     await act(async () => mockEditMap.changeAddress('pickup', 'Orly'));
     expect(mockEditMap.valid).toBe(false);
     expect(button('Enregistrer les modifications').disabled).toBe(true);
+  });
+
+  it('allows destination edits during the trip while locking pickup and schedule', async () => {
+    fetchDrivingRoute.mockResolvedValue({ positions: [[48.85, 2.35], [49.01, 2.55]], distanceKm: 28.5, durationMinutes: 36 });
+    await renderWithBookings([{
+      id: 'ongoing', status: 'IN_PROGRESS', pickup_address: 'Paris', dropoff_address: 'CDG',
+      pickup_date: '10/11/2026', pickup_time: '10:30',
+      pickup_lat: 48.85, pickup_lng: 2.35, dropoff_lat: 49.01, dropoff_lng: 2.55,
+    }]);
+    await act(async () => [...container.querySelectorAll('button')].find((button) => button.textContent.includes('Modifier')).click());
+    expect(mockPickupReadOnly).toBe(true);
+    expect(mockEditMap.activeField).toBe('dropoff');
+    expect([...container.querySelectorAll('input')].find((input) => input.value === '10:30').disabled).toBe(true);
+    expect(container.textContent).toContain('Le tarif initial reste inchangé');
   });
 
   it('does not render the invoice download button before completion', async () => {

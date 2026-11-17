@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { CarSimple, CheckCircle, Clock, MapPin, Phone, Play, User, DownloadSimple } from '@phosphor-icons/react';
 import API_URL from '@/config';
 import BookingComments from '@/components/BookingComments';
+import { ArriveButton, WaitingTimer, RouteChangeNotice } from '@/components/BookingOperations';
 import { downloadDriverDocPdf } from '@/utils/invoiceGenerator';
 import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
 
@@ -36,6 +37,8 @@ const DriverDashboard = () => {
 
   useEffect(() => {
     fetchBookings();
+    const timer = setInterval(fetchBookings, 15000);
+    return () => clearInterval(timer);
   }, []);
 
   const fetchBookings = async () => {
@@ -220,6 +223,9 @@ const DriverDashboard = () => {
                 </div>
               </div>
               <PassengerSummary booking={booking} />
+              <RouteChangeNotice change={booking.route_change} />
+              <WaitingTimer waiting={booking.waiting} />
+              <ArriveButton booking={booking} onChanged={fetchBookings} />
               {booking.distance_km != null && !isNaN(Number(booking.distance_km)) && (
                 <p className="text-xs text-[#A1A1AA] mb-4">
                   📍 Distance : <span className="text-white font-medium">{Number(booking.distance_km).toFixed(1)} km</span>
@@ -238,7 +244,7 @@ const DriverDashboard = () => {
                   {actionLoadingId === booking.id ? 'Démarrage en cours...' : 'Démarrer la course'}
                 </Button>
               )}
-              {statusEquals(booking.status, 'ASSIGNED') && (
+              {statusEquals(booking.status, 'ASSIGNED') && !booking.waiting && (
                 <Button
                   onClick={() => openWithdrawDialog(booking)}
                   variant="outline"

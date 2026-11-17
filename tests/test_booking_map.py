@@ -301,16 +301,19 @@ class TestMapBookingPersistence(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.status_code, 422)
 
     async def test_client_and_admin_edits_save_coordinates_and_metrics(self):
-        original = {"id": "booking-1", "client_id": "client-1", "status": "DRAFT", **BOOKING}
+        original = {"id": "booking-1", "client_id": "client-1", "status": "DRAFT", "vehicle_category_id": "sedan", **BOOKING}
         update = {"pickup_address": "Orly", **COORDINATES, "pickup_lat": 48.72, "distance_km": 50, "duration_minutes": 60}
-        bookings = SimpleNamespace(find_one=AsyncMock(return_value=original), update_one=AsyncMock())
+        bookings = SimpleNamespace(find_one=AsyncMock(return_value=original), update_one=AsyncMock(return_value=SimpleNamespace(matched_count=1)))
         with patch.object(server, "db", SimpleNamespace(bookings=bookings)), \
              patch.object(server, "get_current_user", AsyncMock(return_value={"id": "client-1"})), \
+             patch.object(server, "enforce_map_limits", AsyncMock()), \
+             patch.object(server, "calculate_map_route", AsyncMock(return_value={"routes": [{"distance": 50000, "duration": 3600}]})), \
+             patch.object(server, "estimate_price", AsyncMock(return_value=[SimpleNamespace(category_id="sedan", final_price=100)])), \
              patch.object(server, "require_admin", AsyncMock(return_value={"id": "admin-1"})):
             await server.update_booking("booking-1", update, object())
             await server.admin_update_booking("booking-1", update, object())
         for call in bookings.update_one.await_args_list:
-            self.assertEqual(call.args[1]["$set"], update)
+            self.assertEqual({key: call.args[1]["$set"][key] for key in update}, update)
 
     def test_address_change_cannot_leave_stale_coordinates(self):
         with self.assertRaises(HTTPException) as caught:
