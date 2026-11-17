@@ -89,6 +89,8 @@ Les deux nouveaux templates suivent aussi ce repli HTML si leur ID est vide. L'e
 
 L'affectation client est dédupliquée avec `client_driver_notified_driver_id` : une réaffectation à un autre chauffeur déclenche un nouvel email. Les documents sont dédupliqués avec `driver_documents_email_sent_at`. Ces marqueurs sont enregistrés uniquement après un envoi réussi ; une erreur d'email ne bloque ni le statut ni les autres emails.
 
+Dans **Administration → Réservations**, l'action **Remplacer le chauffeur** permet de choisir un autre partenaire disponible avant le démarrage d'une course assignée à un partenaire. La course reste assignée, sans modifier le paiement. Le client et le remplaçant utilisent les notifications d'affectation existantes ; l'ancien chauffeur perd l'accès à la course mais ne reçoit pas d'email de retrait automatique.
+
 Une réservation d'envoi atomique (`<marqueur>_pending`) empêche les envois concurrents. Elle est libérée après chaque tentative et peut être reprise après dix minutes si un processus s'est interrompu.
 
 ## 6) Pièces jointes (devis et factures PDF)

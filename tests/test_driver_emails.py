@@ -34,7 +34,7 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         }
         self.bookings = SimpleNamespace(
             find_one=AsyncMock(return_value={}),
-            update_one=AsyncMock(return_value=SimpleNamespace(modified_count=1)),
+            update_one=AsyncMock(return_value=SimpleNamespace(matched_count=1, modified_count=1)),
         )
         self.users = SimpleNamespace(find_one=AsyncMock(return_value=self.driver))
         self.settings = {"commission_rate": 0.1, "tva_commission_rate": 0.2}
@@ -93,6 +93,81 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.payloads[0]["params"]["DRIVER_NAME"], self.driver["name"])
         self.assertEqual(self.payloads[0]["params"]["DRIVER_PHONE"], self.driver["phone"])
         self.assertEqual(self.payloads[1]["to"], [{"email": self.driver["email"]}])
+
+    async def test_admin_replaces_partner_without_changing_booking_or_payment_status(self):
+        self.booking.update(
+            status="ASSIGNED", driver_id="old", pre_assignment_status="ORDER_ISSUED",
+            client_driver_notified_driver_id="old", payment_status="partially_paid", paid_amount=16,
+        )
+        self.bookings.find_one.return_value = self.booking
+        with patch.object(server, "require_admin", AsyncMock()):
+            response = await server.assign_booking_to_driver(
+                self.booking["id"], server.AssignBooking(driver_id="driver-1", expected_driver_id="old"),
+                SimpleNamespace(base_url="https://example.com/"),
+            )
+        self.assertEqual(response["driver_name"], self.driver["name"])
+        query, update = self.bookings.update_one.await_args_list[0].args
+        self.assertEqual(query, {"id": self.booking["id"], "status": "ASSIGNED", "driver_id": "old"})
+        self.assertEqual(set(update["$set"]), {"driver_id", "driver_name", "driver_display_name", "status", "assigned_at"})
+        self.assertEqual(update["$set"]["status"], "ASSIGNED")
+        order_booking = server.generate_and_store_document.await_args.args[0]
+        self.assertEqual(order_booking["pre_assignment_status"], "ORDER_ISSUED")
+        self.assertEqual(order_booking["paid_amount"], 16)
+        self.assertEqual(order_booking["driver_id"], "driver-1")
+        self.assertEqual([p["to"][0]["email"] for p in self.payloads], ["guest@example.com", "driver@example.com"])
+
+    async def test_admin_does_not_replace_stale_started_or_unavailable_assignment(self):
+        self.booking.update(status="ASSIGNED", driver_id="old")
+        self.bookings.find_one.return_value = self.booking
+        request = SimpleNamespace(base_url="https://example.com/")
+        body = server.AssignBooking(driver_id="driver-1", expected_driver_id="old")
+        with patch.object(server, "require_admin", AsyncMock()):
+            for fields in (
+                {"status": "IN_PROGRESS", "driver_id": "old"},
+                {"status": "ASSIGNED", "driver_id": "different"},
+                {"status": "ASSIGNED", "driver_id": "old", "fulfilled_by_admin": True},
+            ):
+                self.booking.update(fields)
+                with self.assertRaises(server.HTTPException) as exc:
+                    await server.assign_booking_to_driver(self.booking["id"], body, request)
+                self.assertEqual(exc.exception.status_code, 409)
+            self.booking["fulfilled_by_admin"] = False
+            self.driver["is_available"] = False
+            with self.assertRaises(server.HTTPException) as exc:
+                await server.assign_booking_to_driver(self.booking["id"], body, request)
+            self.assertIn("disponible", exc.exception.detail)
+        self.bookings.update_one.assert_not_awaited()
+        self.assertEqual(self.payloads, [])
+
+    async def test_stale_driver_actions_cannot_change_reassigned_booking(self):
+        self.booking.update(status="ASSIGNED", driver_id="old")
+        self.bookings.find_one.return_value = self.booking
+        self.bookings.update_one.return_value = SimpleNamespace(matched_count=0, modified_count=0)
+        with patch.object(server, "require_driver", AsyncMock(return_value={"id": "old"})):
+            for handler, payload in (
+                (server.update_booking_status_driver, server.BookingStatusUpdate(status="IN_PROGRESS")),
+                (server.cancel_booking_driver, server.DriverCancellationRequest(cancellation_reason="Indisponible")),
+            ):
+                with self.assertRaises(server.HTTPException) as exc:
+                    await handler(self.booking["id"], payload, SimpleNamespace())
+                self.assertEqual(exc.exception.status_code, 409)
+                self.assertEqual(self.bookings.update_one.await_args.args[0], {
+                    "id": self.booking["id"], "driver_id": "old", "status": "ASSIGNED",
+                })
+
+    async def test_replacement_losing_concurrent_update_sends_no_notifications(self):
+        self.booking.update(status="ASSIGNED", driver_id="old")
+        self.bookings.find_one.return_value = self.booking
+        self.bookings.update_one.return_value = SimpleNamespace(matched_count=0)
+        with patch.object(server, "require_admin", AsyncMock()):
+            with self.assertRaises(server.HTTPException) as exc:
+                await server.assign_booking_to_driver(
+                    self.booking["id"], server.AssignBooking(driver_id="driver-1", expected_driver_id="old"),
+                    SimpleNamespace(base_url="https://example.com/"),
+                )
+        self.assertEqual(exc.exception.status_code, 409)
+        server.generate_and_store_document.assert_not_awaited()
+        self.assertEqual(self.payloads, [])
 
     async def test_assignment_fallback_escapes_values_and_uses_unknown_placeholders(self):
         with patch.dict(os.environ, {"BREVO_TEMPLATE_DRIVER_ASSIGNED_CLIENT": ""}):

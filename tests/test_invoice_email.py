@@ -575,7 +575,10 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
             "transfer_type": "simple",
         }
         driver = {"id": "driver-1", "name": "Chauffeur", "email": "driver@example.com"}
-        bookings = SimpleNamespace(find_one=AsyncMock(return_value=booking), update_one=AsyncMock())
+        bookings = SimpleNamespace(
+            find_one=AsyncMock(return_value=booking),
+            update_one=AsyncMock(return_value=SimpleNamespace(matched_count=1, modified_count=1)),
+        )
         users = SimpleNamespace(find_one=AsyncMock(return_value=driver))
 
         with patch.object(server, "db", SimpleNamespace(bookings=bookings, users=users)), patch.object(
