@@ -26,7 +26,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
-from pymongo.errors import DuplicateKeyError
+from pymongo.errors import DuplicateKeyError, PyMongoError
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader, simpleSplit
 from reportlab.pdfgen import canvas
@@ -401,6 +401,7 @@ class BookingPaymentConfirmationResponse(BaseModel):
 
 class AssignBooking(BaseModel):
     driver_id: str
+    expected_driver_id: Optional[str] = None
 
 class AdminVehicle(BaseModel):
     id: str
@@ -5279,10 +5280,12 @@ async def update_booking_status_driver(booking_id: str, status_update: BookingSt
     next_status = normalize_booking_status(status_update.status)
     validate_booking_status_transition(previous_status, next_status)
 
-    await db.bookings.update_one(
-        {"id": booking_id},
+    result = await db.bookings.update_one(
+        {"id": booking_id, "driver_id": user["id"], "status": previous_status},
         {"$set": {"status": next_status}}
     )
+    if result.matched_count != 1:
+        raise HTTPException(409, "La course ou son affectation a changé. Actualisez la liste.")
     await log_booking_status_transition(booking_id, previous_status, next_status, user.get("id"))
 
     if next_status == "COMPLETED" and normalize_booking_status(previous_status) != "COMPLETED":
@@ -5326,9 +5329,14 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
         "cancellation_previous_status": booking.get("status")
     }
 
-    await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
+    result = await db.bookings.update_one(
+        {"id": booking_id, "driver_id": driver["id"], "status": booking["status"]},
+        {"$set": update_data},
+    )
+    if result.matched_count != 1:
+        raise HTTPException(409, "La course ou son affectation a changé. Actualisez la liste.")
 
-    return {"message": "Vous vous êtes retiré de cette course. Elle sera réassignée.", "status": "QUOTE_ACCEPTED"}
+    return {"message": "Vous vous êtes retiré de cette course. Elle sera réassignée.", "status": update_data["status"]}
 
 # ==================== ADMIN ROUTES ====================
 
@@ -5675,36 +5683,48 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     booking = await db.bookings.find_one({"id": booking_id})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    if normalize_booking_status(booking.get("status")) not in {"QUOTE_ACCEPTED", "ORDER_ISSUED"}:
+    status = normalize_booking_status(booking.get("status"))
+    replacing = assign_data.expected_driver_id is not None
+    if replacing:
+        if status != "ASSIGNED" or booking.get("driver_id") != assign_data.expected_driver_id or booking.get("fulfilled_by_admin"):
+            raise HTTPException(409, "L’affectation a changé ou la course ne peut plus être réaffectée.")
+        if assign_data.driver_id == assign_data.expected_driver_id:
+            raise HTTPException(400, "Choisissez un autre chauffeur.")
+    elif status not in {"QUOTE_ACCEPTED", "ORDER_ISSUED"}:
         raise HTTPException(status_code=400, detail="La course doit être validée (devis accepté) avant assignation")
 
     driver = await db.users.find_one({"id": assign_data.driver_id, "role": build_driver_role_query()})
     if not driver:
         raise HTTPException(status_code=404, detail="Chauffeur non trouvé")
+    if not driver.get("is_available", True):
+        raise HTTPException(409, "Ce chauffeur n’est plus disponible.")
 
-    assigned_at = datetime.now(timezone.utc)
-    updated_booking = {
-        **booking,
+    update_fields = {
         "driver_id": driver["id"],
         "driver_name": driver["name"],
         "driver_display_name": driver["name"],
-        "pre_assignment_status": normalize_booking_status(booking.get("status")),
         "status": "ASSIGNED",
-        "assigned_at": assigned_at
+        "assigned_at": datetime.now(timezone.utc),
     }
-    await db.bookings.update_one(
-        {"id": booking_id},
-        {"$set": {
-            "driver_id": driver["id"],
-            "driver_name": driver["name"],
-            "driver_display_name": driver["name"],
-            "pre_assignment_status": normalize_booking_status(booking.get("status")),
-            "status": "ASSIGNED",
-            "assigned_at": assigned_at
-        }}
+    if not replacing:
+        update_fields["pre_assignment_status"] = status
+    result = await db.bookings.update_one(
+        {"id": booking_id, "status": booking["status"], "driver_id": booking.get("driver_id")},
+        {"$set": update_fields},
     )
-    settings = await get_commission_settings()
-    await generate_and_store_document(updated_booking, settings, "order")
+    if result.matched_count != 1:
+        raise HTTPException(409, "La course ou son affectation a changé. Actualisez la liste.")
+    updated_booking = {**booking, **update_fields}
+    try:
+        settings = await get_commission_settings()
+        await generate_and_store_document(updated_booking, settings, "order")
+    except (HTTPException, OSError, PyMongoError, RuntimeError, ValueError):
+        logger.exception("Could not prepare order document after assignment for booking %s", booking_id)
+        return {
+            "message": "Affectation enregistrée, mais le bon de commande et les notifications n’ont pas pu être préparés.",
+            "driver_name": driver["name"],
+            "warning": True,
+        }
 
     # Get client info
     client = {}
@@ -5722,7 +5742,10 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     await send_driver_assigned_to_client(updated_booking, driver)
     await send_booking_notification_to_driver(driver, updated_booking, client, order_download_url)
 
-    return {"message": "Course assignée avec succès", "driver_name": driver["name"]}
+    return {
+        "message": "Chauffeur remplacé avec succès" if replacing else "Course assignée avec succès",
+        "driver_name": driver["name"],
+    }
 
 @api_router.put("/admin/bookings/{booking_id}/receive")
 async def receive_booking(booking_id: str, request: Request):

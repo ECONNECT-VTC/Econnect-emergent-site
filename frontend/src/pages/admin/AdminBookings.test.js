@@ -132,6 +132,35 @@ describe('AdminBookings', () => {
     container.remove();
   });
 
+  it('lets the admin replace an assigned partner with another available driver before departure', async () => {
+    const assigned = { id: 'replace-me', status: 'ASSIGNED', driver_id: 'old', driver_name: 'Chauffeur actuel' };
+    const drivers = [
+      { id: 'old', name: 'Actuel', is_available: true },
+      { id: 'new', name: 'Remplaçant', is_available: true },
+      { id: 'busy', name: 'Indisponible', is_available: false },
+    ];
+    axios.get.mockImplementation(async (url) => ({
+      data: url.endsWith('/admin/bookings')
+        ? [assigned, { ...assigned, id: 'started', status: 'IN_PROGRESS' }, { ...assigned, id: 'self', fulfilled_by_admin: true }]
+        : url.endsWith('/admin/drivers') ? drivers : [],
+    }));
+    axios.put.mockResolvedValue({ data: { message: 'Chauffeur remplacé avec succès' } });
+    await act(async () => root.render(<AdminBookings />));
+    expect(container.querySelector('[data-testid="assign-btn-started"]')).toBeNull();
+    expect(container.querySelector('[data-testid="assign-btn-self"]')).toBeNull();
+    const replace = container.querySelector('[data-testid="assign-btn-replace-me"]');
+    expect(replace.textContent).toContain('Remplacer le chauffeur');
+    await act(async () => replace.click());
+    expect(container.querySelector('[data-value="old"]')).toBeNull();
+    expect(container.querySelector('[data-value="busy"]')).toBeNull();
+    await act(async () => container.querySelector('[data-value="new"]').click());
+    await act(async () => findButton('Confirmer').click());
+    expect(axios.put).toHaveBeenCalledWith('http://api.test/api/admin/bookings/replace-me/assign', {
+      driver_id: 'new', expected_driver_id: 'old',
+    }, { withCredentials: true });
+    expect(container.textContent).toContain('Chauffeur remplacé avec succès');
+  });
+
   it('creates an admin booking with the same coordinate contract and preserves manual pricing/payment', async () => {
     axios.get.mockResolvedValue({ data: [] });
     axios.post.mockResolvedValue({ data: {} });

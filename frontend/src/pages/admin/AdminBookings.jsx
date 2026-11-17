@@ -34,6 +34,8 @@ import PassengerDetails, { passengerDetailsError } from '@/components/PassengerD
 import ChargeDraftEditor from '@/components/ChargeDraftEditor';
 
 const describeLoadFailure = (label, error) => `${label} : ${parseApiError(error, 'Erreur inconnue')}`;
+const canReplaceDriver = (booking) => statusEquals(booking?.status, 'ASSIGNED')
+  && Boolean(booking.driver_id) && !booking.fulfilled_by_admin;
 const PAYMENT_AWAITING_STATUSES = ['pending', 'partially_paid'];
 const normalizeAmount = (value) => {
   const parsed = Number(value);
@@ -409,6 +411,8 @@ const AdminBookings = () => {
 
   const openAssignDialog = async (booking) => {
     setError('');
+    setSuccessMessage('');
+    const replacing = canReplaceDriver(booking);
     // Refresh the booking data first to avoid assigning a stale-status booking (Bug 2 fix)
     try {
       const [bookingsRes] = await Promise.all([
@@ -420,13 +424,17 @@ const AdminBookings = () => {
         setError('Course introuvable. La liste a été actualisée.');
         return;
       }
-      if (!statusEquals(freshBooking.status, 'QUOTE_ACCEPTED') && !statusEquals(freshBooking.status, 'ORDER_ISSUED')) {
-        setError(`Impossible d'assigner : la course est en statut "${freshBooking.status}". Le devis doit être validé avant l'affectation. La liste a été actualisée.`);
+      const allowed = replacing
+        ? canReplaceDriver(freshBooking) && freshBooking.driver_id === booking.driver_id
+        : statusEquals(freshBooking.status, 'QUOTE_ACCEPTED') || statusEquals(freshBooking.status, 'ORDER_ISSUED');
+      if (!allowed) {
+        setError('Le statut ou l’affectation de la course a changé. La liste a été actualisée.');
         return;
       }
       setSelectedBooking(freshBooking);
-    } catch {
-      setSelectedBooking(booking);
+    } catch (err) {
+      setError(parseApiError(err, 'Impossible de vérifier l’affectation de la course.'));
+      return;
     }
     setSelectedDriver('');
     setAssignDialogOpen(true);
@@ -437,15 +445,19 @@ const AdminBookings = () => {
     setAssigning(true);
     setError('');
     try {
-      await axios.put(`${API_URL}/api/admin/bookings/${selectedBooking.id}/assign`, { driver_id: selectedDriver }, { withCredentials: true });
+      const payload = { driver_id: selectedDriver };
+      if (canReplaceDriver(selectedBooking)) payload.expected_driver_id = selectedBooking.driver_id;
+      const { data } = await axios.put(`${API_URL}/api/admin/bookings/${selectedBooking.id}/assign`, payload, { withCredentials: true });
       setAssignDialogOpen(false);
       setSelectedBooking(null);
       setSelectedDriver('');
-      fetchData();
+      await fetchData(filter === 'awaiting_payment');
+      if (data?.warning) setError(data.message);
+      else if (data?.message) setSuccessMessage(data.message);
     } catch (err) {
-      // Refresh on failure so the UI reflects the real state (Bug 2 fix)
-      fetchData();
-      setError('La course a été modifiée entre-temps. La liste a été actualisée.');
+      setAssignDialogOpen(false);
+      await fetchData(filter === 'awaiting_payment');
+      setError(parseApiError(err, 'Impossible de modifier l’affectation. La liste a été actualisée.'));
     } finally {
       setAssigning(false);
     }
@@ -773,9 +785,9 @@ const AdminBookings = () => {
                     </Button>
                   )}
 
-                  {(statusEquals(booking.status, 'QUOTE_ACCEPTED') || statusEquals(booking.status, 'ORDER_ISSUED')) && (
+                  {(canSelfAssign || canReplaceDriver(booking)) && (
                     <Button size="sm" className="bg-[#D4AF37] hover:bg-[#F0C74A] text-[#0A0A0A]" onClick={() => openAssignDialog(booking)} data-testid={`assign-btn-${booking.id}`}>
-                      <CarSimple size={16} className="mr-1" />Assigner à un chauffeur
+                      <CarSimple size={16} className="mr-1" />{canReplaceDriver(booking) ? 'Remplacer le chauffeur' : 'Assigner à un chauffeur'}
                     </Button>
                   )}
 
@@ -1179,16 +1191,22 @@ const AdminBookings = () => {
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent className="bg-[#141414] border-white/10">
           <DialogHeader>
-            <DialogTitle className="text-[#D4AF37]">Assigner un chauffeur</DialogTitle>
+            <DialogTitle className="text-[#D4AF37]">{canReplaceDriver(selectedBooking) ? 'Remplacer le chauffeur' : 'Assigner un chauffeur'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-sm text-[#A1A1AA]">Course: {selectedBooking?.pickup_address} → {selectedBooking?.dropoff_address}</p>
+            {canReplaceDriver(selectedBooking) && (
+              <p className="text-sm text-[#A1A1AA]">Chauffeur actuel : {selectedBooking.driver_display_name || selectedBooking.driver_name || '—'}</p>
+            )}
+            {selectedBooking && !drivers.some((d) => d.is_available && d.id !== selectedBooking.driver_id) && (
+              <p role="status" className="text-sm text-amber-200">Aucun autre chauffeur disponible.</p>
+            )}
             <Select value={selectedDriver} onValueChange={setSelectedDriver}>
               <SelectTrigger className="bg-[#1E1E1E] border-white/10">
                 <SelectValue placeholder="Choisir un chauffeur" />
               </SelectTrigger>
               <SelectContent className="bg-[#1E1E1E] border-white/10">
-                {drivers.filter((d) => d.is_available).map((d) => (
+                {drivers.filter((d) => d.is_available && d.id !== selectedBooking?.driver_id).map((d) => (
                   <SelectItem key={d.id} value={d.id}>{d.name} - {d.vehicle_model}</SelectItem>
                 ))}
               </SelectContent>
