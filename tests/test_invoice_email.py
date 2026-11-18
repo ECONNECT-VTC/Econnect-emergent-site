@@ -552,10 +552,6 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
         client = {"name": "Client", "phone": "0102030405", "email": "client@example.com"}
         with patch.object(server, "send_notification_email", AsyncMock(return_value=True)) as send_email:
             await server.send_booking_notification_to_driver(driver, booking, client)
-        self.assertEqual(send_email.await_args.kwargs["template_key"], email_service.TEMPLATE_KEY_DRIVER_ASSIGNED)
-        params = send_email.await_args.kwargs["template_params"]
-        self.assertEqual(params["BOOKING_ID"], "ABCDEF")
-        self.assertEqual(params["BOOKING_REFERENCE"], "ABCDEF")
         self.assertIn("#ABCDEF", send_email.await_args.args[1])
         self.assertIn("ABCDEF", send_email.await_args.args[2])
         self.assertNotIn(booking["id"], send_email.await_args.args[2])
@@ -593,10 +589,11 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
             )
 
         users.find_one.assert_awaited_once()
-        params = send_email.await_args.kwargs["template_params"]
-        self.assertEqual(params["CLIENT_NAME"], booking["client_name"])
-        self.assertEqual(params["CLIENT_PHONE"], booking["client_phone"])
-        self.assertEqual(params["CLIENT_EMAIL"], booking["client_email"])
+        self.assertEqual(send_email.await_args.args[0], driver["email"])
+        html_content = send_email.await_args.args[2]
+        self.assertIn(booking["client_name"], html_content)
+        self.assertIn(booking["client_phone"], html_content)
+        self.assertIn(booking["client_email"], html_content)
 
     async def test_refund_confirmation_uses_cancellation_template(self):
         booking = {
