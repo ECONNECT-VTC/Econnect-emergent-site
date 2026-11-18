@@ -198,14 +198,11 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
                         server.AdminAssignSelfRequest(vehicle_id="fleet-1", driver_display_name="Oumar"),
                     )
                 payload = self.payloads[-1]
-                if template:
-                    self.assertEqual(payload["params"]["DRIVER_NAME"], "Oumar")
-                    self.assertEqual(payload["params"]["DRIVER_PHONE"], admin["phone"])
-                    self.assertEqual(payload["params"]["VEHICLE_MODEL"], "Mercedes Classe E")
-                    self.assertEqual(payload["params"]["VEHICLE_PLATE"], vehicle["plate"])
-                else:
-                    self.assertIn("Mercedes Classe E", payload["html_content"])
-                    self.assertIn(admin["phone"], payload["html_content"])
+                self.assertNotIn("template_id", payload)
+                self.assertIn("Oumar", payload["html_content"])
+                self.assertIn("Mercedes Classe E", payload["html_content"])
+                self.assertIn(admin["phone"], payload["html_content"])
+                self.assertIn(vehicle["plate"], payload["html_content"])
                 visible = payload["subject"] + payload.get("html_content", "") + str(payload.get("params", {}))
                 self.assertNotIn("admin", visible.lower())
                 self.assertNotIn("administrat", visible.lower())
@@ -214,10 +211,10 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         booking = {**self.booking, "fulfilled_by_admin": True}
         with patch.object(server, "send_notification_email", AsyncMock(return_value=True)) as send:
             await server.send_driver_assigned_to_client(booking, {"name": "Oumar Administrateur"})
-        params = send.await_args.kwargs["template_params"]
-        self.assertEqual(params["DRIVER_NAME"], "Oumar")
-        self.assertEqual(params["DRIVER_PHONE"], "-")
-        visible = str(send.await_args.args[1:]) + str(params)
+        html_content = send.await_args.args[2]
+        self.assertIn("<td>Oumar</td>", html_content)
+        self.assertIn("<td>-</td>", html_content)
+        visible = str(send.await_args.args[1:]) + html_content
         self.assertNotIn("admin", visible.lower())
 
     async def test_assignment_dedup_and_reassignment(self):
@@ -398,7 +395,7 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         started, finish = asyncio.Event(), asyncio.Event()
 
         async def send_email(*_args, **kwargs):
-            if kwargs["template_params"]["DRIVER_NAME"] == "Chauffeur":
+            if "<td>Chauffeur</td><td>Chauffeur</td>" in _args[2]:
                 started.set()
                 await finish.wait()
             return True

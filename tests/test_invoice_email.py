@@ -589,10 +589,11 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
             )
 
         users.find_one.assert_awaited_once()
-        params = send_email.await_args.kwargs["template_params"]
-        self.assertEqual(params["CLIENT_NAME"], booking["client_name"])
-        self.assertEqual(params["CLIENT_PHONE"], booking["client_phone"])
-        self.assertEqual(params["CLIENT_EMAIL"], booking["client_email"])
+        self.assertEqual(send_email.await_args.args[0], driver["email"])
+        html_content = send_email.await_args.args[2]
+        self.assertIn(booking["client_name"], html_content)
+        self.assertIn(booking["client_phone"], html_content)
+        self.assertIn(booking["client_email"], html_content)
 
     async def test_refund_confirmation_uses_cancellation_template(self):
         booking = {
