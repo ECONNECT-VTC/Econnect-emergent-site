@@ -78,7 +78,7 @@ describe('API config resolution', () => {
     expect(config.API_URL_SOURCE).toBe('runtime-config');
   });
 
-  it('falls back to the current origin outside localhost', () => {
+  it('falls back to the production API outside localhost', () => {
     process.env = {
       ...ORIGINAL_ENV,
       REACT_APP_API_URL: '',
@@ -92,8 +92,8 @@ describe('API config resolution', () => {
 
     const { API_URL, API_URL_SOURCE } = require('./config');
 
-    expect(API_URL).toBe('https://econnect-emergent-site.hostingersite.com');
-    expect(API_URL_SOURCE).toBe('same-origin-fallback');
+    expect(API_URL).toBe('https://api.econnect-vtc.com');
+    expect(API_URL_SOURCE).toBe('production-fallback');
   });
 
   it('resolves the public contact phone from runtime config before env and formats it for display', () => {
