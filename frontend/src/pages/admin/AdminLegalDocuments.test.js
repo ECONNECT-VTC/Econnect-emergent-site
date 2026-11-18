@@ -148,7 +148,7 @@ describe('admin legal documents', () => {
     await act(async () => root.render(<AdminLegalDocuments />));
     await type('legal-full-text', 'Nouveau texte');
     await click('Confidentialité');
-    expect(container.querySelector('#legal-full-text').value).toBe('Proposition à relire.');
+    expect(container.querySelector('#legal-full-text').value).toBe('Premier bloc\n\nProposition à relire.');
     expect(container.querySelectorAll('#legal-full-text')).toHaveLength(1);
   });
 });
