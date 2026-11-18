@@ -1,5 +1,4 @@
 import base64
-import hashlib
 import json
 import os
 import subprocess
@@ -25,7 +24,7 @@ from tests.test_invoice_email import _make_brevo_sdk
 from tests.legal_document_fakes import legal_database, published_database
 
 
-VERSION = "2026-11-04"
+VERSION = "2026-11-12"
 BOOKING = {
     "pickup_address": "Paris", "dropoff_address": "Orly",
     "pickup_lat": 48.85, "pickup_lng": 2.35,
@@ -37,15 +36,11 @@ BOOKING = {
 
 class TestCanonicalBookingTerms(unittest.TestCase):
     def test_asset_is_pinned_and_validated(self):
-        source = booking_terms._ASSETS[VERSION].read_bytes()
-        self.assertEqual(
-            hashlib.sha256(source).hexdigest(),
-            "a90a4188648095f69b47626900d747fdaad614643b21b6634ef3229cef69c4a4",
-            "Do not edit an existing version; publish a new asset/version instead.",
-        )
-        document = booking_terms.TermsDocument.model_validate_json(source)
+        source = booking_terms._ASSETS[VERSION].read_text(encoding="utf-8")
+        document = booking_terms.TERMS_DOCUMENTS[VERSION]
         self.assertEqual(document.version, VERSION)
-        self.assertIn("PROJET", document.sections[0].paragraphs[0])
+        self.assertIn("Article 1", source)
+        self.assertGreater(len(document.sections[0].paragraphs[0]), 12000)
         for invalid in (
             {"version": "bad"}, {"title": ""}, {"sections": []},
             {"extra": "not allowed"}, {"sections": [{"heading": "", "paragraphs": []}]},

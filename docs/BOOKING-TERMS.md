@@ -30,8 +30,9 @@ necessary: this marker gate is not legal validation.
 
 After the initial feature deployment, open **Documents légaux** in the administrator
 menu (`/fr/admin/legal-documents`). Choose CGV, Mentions légales or Confidentialité.
-Edit the title, section headings and paragraph fields; add or remove blocks as
-needed. Preview does not save or publish. Save the draft, confirm the completed
+Edit the title and paste the complete document into the single full-text field.
+Legacy sections and paragraphs are merged into that field when the editor opens.
+Preview does not save or publish. Save the draft, confirm the completed
 review, save that confirmation, then publish using the separate confirmation.
 The history opens read-only snapshots, not editable replacements.
 
@@ -47,7 +48,7 @@ via `get_current_user` and requires role `admin` (401/403 otherwise).
 
 - `GET /api/admin/legal-documents`: `{documents: [record, ...]}`, all three kinds.
 - `PUT /api/admin/legal-documents/{kind}/draft`:
-  `{revision, title, sections: [{heading, paragraphs: [string]}], review_confirmed}`.
+  `{revision, title, sections: [{heading: "Texte intégral", paragraphs: [string]}], review_confirmed}`.
 - `POST /api/admin/legal-documents/{kind}/publish`: `{revision}`.
 - Both writes return the current single record:
   `{kind, title, draft: {title, sections, review_confirmed}, revision,
@@ -58,10 +59,10 @@ via `get_current_user` and requires role `admin` (401/403 otherwise).
   snapshot `{kind, version, title, sections, published_at}`; no drafts or publisher.
 - `GET /api/legal-documents/{kind}/{version}/pdf`: PDF of that immutable snapshot.
 
-Unknown kinds/versions and unpublished documents return 404. Title max 200,
-heading max 300, paragraph max 12000 characters; text is trimmed and nonempty.
-Sections and paragraph arrays are nonempty (max 100 sections, 200 paragraphs per
-section), with an overall 200000-character document limit. Extra fields, coerced booleans and noninteger/negative revisions are
+Unknown kinds/versions and unpublished documents return 404. Title max 200.
+The technical heading is `Texte intégral`; the full-text paragraph accepts up to
+200000 characters and the overall document limit remains 200000 characters.
+Text is trimmed and nonempty. Extra fields, coerced booleans and noninteger/negative revisions are
 rejected. Version identifiers are opaque 32-character UUID hex strings.
 
 `GET /api/booking-terms` preserves `{enabled, version, title, sections}`. Once CGV
@@ -74,13 +75,14 @@ registered legacy version returns the pinned original with `published_at: null`
 (no reliable publication timestamp is available). Both generic current JSON
 endpoints send `Cache-Control: no-store`. `GET /api/booking-terms/{version}/pdf` remains compatible
 with published Mongo snapshots and the original legacy asset `2026-11-04`.
+The supplied CGV draft is version `2026-11-12` and is not published automatically.
 
 ## Persistence, concurrency and archives
 
 `legal_documents` uses `_id = kind` and stores `{draft, revision, published_version,
 history}`. First admin reads initialize drafts through `$setOnInsert`. Legal notice
-and privacy seeds live in `backend/assets/legal-documents/`; CGV reuse the immutable
-legacy asset plus an explicit missing-information marker. Initialization never
+and privacy seeds live in `backend/assets/legal-documents/`; the current CGV draft
+is loaded from `backend/assets/booking-terms/2026-11-12.txt`. Initialization never
 replaces saved content and never publishes.
 
 `legal_document_versions` stores immutable snapshots under `_id = kind:uuid`.

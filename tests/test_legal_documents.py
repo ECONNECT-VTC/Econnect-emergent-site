@@ -184,8 +184,8 @@ class TestLegalDocumentsAPI(unittest.TestCase):
             {"sections": []}, {"sections": [{"heading": "", "paragraphs": ["x"]}]},
             {"sections": [{"heading": "x", "paragraphs": [" "]}]},
             {"sections": [{"heading": "x" * 301, "paragraphs": ["x"]}]},
-            {"sections": [{"heading": "x", "paragraphs": ["x" * 12001]}]},
-            {"sections": [{"heading": "x", "paragraphs": ["x" * 12000] * 17}]},
+            {"sections": [{"heading": "x", "paragraphs": ["x" * 200001]}]},
+            {"sections": [{"heading": "x", "paragraphs": ["x" * 200000] * 2}]},
             {"published_version": "fabricated"},
         ):
             with self.subTest(invalid=invalid):
