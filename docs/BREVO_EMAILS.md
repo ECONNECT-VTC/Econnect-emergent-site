@@ -21,8 +21,8 @@ Configurer dans l’hébergeur (jamais dans Git) :
 - `BREVO_TEMPLATE_BOOKING_CREATED`
 - `BREVO_TEMPLATE_QUOTE_AVAILABLE`
 - `BREVO_TEMPLATE_PAYMENT_CONFIRMED`
-- `BREVO_TEMPLATE_DRIVER_ASSIGNED`
-- `BREVO_TEMPLATE_DRIVER_ASSIGNED_CLIENT`
+- `BREVO_TEMPLATE_DRIVER_ASSIGNED` (historical; assignment emails use the backend HTML to keep recipients and content coupled)
+- `BREVO_TEMPLATE_DRIVER_ASSIGNED_CLIENT` (historical; assignment emails use the backend HTML to keep recipients and content coupled)
 - `BREVO_TEMPLATE_DRIVER_DOCUMENTS`
 - `BREVO_TEMPLATE_BOOKING_COMPLETED`
 - `BREVO_TEMPLATE_INVOICE`
@@ -54,8 +54,8 @@ Les fonctions `send_notification_email` et `send_brevo_transactional_email` acce
 | `BREVO_TEMPLATE_BOOKING_CREATED` | Course créée pour un client existant |
 | `BREVO_TEMPLATE_QUOTE_AVAILABLE` | Devis disponible |
 | `BREVO_TEMPLATE_PAYMENT_CONFIRMED` | Paiement confirmé |
-| `BREVO_TEMPLATE_DRIVER_ASSIGNED` | Course assignée (email au chauffeur) |
-| `BREVO_TEMPLATE_DRIVER_ASSIGNED_CLIENT` | Chauffeur assigné (email au client, même sans compte, y compris auto-affectation avec véhicule de flotte) |
+| `BREVO_TEMPLATE_DRIVER_ASSIGNED` | Réservé aux anciennes configurations ; l’affectation chauffeur est envoyée avec le HTML backend |
+| `BREVO_TEMPLATE_DRIVER_ASSIGNED_CLIENT` | Réservé aux anciennes configurations ; l’affectation client est envoyée avec le HTML backend |
 | `BREVO_TEMPLATE_DRIVER_DOCUMENTS` | Passage à `COMPLETED` (email au chauffeur avec ses trois PDF) |
 | `BREVO_TEMPLATE_BOOKING_COMPLETED` | Course terminée |
 | `BREVO_TEMPLATE_INVOICE` | Facture disponible (PDF joint) |

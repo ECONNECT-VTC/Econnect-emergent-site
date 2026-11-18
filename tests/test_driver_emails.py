@@ -60,21 +60,10 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         payload = self.payloads[0]
         self.assertEqual(payload["to"], [{"email": "guest@example.com"}])
         self.assertEqual(payload["subject"], "🚗 Votre chauffeur est assigné – course #ABCDEF")
-        self.assertEqual(payload["template_id"], 4001)
-        self.assertEqual(payload["params"], {
-            "CLIENT_NAME": "<Client & Test>",
-            "BOOKING_ID": "ABCDEF",
-            "BOOKING_REFERENCE": "ABCDEF",
-            "PICKUP_DATE": "2026-10-12",
-            "PICKUP_TIME": "09:30",
-            "PICKUP_ADDRESS": "<Paris>",
-            "DROPOFF_ADDRESS": "CDG",
-            "DRIVER_NAME": "Chauffeur",
-            "DRIVER_PHONE": "0601020304",
-            "VEHICLE_MODEL": "Tesla Model Y",
-            "VEHICLE_PLATE": "AA-123-BB",
-            "BOOKING_URL": f"{server.FRONTEND_URL}/fr/client/bookings",
-        })
+        self.assertNotIn("template_id", payload)
+        self.assertIn("Votre chauffeur est assigné", payload["html_content"])
+        self.assertNotIn("Votre course est terminée", payload["html_content"])
+        self.assertIn("Chauffeur", payload["html_content"])
         self.users.find_one.assert_not_awaited()
         self.assertEqual(
             self.bookings.update_one.await_args_list[-2].args[1],
@@ -90,9 +79,10 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
                 SimpleNamespace(base_url="https://example.com/"),
             )
         self.assertEqual(len(self.payloads), 2)
-        self.assertEqual(self.payloads[0]["params"]["DRIVER_NAME"], self.driver["name"])
-        self.assertEqual(self.payloads[0]["params"]["DRIVER_PHONE"], self.driver["phone"])
+        self.assertEqual(self.payloads[0]["to"], [{"email": "guest@example.com"}])
+        self.assertIn("Votre chauffeur est assigné", self.payloads[0]["html_content"])
         self.assertEqual(self.payloads[1]["to"], [{"email": self.driver["email"]}])
+        self.assertIn("Nouvelle course assignée", self.payloads[1]["html_content"])
 
     async def test_admin_replaces_partner_without_changing_booking_or_payment_status(self):
         self.booking.update(

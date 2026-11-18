@@ -60,8 +60,6 @@ from email_service import (
     TEMPLATE_KEY_BOOKING_CREATED,
     TEMPLATE_KEY_BOOKING_COMPLETED,
     TEMPLATE_KEY_CANCELLATION,
-    TEMPLATE_KEY_DRIVER_ASSIGNED,
-    TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT,
     TEMPLATE_KEY_DRIVER_DOCUMENTS,
     TEMPLATE_KEY_INVOICE,
     TEMPLATE_KEY_PASSWORD_RESET,
@@ -3565,8 +3563,6 @@ async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
             booking["client_email"],
             f"🚗 Votre chauffeur est assigné – course #{booking_short_reference(booking_id)}",
             html_content,
-            template_key=TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT,
-            template_params=params,
         )
         if sent:
             await db.bookings.update_one(
@@ -3652,21 +3648,6 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
         driver["email"],
         subject,
         html_content,
-        template_key=TEMPLATE_KEY_DRIVER_ASSIGNED,
-        template_params={
-            "CLIENT_NAME": client.get("name", "N/A"),
-            "CLIENT_PHONE": client.get("phone", "N/A"),
-            "CLIENT_EMAIL": client.get("email", "N/A"),
-            "BOOKING_ID": booking_short_reference(booking.get("id")),
-            "BOOKING_REFERENCE": booking_short_reference(booking.get("id")),
-            "PICKUP_DATE": booking.get("pickup_date"),
-            "PICKUP_TIME": booking.get("pickup_time"),
-            "PICKUP_ADDRESS": booking.get("pickup_address"),
-            "DROPOFF_ADDRESS": booking.get("dropoff_address"),
-            "TRANSFER_TYPE": booking.get("transfer_type"),
-            "NOTES": booking.get("notes", ""),
-            "ORDER_DOWNLOAD_URL": order_download_url,
-        },
     )
 
 
