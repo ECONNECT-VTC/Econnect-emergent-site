@@ -15,7 +15,7 @@ from booking_terms import CURRENT_TERMS_VERSION, TERMS_DOCUMENTS
 
 
 KINDS = ("terms", "legal-notice", "privacy")
-Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=12000)]
+Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200000)]
 GUIDANCE = (
     "Suggestions de rédaction, non conseil juridique. Compléter les marqueurs "
     "[À COMPLÉTER], vérifier les pratiques réelles et faire valider les textes "

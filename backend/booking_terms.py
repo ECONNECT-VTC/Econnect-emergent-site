@@ -26,14 +26,22 @@ class TermsDocument(BaseModel):
     sections: tuple[TermsSection, ...] = Field(min_length=1)
 
 
-CURRENT_TERMS_VERSION = "2026-11-04"
+CURRENT_TERMS_VERSION = "2026-11-12"
 # Explicit allowlist: no request value is ever used to construct a filesystem path.
 _ASSETS = {
     "2026-11-04": Path(__file__).parent / "assets" / "booking-terms" / "2026-11-04.json",
+    "2026-11-12": Path(__file__).parent / "assets" / "booking-terms" / "2026-11-12.txt",
 }
 _documents = {}
 for _version, _path in _ASSETS.items():
-    _document = TermsDocument.model_validate_json(_path.read_bytes())
+    if _path.suffix == ".txt":
+        _document = TermsDocument(
+            version=_version,
+            title="Conditions générales de vente et de transport",
+            sections=(TermsSection(heading="Texte intégral", paragraphs=(_path.read_text(encoding="utf-8"),)),),
+        )
+    else:
+        _document = TermsDocument.model_validate_json(_path.read_bytes())
     if _document.version != _version:
         raise ValueError(f"Booking terms asset version mismatch: {_version}")
     _documents[_version] = _document
@@ -63,7 +71,8 @@ def generate_legal_document_pdf(document: dict) -> bytes:
         Spacer(1, 16),
     ]
     for section in document["sections"]:
-        story.append(Paragraph(escape(section["heading"]), styles["Heading2"]))
+        if section["heading"] != "Texte intégral":
+            story.append(Paragraph(escape(section["heading"]), styles["Heading2"]))
         for paragraph in section["paragraphs"]:
             story.append(Paragraph(escape(paragraph), styles["BodyText"]))
             story.append(Spacer(1, 8))

@@ -81,8 +81,8 @@ export default function AdminLegalDocuments() {
     setConfirmPublish(false);
     setNotice('');
   };
-  const updateSection = (index, patch) => updateDraft({
-    sections: draft.sections.map((section, position) => position === index ? { ...section, ...patch } : section),
+  const updateFullText = (text) => updateDraft({
+    sections: [{ heading: 'Texte intégral', paragraphs: [text] }],
   });
   const applyRecord = (value) => {
     if (!isLegalRecord(value) || value.kind !== kind) throw new Error('Réponse de sauvegarde invalide. Rechargez les documents.');
@@ -179,39 +179,13 @@ export default function AdminLegalDocuments() {
               <Input id="legal-title" value={draft.title} required maxLength={200} className={fieldClass}
                 onChange={(event) => updateDraft({ title: event.target.value })} />
             </div>
-            {draft.sections.map((section, index) => (
-              <div key={index} className="space-y-3 rounded-xl border border-white/15 bg-[#141414] p-4">
-                <Label htmlFor={`legal-section-${index}`}>Titre du bloc {index + 1}</Label>
-                <Input id={`legal-section-${index}`} value={section.heading} required maxLength={300} className={fieldClass}
-                  onChange={(event) => updateSection(index, { heading: event.target.value })} />
-                {section.paragraphs.map((text, paragraph) => (
-                  <div key={paragraph} className="space-y-2">
-                    <Label htmlFor={`legal-text-${index}-${paragraph}`}>Texte du bloc {index + 1}, paragraphe {paragraph + 1}</Label>
-                    <Textarea id={`legal-text-${index}-${paragraph}`} value={text} required maxLength={12000}
-                      className={`${fieldClass} min-h-[8rem]`}
-                      onChange={(event) => updateSection(index, {
-                        paragraphs: section.paragraphs.map((value, position) => position === paragraph ? event.target.value : value),
-                      })} />
-                    <Button type="button" variant="outline" disabled={section.paragraphs.length <= 1}
-                      onClick={() => updateSection(index, { paragraphs: section.paragraphs.filter((_, position) => position !== paragraph) })}>
-                      Supprimer le paragraphe {paragraph + 1} du bloc {index + 1}
-                    </Button>
-                  </div>
-                ))}
-                <div className="flex flex-wrap gap-3">
-                  <Button type="button" variant="outline" onClick={() => updateSection(index, { paragraphs: [...section.paragraphs, ''] })}>
-                    Ajouter un paragraphe au bloc {index + 1}
-                  </Button>
-                  <Button type="button" variant="outline" disabled={draft.sections.length <= 1}
-                    onClick={() => updateDraft({ sections: draft.sections.filter((_, position) => position !== index) })}>
-                    Supprimer le bloc {index + 1}
-                  </Button>
-                </div>
-              </div>
-            ))}
-            <Button type="button" variant="outline" onClick={() => updateDraft({
-              sections: [...draft.sections, { heading: '', paragraphs: [''] }],
-            })}>Ajouter un bloc</Button>
+            <div className="space-y-2 rounded-xl border border-white/15 bg-[#141414] p-4">
+              <Label htmlFor="legal-full-text">Texte intégral du document</Label>
+              <Textarea id="legal-full-text" value={draft.sections[0].paragraphs[0]} required maxLength={200000}
+                className={`${fieldClass} min-h-[32rem]`}
+                onChange={(event) => updateFullText(event.target.value)} />
+              <p className="text-sm text-[#A1A1AA]">Un seul champ est utilisé pour conserver le document complet, y compris ses retours à la ligne. Limite : 200 000 caractères.</p>
+            </div>
             <label className="flex items-start gap-3 text-sm text-[#C7B588]">
               <input type="checkbox" checked={draft.review_confirmed} className="mt-1 accent-[#D4AF37]"
                 onChange={(event) => updateDraft({ review_confirmed: event.target.checked }, true)} />

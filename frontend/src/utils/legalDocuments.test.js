@@ -5,8 +5,16 @@ const draft = { title: 'Document', sections: [{ heading: 'Bloc', paragraphs: ['T
 it('copies editable blocks without letting local changes mutate the saved draft', () => {
   const copy = copyLegalDraft(draft);
   copy.sections[0].paragraphs[0] = 'Modifié';
-  copy.sections.push({ heading: 'Autre', paragraphs: ['Suite'] });
+  expect(copy.sections).toEqual([{ heading: 'Texte intégral', paragraphs: ['Modifié'] }]);
   expect(draft.sections).toEqual([{ heading: 'Bloc', paragraphs: ['Texte'] }]);
+});
+
+it('does not duplicate the technical heading when normalizing a full-text draft', () => {
+  expect(copyLegalDraft({
+    title: 'Document',
+    sections: [{ heading: 'Texte intégral', paragraphs: ['Article 1', 'Article 2'] }],
+    review_confirmed: false,
+  }).sections).toEqual([{ heading: 'Texte intégral', paragraphs: ['Article 1\n\nArticle 2'] }]);
 });
 
 it.each([null, {}, { title: 'Sans bloc', sections: [] }, { title: 'Invalide', sections: [{ heading: 'Bloc', paragraphs: [null] }] }])(

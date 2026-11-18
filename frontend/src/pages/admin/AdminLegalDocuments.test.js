@@ -39,17 +39,16 @@ describe('admin legal documents', () => {
     jest.restoreAllMocks();
   });
 
-  it('edits text blocks, preserves edits across tabs and saves without publishing', async () => {
+  it('edits one full text field, preserves edits across tabs and saves without publishing', async () => {
     await act(async () => root.render(<AdminLegalDocuments />));
     expect(container.querySelector('[data-testid="publish-legal-draft"]').disabled).toBe(true);
     await type('legal-title', 'Mes CGV');
-    await type('legal-text-0-0', 'Mes conditions de réservation.');
+    await type('legal-full-text', 'Mes conditions de réservation.');
     await click('Mentions légales');
     expect(container.querySelector('#legal-title').value).toBe('Titre legal-notice');
     await click('CGV *');
     expect(container.querySelector('#legal-title').value).toBe('Mes CGV');
-    await click('Ajouter un paragraphe au bloc 1');
-    await type('legal-text-0-1', 'Deuxième paragraphe.');
+    await type('legal-full-text', 'Mes conditions de réservation.\n\nDeuxième paragraphe.');
     await click('Prévisualiser');
     expect(container.querySelector('article').textContent).toContain('Deuxième paragraphe.');
     axios.put.mockImplementation((url, body) => Promise.resolve({ data: {
@@ -145,16 +144,11 @@ describe('admin legal documents', () => {
     expect(container.textContent).not.toContain('Nouvelle version publiée');
   });
 
-  it('adds and removes text blocks without altering another document', async () => {
+  it('keeps one full text field when switching documents', async () => {
     await act(async () => root.render(<AdminLegalDocuments />));
-    await click('Ajouter un bloc');
-    await type('legal-section-1', 'Nouveau bloc');
-    await type('legal-text-1-0', 'Nouveau texte');
-    expect(container.querySelector('#legal-section-1').value).toBe('Nouveau bloc');
-    await click('Supprimer le bloc 1');
-    expect(container.querySelector('#legal-section-0').value).toBe('Nouveau bloc');
+    await type('legal-full-text', 'Nouveau texte');
     await click('Confidentialité');
-    expect(container.querySelector('#legal-section-0').value).toBe('Premier bloc');
-    expect(container.querySelector('#legal-section-1')).toBeNull();
+    expect(container.querySelector('#legal-full-text').value).toBe('Proposition à relire.');
+    expect(container.querySelectorAll('#legal-full-text')).toHaveLength(1);
   });
 });

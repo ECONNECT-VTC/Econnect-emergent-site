@@ -18,6 +18,11 @@ export const isLegalRecord = (value) => LEGAL_DOCUMENTS.some(({ kind }) => value
 
 export const copyLegalDraft = (value) => ({
   title: value.title,
-  sections: value.sections.map((section) => ({ heading: section.heading, paragraphs: [...section.paragraphs] })),
+  sections: [{
+    heading: 'Texte intégral',
+    paragraphs: [value.sections.length === 1 && value.sections[0].heading === 'Texte intégral'
+      ? value.sections[0].paragraphs.join('\n\n')
+      : value.sections.flatMap((section) => [section.heading, ...section.paragraphs]).join('\n\n')],
+  }],
   review_confirmed: value.review_confirmed,
 });
