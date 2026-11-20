@@ -13,6 +13,7 @@ const defaultForm = {
   company_siret: 'À compléter',
   company_vtc_number: 'À compléter',
   company_vat_number: 'À compléter',
+  booking_alert_email: 'reservation@econnect-vtc.com',
 };
 
 const toPercentValue = (value) => Number(value || 0) * 100;
@@ -136,6 +137,20 @@ const AdminCommissions = () => {
             />
           </div>
         ))}
+
+        <div>
+          <label className="block text-sm text-[#A1A1AA]">E-mail des alertes de courses</label>
+          <input
+            type="email"
+            className="w-full bg-[#0A0A0A] border border-white/10 rounded px-3 py-2"
+            value={form.booking_alert_email || ''}
+            onChange={(e) => handleChange('booking_alert_email', e.target.value)}
+            placeholder="reservation@econnect-vtc.com"
+          />
+          <p className="mt-1 text-xs text-[#71717A]">
+            Recevez les nouvelles demandes et les annulations client ou chauffeur.
+          </p>
+        </div>
 
         <button
           onClick={handleSave}
