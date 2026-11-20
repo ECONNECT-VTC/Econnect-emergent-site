@@ -3503,7 +3503,16 @@ async def release_booking_email(booking_id: str, flag: str, token: Optional[str]
 async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
     booking_id = booking.get("id")
     driver_id = booking.get("driver_id")
-    if not booking_id or not driver_id or not booking.get("client_email"):
+    if not booking_id or not driver_id:
+        return False
+    client_email = booking.get("client_email")
+    if not client_email and booking.get("client_id"):
+        client = await db.users.find_one(
+            {"id": booking["client_id"], "role": "client"},
+            {"_id": 0, "email": 1},
+        )
+        client_email = (client or {}).get("email")
+    if not client_email:
         return False
     if booking.get("client_driver_notified_driver_id") == driver_id:
         return False
@@ -3560,9 +3569,10 @@ async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
             cta_url=params["BOOKING_URL"],
         )
         sent = await send_notification_email(
-            booking["client_email"],
+            client_email,
             f"🚗 Votre chauffeur est assigné – course #{booking_short_reference(booking_id)}",
             html_content,
+            sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
         )
         if sent:
             await db.bookings.update_one(
@@ -3644,11 +3654,54 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
         cta_label=cta_label,
         cta_url=order_download_url,
     )
-    await send_notification_email(
+    return await send_notification_email(
         driver["email"],
         subject,
         html_content,
+        sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
     )
+
+
+async def send_driver_cancellation_to_admins(booking: dict, driver: dict, reason: str) -> int:
+    admins = await db.users.find(
+        {"role": "admin", "email": {"$exists": True, "$ne": ""}},
+        {"_id": 0, "email": 1},
+    ).to_list(100)
+    recipients = {item["email"].strip().lower() for item in admins if item.get("email")}
+    configured_admin = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    if configured_admin:
+        recipients.add(configured_admin)
+    if not recipients:
+        return 0
+
+    reference = booking_short_reference(booking.get("id"))
+    body_html = f"""
+<p>Le chauffeur <strong>{html_escape(driver.get('name') or '-')}</strong> s'est retiré de la course.</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%">
+  <tr><td>Référence</td><td>{html_escape(reference)}</td></tr>
+  <tr><td>Client</td><td>{html_escape(booking.get('client_name') or '-')}</td></tr>
+  <tr><td>Date</td><td>{html_escape(str(booking.get('pickup_date') or '-'))}</td></tr>
+  <tr><td>Départ</td><td>{html_escape(booking.get('pickup_address') or '-')}</td></tr>
+  <tr><td>Arrivée</td><td>{html_escape(booking.get('dropoff_address') or '-')}</td></tr>
+  <tr><td>Motif</td><td>{html_escape(reason)}</td></tr>
+</table>
+"""
+    html_content = build_email_html(
+        title="Retrait chauffeur — course à réaffecter",
+        body_html=body_html,
+        cta_label="Ouvrir l'administration",
+        cta_url=f"{FRONTEND_URL}/fr/admin/bookings",
+    )
+    sent = 0
+    for recipient in recipients:
+        if await send_notification_email(
+            recipient,
+            f"⚠️ Retrait chauffeur – course #{reference}",
+            html_content,
+            sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
+        ):
+            sent += 1
+    return sent
 
 
 async def send_booking_confirmation_to_client(booking: dict):
@@ -3881,17 +3934,7 @@ async def send_booking_completed_to_client(booking: dict):
             client_email,
             f"Merci d'avoir voyagé avec Econnect VTC – course #{booking_short_reference(booking_id)}",
             html_content,
-            template_key=TEMPLATE_KEY_BOOKING_COMPLETED,
-            template_params={
-                "CLIENT_NAME": booking.get("client_name", "Client"),
-                "BOOKING_ID": booking_short_reference(booking_id),
-                "BOOKING_REFERENCE": booking_short_reference(booking_id),
-                "PICKUP_DATE": booking.get("pickup_date"),
-                "PICKUP_TIME": booking.get("pickup_time"),
-                "PICKUP_ADDRESS": booking.get("pickup_address"),
-                "DROPOFF_ADDRESS": booking.get("dropoff_address"),
-                "BOOKING_URL": booking_url,
-            },
+            sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
         )
         if sent:
             await db.bookings.update_one(
@@ -5422,7 +5465,15 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
     if result.matched_count != 1:
         raise HTTPException(409, "La course ou son affectation a changé. Actualisez la liste.")
 
-    return {"message": "Vous vous êtes retiré de cette course. Elle sera réassignée.", "status": update_data["status"]}
+    try:
+        await send_driver_cancellation_to_admins(booking, driver, payload.cancellation_reason)
+    except Exception as exc:
+        logger.error("Failed to notify admins about driver cancellation for booking %s: %s", booking_id, exc)
+    return {
+        "message": "Vous vous êtes retiré de cette course. Elle sera réassignée.",
+        "status": update_data["status"],
+        "driver_cancellation_reason": payload.cancellation_reason,
+    }
 
 # ==================== ADMIN ROUTES ====================
 
@@ -5829,12 +5880,17 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
     order_download_url = f"{str(request.base_url).rstrip('/')}/api/driver/bookings/{booking_id}/order-pdf"
 
     # Send email notification to driver
-    await send_driver_assigned_to_client(updated_booking, driver)
-    await send_booking_notification_to_driver(driver, updated_booking, client, order_download_url)
+    client_email_sent = await send_driver_assigned_to_client(updated_booking, driver)
+    driver_email_sent = await send_booking_notification_to_driver(
+        driver, updated_booking, client, order_download_url
+    )
 
     return {
         "message": "Chauffeur remplacé avec succès" if replacing else "Course assignée avec succès",
         "driver_name": driver["name"],
+        "client_email_sent": client_email_sent,
+        "driver_email_sent": driver_email_sent,
+        "email_warning": not (client_email_sent and driver_email_sent),
     }
 
 @api_router.put("/admin/bookings/{booking_id}/receive")

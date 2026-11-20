@@ -6,6 +6,10 @@
 2. Authentifier le domaine avec SPF + DKIM.
 3. Ajouter une politique DMARC (minimum `p=none`, recommandé `quarantine`/`reject` ensuite).
 4. Vérifier que `BREVO_SENDER_EMAIL` et `BREVO_RESERVATION_SENDER_EMAIL` appartiennent à un domaine authentifié avec SPF/DKIM/DMARC.
+Pour Hotmail/Outlook, vérifier aussi la réputation et l’alignement du domaine d’envoi,
+ne pas utiliser une adresse `@hotmail.com` comme expéditeur, conserver un Reply-To
+du domaine Econnect et demander au destinataire d’ajouter `reservation@econnect-vtc.com`
+à ses expéditeurs approuvés. Le code ne peut pas garantir l’absence de classement en spam.
 
 ## 2) Variables d’environnement backend
 

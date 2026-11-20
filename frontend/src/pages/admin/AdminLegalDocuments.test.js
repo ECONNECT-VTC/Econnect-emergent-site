@@ -151,4 +151,20 @@ describe('admin legal documents', () => {
     expect(container.querySelector('#legal-full-text').value).toBe('Premier bloc\n\nProposition à relire.');
     expect(container.querySelectorAll('#legal-full-text')).toHaveLength(1);
   });
+
+  it('retries long text in legacy-sized chunks when the deployed API is still on the old limit', async () => {
+    await act(async () => root.render(<AdminLegalDocuments />));
+    const longText = 'x'.repeat(12001);
+    await type('legal-full-text', longText);
+    axios.put
+      .mockRejectedValueOnce({ response: { data: { detail: 'String should have at most 12000 characters' } } })
+      .mockResolvedValueOnce({ data: {
+        ...seed('terms'), revision: 1,
+        draft: { title: 'Titre terms', sections: [{ heading: 'Texte intégral', paragraphs: ['x'.repeat(12000), 'x'] }], review_confirmed: false },
+      } });
+    await click('Enregistrer le brouillon');
+    expect(axios.put).toHaveBeenCalledTimes(2);
+    expect(axios.put.mock.calls[1][1].sections[0].paragraphs).toEqual(['x'.repeat(12000), 'x']);
+    expect(container.querySelector('[role="status"]').textContent).toContain('publié n’a pas changé');
+  });
 });

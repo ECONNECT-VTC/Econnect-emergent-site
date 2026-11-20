@@ -70,6 +70,16 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
             {"$set": {"client_driver_notified_driver_id": "driver-1"}},
         )
 
+    async def test_assignment_uses_client_account_email_when_booking_email_is_missing(self):
+        self.booking.pop("client_email")
+        self.booking["client_id"] = "client-1"
+        self.users.find_one.side_effect = [
+            {"id": "client-1", "role": "client", "email": "account@example.com"},
+            {},
+        ]
+        self.assertTrue(await server.send_driver_assigned_to_client(self.booking, self.driver))
+        self.assertEqual(self.payloads[0]["to"], [{"email": "account@example.com"}])
+
     async def test_normal_assignment_hook_preserves_driver_email(self):
         self.booking["status"] = "QUOTE_ACCEPTED"
         self.bookings.find_one.return_value = self.booking
