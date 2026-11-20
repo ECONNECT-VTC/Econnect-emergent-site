@@ -453,7 +453,13 @@ const AdminBookings = () => {
       setSelectedBooking(null);
       setSelectedDriver('');
       await fetchData(filter === 'awaiting_payment');
-      if (data?.warning) setError(data.message);
+      if (data?.warning || data?.email_warning) {
+        const missing = [
+          data?.client_email_sent ? null : 'client',
+          data?.driver_email_sent ? null : 'chauffeur',
+        ].filter(Boolean).join(' et ');
+        setError(`${data.message}${missing ? ` Email non confirmé pour : ${missing}.` : ''}`);
+      }
       else if (data?.message) setSuccessMessage(data.message);
     } catch (err) {
       setAssignDialogOpen(false);
@@ -728,6 +734,11 @@ const AdminBookings = () => {
                   </div>
                   <p className="text-sm text-[#A1A1AA]">{booking.client_email}</p>
                   <p className="text-sm text-[#D4AF37]">{booking.pickup_date} - {booking.pickup_time}</p>
+                  {booking.driver_cancellation_reason && (
+                    <p className="mt-2 max-w-xl rounded border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-sm text-amber-200">
+                      Retrait chauffeur : {booking.driver_cancellation_reason}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                   {getStatusBadge(booking.status)}

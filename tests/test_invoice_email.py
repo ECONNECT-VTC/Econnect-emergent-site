@@ -345,7 +345,7 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
             "estimated_price": 120.0,
         }
 
-    async def test_quote_and_completion_emails_use_templates_and_params(self):
+    async def test_quote_uses_template_but_completion_uses_backend_html(self):
         sent_payloads = []
         sdk = _make_brevo_sdk(sent_payloads)
         bookings = SimpleNamespace(find_one=AsyncMock(return_value={}), update_one=AsyncMock())
@@ -386,23 +386,12 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(quote_payload["subject"], "📄 Votre devis Econnect VTC #QUOTE1")
         self.assertEqual(quote_payload["attachment"][0]["name"], "devis-QUOTE1.pdf")
-        self.assertEqual(completed_payload["template_id"], 3002)
+        self.assertNotIn("template_id", completed_payload)
+        self.assertIn("Votre course est terminée", completed_payload["html_content"])
+        self.assertNotIn("Remboursement", completed_payload["html_content"])
         self.assertEqual(
             completed_payload["subject"],
             "Merci d'avoir voyagé avec Econnect VTC – course #QUOTE1",
-        )
-        self.assertEqual(
-            completed_payload["params"],
-            {
-                "CLIENT_NAME": "<Client & Test>",
-                "BOOKING_ID": "QUOTE1",
-                "BOOKING_REFERENCE": "QUOTE1",
-                "PICKUP_DATE": booking["pickup_date"],
-                "PICKUP_TIME": booking["pickup_time"],
-                "PICKUP_ADDRESS": booking["pickup_address"],
-                "DROPOFF_ADDRESS": booking["dropoff_address"],
-                "BOOKING_URL": f"{server.FRONTEND_URL}/fr/client/bookings",
-            },
         )
         self.assertEqual(bookings.update_one.await_count, 2)
 

@@ -96,8 +96,23 @@ export default function AdminLegalDocuments() {
     setError('');
     setNotice('');
     try {
-      const { data } = await axios.put(`${API_URL}/api/admin/legal-documents/${kind}/draft`,
-        { revision: record.revision, ...draft }, apiOptions);
+      const url = `${API_URL}/api/admin/legal-documents/${kind}/draft`;
+      let payload = { revision: record.revision, ...draft };
+      let response;
+      try {
+        response = await axios.put(url, payload, apiOptions);
+      } catch (err) {
+        const detail = String(err?.response?.data?.detail || '');
+        if (!detail.includes('12000') || draft.sections.length !== 1) throw err;
+        const text = draft.sections[0].paragraphs[0];
+        const chunks = [];
+        for (let offset = 0; offset < text.length; offset += 12000) {
+          chunks.push(text.slice(offset, offset + 12000));
+        }
+        payload = { ...payload, sections: [{ heading: 'Texte intégral', paragraphs: chunks }] };
+        response = await axios.put(url, payload, apiOptions);
+      }
+      const { data } = response;
       applyRecord(data);
       setNotice('Brouillon enregistré. Le texte publié n’a pas changé.');
     } catch (err) {
