@@ -33,6 +33,22 @@ Configurer dans l’hébergeur (jamais dans Git) :
 - `BREVO_TEMPLATE_CANCELLATION`
 - `BREVO_TEMPLATE_ADMIN_MESSAGE`
 
+Les alertes destinées à l'administration pour les nouvelles demandes et les
+annulations client/chauffeur utilisent un SMTP séparé de Brevo. Configurer dans
+l'environnement du backend (jamais dans Git) :
+
+- `SMTP_HOST`
+- `SMTP_PORT` (défaut : `587`)
+- `SMTP_USERNAME`
+- `SMTP_PASSWORD`
+- `SMTP_FROM_EMAIL` (optionnel, repli sur `SMTP_USERNAME`)
+- `SMTP_USE_TLS` (défaut : `true`)
+
+L'adresse destinataire par défaut est `reservation@econnect-vtc.com`. Elle est
+modifiable dans **Administration → Commissions** et peut être remplacée par une
+adresse Gmail. L'absence de configuration SMTP est journalisée et ne bloque pas
+la création ou l'annulation d'une course.
+
 Pour envoyer les emails de réservation depuis une adresse dédiée tout en conservant l’expéditeur par défaut pour les comptes :
 
 ```bash

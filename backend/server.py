@@ -7,10 +7,12 @@ import logging
 import os
 import re
 import secrets
+import smtplib
 import unicodedata
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from email.message import EmailMessage
 from html import escape as html_escape
 from io import BytesIO
 from pathlib import Path
@@ -889,6 +891,7 @@ class CommissionSettings(BaseModel):
     company_vtc_number: str = "À compléter"
     company_vat_number: str = "À compléter"
     company_iban: str = "À compléter"
+    booking_alert_email: str = "reservation@econnect-vtc.com"
     updated_at: datetime
 
 class CommissionSettingsUpdate(BaseModel):
@@ -903,6 +906,7 @@ class CommissionSettingsUpdate(BaseModel):
     company_vtc_number: Optional[str] = None
     company_vat_number: Optional[str] = None
     company_iban: Optional[str] = None
+    booking_alert_email: Optional[EmailStr] = None
 
 class FinancialStats(BaseModel):
     total_revenue_ttc: float
@@ -1043,6 +1047,7 @@ def get_default_commission_settings() -> dict:
         "company_vtc_number": "À compléter",
         "company_vat_number": "À compléter",
         "company_iban": "À compléter",
+        "booking_alert_email": "reservation@econnect-vtc.com",
         "updated_at": datetime.now(timezone.utc)
     }
 
@@ -3465,6 +3470,136 @@ async def send_notification_email(
     )
 
 
+DEFAULT_BOOKING_ALERT_EMAIL = "reservation@econnect-vtc.com"
+
+
+def _smtp_enabled() -> bool:
+    return bool(os.environ.get("SMTP_HOST", "").strip())
+
+
+def _smtp_bool(value: Optional[str], default: bool = True) -> bool:
+    if value is None or not value.strip():
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _send_smtp_message(message: EmailMessage, host: str, port: int, username: str, password: str, use_tls: bool):
+    with smtplib.SMTP(host, port, timeout=20) as smtp:
+        smtp.ehlo()
+        if use_tls:
+            smtp.starttls()
+            smtp.ehlo()
+        if username:
+            smtp.login(username, password)
+        smtp.send_message(message)
+
+
+async def send_booking_alert_email(subject: str, html_content: str) -> bool:
+    """Send an administrator booking alert through the configured SMTP server."""
+    if not _smtp_enabled():
+        logger.warning("Booking alert SMTP is not configured; alert was not sent")
+        return False
+
+    settings = await get_commission_settings()
+    recipient = (
+        str(settings.get("booking_alert_email") or "").strip()
+        or os.environ.get("ADMIN_BOOKING_ALERT_EMAIL", "").strip()
+        or DEFAULT_BOOKING_ALERT_EMAIL
+    )
+    host = os.environ["SMTP_HOST"].strip()
+    username = os.environ.get("SMTP_USERNAME", "").strip()
+    password = os.environ.get("SMTP_PASSWORD", "")
+    sender = (
+        os.environ.get("SMTP_FROM_EMAIL", "").strip()
+        or username
+        or os.environ.get("BREVO_RESERVATION_SENDER_EMAIL", "").strip()
+        or DEFAULT_BOOKING_ALERT_EMAIL
+    )
+    try:
+        port = int(os.environ.get("SMTP_PORT", "587"))
+    except ValueError:
+        logger.error("SMTP_PORT must be an integer")
+        return False
+
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content("Consultez l'espace administration pour les détails de cette course.")
+    message.add_alternative(html_content, subtype="html")
+
+    try:
+        await asyncio.to_thread(
+            _send_smtp_message,
+            message,
+            host,
+            port,
+            username,
+            password,
+            _smtp_bool(os.environ.get("SMTP_USE_TLS")),
+        )
+    except (OSError, smtplib.SMTPException) as exc:
+        logger.error("Failed to send booking alert by SMTP to %s: %s", recipient, exc)
+        return False
+    return True
+
+
+async def send_admin_booking_alert(
+    booking: dict,
+    event: str,
+    reason: Optional[str] = None,
+    actor_name: Optional[str] = None,
+) -> bool:
+    reference = booking_short_reference(booking.get("id"))
+    event_labels = {
+        "new_booking": "Nouvelle demande de course",
+        "client_cancellation": "Demande d'annulation client",
+        "driver_cancellation": "Retrait chauffeur — course à réaffecter",
+    }
+    title = event_labels.get(event, "Alerte course")
+    rows = [
+        ("Référence", reference),
+        ("Client", booking.get("client_name") or "-"),
+        ("Date", booking.get("pickup_date") or "-"),
+        ("Heure", booking.get("pickup_time") or "-"),
+        ("Départ", booking.get("pickup_address") or "-"),
+        ("Arrivée", booking.get("dropoff_address") or "-"),
+    ]
+    if actor_name:
+        rows.append(("Auteur", actor_name))
+    if reason:
+        rows.append(("Motif", reason))
+    rows_html = "".join(
+        f'<tr><td style="padding:6px 0;color:#A1A1AA;width:40%;">'
+        f'{html_escape(str(label))}</td><td style="padding:6px 0;color:#FAFAFA;">'
+        f'{html_escape(str(value))}</td></tr>'
+        for label, value in rows
+    )
+    html_content = build_email_html(
+        title=title,
+        body_html=(
+            f"<p>Une action nécessitant votre attention concerne la course "
+            f"<strong>#{html_escape(reference)}</strong>.</p>"
+            f'<table cellpadding="0" cellspacing="0" border="0" width="100%">{rows_html}</table>'
+        ),
+        cta_label="Ouvrir l'administration",
+        cta_url=f"{FRONTEND_URL}/fr/admin/bookings",
+    )
+    return await send_booking_alert_email(f"{title} #{reference}", html_content)
+
+
+async def _notify_admin_booking_alert(
+    booking: dict,
+    event: str,
+    reason: Optional[str] = None,
+    actor_name: Optional[str] = None,
+) -> None:
+    try:
+        await send_admin_booking_alert(booking, event, reason=reason, actor_name=actor_name)
+    except Exception:
+        logger.exception("Failed to prepare administrator booking alert for %s", booking.get("id"))
+
+
 async def claim_booking_email(booking_id: str, driver_id: str, flag: str, sent_value: Any):
     now = datetime.now(timezone.utc)
     claim_field = f"{flag}_pending"
@@ -3663,45 +3798,13 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
 
 
 async def send_driver_cancellation_to_admins(booking: dict, driver: dict, reason: str) -> int:
-    admins = await db.users.find(
-        {"role": "admin", "email": {"$exists": True, "$ne": ""}},
-        {"_id": 0, "email": 1},
-    ).to_list(100)
-    recipients = {item["email"].strip().lower() for item in admins if item.get("email")}
-    configured_admin = os.environ.get("ADMIN_EMAIL", "").strip().lower()
-    if configured_admin:
-        recipients.add(configured_admin)
-    if not recipients:
-        return 0
-
-    reference = booking_short_reference(booking.get("id"))
-    body_html = f"""
-<p>Le chauffeur <strong>{html_escape(driver.get('name') or '-')}</strong> s'est retiré de la course.</p>
-<table cellpadding="0" cellspacing="0" border="0" width="100%">
-  <tr><td>Référence</td><td>{html_escape(reference)}</td></tr>
-  <tr><td>Client</td><td>{html_escape(booking.get('client_name') or '-')}</td></tr>
-  <tr><td>Date</td><td>{html_escape(str(booking.get('pickup_date') or '-'))}</td></tr>
-  <tr><td>Départ</td><td>{html_escape(booking.get('pickup_address') or '-')}</td></tr>
-  <tr><td>Arrivée</td><td>{html_escape(booking.get('dropoff_address') or '-')}</td></tr>
-  <tr><td>Motif</td><td>{html_escape(reason)}</td></tr>
-</table>
-"""
-    html_content = build_email_html(
-        title="Retrait chauffeur — course à réaffecter",
-        body_html=body_html,
-        cta_label="Ouvrir l'administration",
-        cta_url=f"{FRONTEND_URL}/fr/admin/bookings",
+    sent = await send_admin_booking_alert(
+        booking,
+        "driver_cancellation",
+        reason=reason,
+        actor_name=driver.get("name"),
     )
-    sent = 0
-    for recipient in recipients:
-        if await send_notification_email(
-            recipient,
-            f"⚠️ Retrait chauffeur – course #{reference}",
-            html_content,
-            sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
-        ):
-            sent += 1
-    return sent
+    return 1 if sent else 0
 
 
 async def send_booking_confirmation_to_client(booking: dict):
@@ -4768,6 +4871,7 @@ async def create_booking(booking: BookingCreate, request: Request):
 
     await db.bookings.insert_one(booking_doc)
     booking_doc.pop("_id", None)
+    asyncio.create_task(_notify_admin_booking_alert(booking_doc, "new_booking"))
     return BookingResponse(**booking_doc)
 
 
@@ -4838,6 +4942,7 @@ async def create_booking_checkout(booking: BookingCheckoutCreate, request: Reque
         {"id": booking_doc["id"]},
         {"$set": {"stripe_checkout_session_id": _stripe_value(session, "id")}}
     )
+    asyncio.create_task(_notify_admin_booking_alert(booking_doc, "new_booking"))
 
     return BookingCheckoutResponse(
         booking_id=booking_doc["id"],
@@ -5069,6 +5174,14 @@ async def request_booking_cancellation(booking_id: str, payload: BookingCancelRe
     )
     if result.matched_count != 1:
         raise HTTPException(409, "La course a changé. Rechargez avant de réessayer.")
+    asyncio.create_task(
+        _notify_admin_booking_alert(
+            {**booking, "status": "cancellation_requested"},
+            "client_cancellation",
+            reason=payload.cancellation_reason,
+            actor_name=user.get("name") or user.get("email"),
+        )
+    )
     return {"message": "Demande d'annulation envoyée"}
 
 @api_router.put("/bookings/{booking_id}", response_model=BookingResponse)
