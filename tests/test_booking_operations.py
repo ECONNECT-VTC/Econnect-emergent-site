@@ -93,6 +93,30 @@ class TestBookingOperations(unittest.IsolatedAsyncioTestCase):
             context.start()
             self.addCleanup(context.stop)
 
+    async def test_waiting_rules_save_persists_normalized_values_and_reports_conflict(self):
+        operational_settings = SimpleNamespace(update_one=AsyncMock(
+            return_value=SimpleNamespace(matched_count=1, upserted_id=None),
+        ))
+        self.db.operational_settings = operational_settings
+        with patch.object(server, "require_admin", AsyncMock(return_value={"id": "admin-1"})):
+            response = await server.save_waiting_rules(
+                WaitingRules(enabled=True, free_minutes=15, price_per_minute="1"),
+                object(),
+            )
+        self.assertEqual(response["free_minutes"], 15)
+        query, update = operational_settings.update_one.await_args.args
+        self.assertEqual(query, {"_id": "waiting"})
+        self.assertEqual(update["$set"]["rules"]["price_per_minute"], "1")
+
+        operational_settings.update_one.return_value = SimpleNamespace(matched_count=0, upserted_id=None)
+        with patch.object(server, "require_admin", AsyncMock(return_value={"id": "admin-1"})):
+            with self.assertRaises(HTTPException) as exc:
+                await server.save_waiting_rules(
+                    WaitingRules(enabled=True, free_minutes=15, price_per_minute="1"),
+                    object(),
+                )
+        self.assertEqual(exc.exception.status_code, 409)
+
     async def test_arrival_records_server_time_once_with_immutable_rules_and_cas(self):
         result = await BookingOperations(self.db).arrive(self.booking, "driver-1")
         self.assertEqual(result["started_by"], "driver-1")

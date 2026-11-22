@@ -60,10 +60,9 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         payload = self.payloads[0]
         self.assertEqual(payload["to"], [{"email": "guest@example.com"}])
         self.assertEqual(payload["subject"], "🚗 Votre chauffeur est assigné – course #ABCDEF")
-        self.assertNotIn("template_id", payload)
-        self.assertIn("Votre chauffeur est assigné", payload["html_content"])
-        self.assertNotIn("Votre course est terminée", payload["html_content"])
-        self.assertIn("Chauffeur", payload["html_content"])
+        self.assertEqual(payload["template_id"], 4001)
+        self.assertEqual(payload["params"]["DRIVER_NAME"], "Chauffeur")
+        self.assertEqual(payload["params"]["VEHICLE_MODEL"], "Tesla Model Y")
         self.users.find_one.assert_not_awaited()
         self.assertEqual(
             self.bookings.update_one.await_args_list[-2].args[1],
@@ -90,7 +89,8 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(len(self.payloads), 2)
         self.assertEqual(self.payloads[0]["to"], [{"email": "guest@example.com"}])
-        self.assertIn("Votre chauffeur est assigné", self.payloads[0]["html_content"])
+        self.assertEqual(self.payloads[0]["template_id"], 4001)
+        self.assertEqual(self.payloads[0]["params"]["DRIVER_NAME"], "Chauffeur")
         self.assertEqual(self.payloads[1]["to"], [{"email": self.driver["email"]}])
         self.assertIn("Nouvelle course assignée", self.payloads[1]["html_content"])
 
@@ -208,11 +208,18 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
                         server.AdminAssignSelfRequest(vehicle_id="fleet-1", driver_display_name="Oumar"),
                     )
                 payload = self.payloads[-1]
-                self.assertNotIn("template_id", payload)
-                self.assertIn("Oumar", payload["html_content"])
-                self.assertIn("Mercedes Classe E", payload["html_content"])
-                self.assertIn(admin["phone"], payload["html_content"])
-                self.assertIn(vehicle["plate"], payload["html_content"])
+                if template:
+                    self.assertEqual(payload["template_id"], int(template))
+                    self.assertEqual(payload["params"]["DRIVER_NAME"], "Oumar")
+                    self.assertEqual(payload["params"]["VEHICLE_MODEL"], "Mercedes Classe E")
+                    self.assertEqual(payload["params"]["DRIVER_PHONE"], admin["phone"])
+                    self.assertEqual(payload["params"]["VEHICLE_PLATE"], vehicle["plate"])
+                else:
+                    self.assertNotIn("template_id", payload)
+                    self.assertIn("Oumar", payload["html_content"])
+                    self.assertIn("Mercedes Classe E", payload["html_content"])
+                    self.assertIn(admin["phone"], payload["html_content"])
+                    self.assertIn(vehicle["plate"], payload["html_content"])
                 visible = payload["subject"] + payload.get("html_content", "") + str(payload.get("params", {}))
                 self.assertNotIn("admin", visible.lower())
                 self.assertNotIn("administrat", visible.lower())
@@ -221,10 +228,10 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         booking = {**self.booking, "fulfilled_by_admin": True}
         with patch.object(server, "send_notification_email", AsyncMock(return_value=True)) as send:
             await server.send_driver_assigned_to_client(booking, {"name": "Oumar Administrateur"})
-        html_content = send.await_args.args[2]
-        self.assertIn("<td>Oumar</td>", html_content)
-        self.assertIn("<td>-</td>", html_content)
-        visible = str(send.await_args.args[1:]) + html_content
+        params = send.await_args.kwargs["template_params"]
+        self.assertEqual(params["DRIVER_NAME"], "Oumar")
+        self.assertEqual(params["DRIVER_PHONE"], "-")
+        visible = str(send.await_args.args[1:]) + str(params)
         self.assertNotIn("admin", visible.lower())
 
     async def test_assignment_dedup_and_reassignment(self):
