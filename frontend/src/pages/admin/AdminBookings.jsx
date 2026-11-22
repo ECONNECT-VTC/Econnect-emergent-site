@@ -44,6 +44,16 @@ const normalizeAmount = (value) => {
 };
 const formatAmount = (value) => `${normalizeAmount(value).toFixed(2)} €`;
 
+const isoPickupDate = (value) => {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(value || ''));
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : '';
+};
+
+const displayPickupDate = (value) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value || '';
+};
+
 const getInitialCreateForm = () => ({
   client_name: '',
   client_email: '',
@@ -1048,7 +1058,9 @@ const AdminBookings = () => {
               onBoostersChange={(value) => updateCreateField('booster_seat_count', value)} />
             <div>
               <p className="text-sm text-[#A1A1AA] mb-2">Date de prise en charge *</p>
-              <Input value={createForm.pickup_date} onChange={(e) => updateCreateField('pickup_date', e.target.value)} placeholder="dd/MM/yyyy" className="bg-[#1E1E1E] border-white/10" />
+              <Input type="date" value={isoPickupDate(createForm.pickup_date)}
+                onChange={(event) => updateCreateField('pickup_date', displayPickupDate(event.target.value))}
+                className="bg-[#1E1E1E] border-white/10" />
             </div>
             <div className="md:col-span-2">
               <ReservationLocationFields form={createForm} map={createMap} idPrefix="admin-create" />
@@ -1395,7 +1407,9 @@ const AdminBookings = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-[#A1A1AA] mb-2">Date</p>
-                <Input value={editForm.pickup_date || ''} onChange={(e) => setEditForm({ ...editForm, pickup_date: e.target.value })} className="bg-[#1E1E1E] border-white/10" placeholder="dd/MM/yyyy" />
+                <Input type="date" value={isoPickupDate(editForm.pickup_date)}
+                  onChange={(event) => setEditForm({ ...editForm, pickup_date: displayPickupDate(event.target.value) })}
+                  className="bg-[#1E1E1E] border-white/10" />
               </div>
               <div>
                 <p className="text-sm text-[#A1A1AA] mb-2">Heure</p>

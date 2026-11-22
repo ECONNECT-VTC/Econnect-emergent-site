@@ -62,6 +62,7 @@ from email_service import (
     TEMPLATE_KEY_BOOKING_CREATED,
     TEMPLATE_KEY_BOOKING_COMPLETED,
     TEMPLATE_KEY_CANCELLATION,
+    TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT,
     TEMPLATE_KEY_DRIVER_DOCUMENTS,
     TEMPLATE_KEY_INVOICE,
     TEMPLATE_KEY_PASSWORD_RESET,
@@ -3708,6 +3709,8 @@ async def send_driver_assigned_to_client(booking: dict, driver_info: dict):
             f"🚗 Votre chauffeur est assigné – course #{booking_short_reference(booking_id)}",
             html_content,
             sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
+            template_key=TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT,
+            template_params=params,
         )
         if sent:
             await db.bookings.update_one(
@@ -4349,7 +4352,12 @@ async def send_cancellation_confirmation_to_driver(booking: dict, reason: str = 
     driver_id = booking.get("driver_id")
     if not driver_id:
         return False
-    driver = await db.users.find_one({"id": driver_id, "role": {"$in": ["driver", "chauffeur"]}})
+    driver = await db.users.find_one({
+        "id": driver_id,
+        "$or": [{"role": "driver"}, {"role": "chauffeur"}],
+    })
+    if not driver:
+        driver = await db.users.find_one({"id": driver_id})
     if not driver or not driver.get("email"):
         return False
     reference = booking_short_reference(booking.get("id"))
@@ -5369,10 +5377,12 @@ async def get_waiting_rules(request: Request):
 @api_router.put("/admin/waiting-rules")
 async def save_waiting_rules(body: WaitingRules, request: Request):
     admin = await require_admin(request)
-    await db.operational_settings.update_one(
+    result = await db.operational_settings.update_one(
         {"_id": "waiting"}, {"$set": {"rules": body.model_dump(mode="json"), "updated_by": admin["id"],
                                      "updated_at": datetime.now(timezone.utc)}}, upsert=True,
     )
+    if getattr(result, "matched_count", 1) == 0 and getattr(result, "upserted_id", None) is None:
+        raise HTTPException(409, "Barème d’attente non enregistré. Rechargez avant de réessayer.")
     return body.model_dump(mode="json")
 
 

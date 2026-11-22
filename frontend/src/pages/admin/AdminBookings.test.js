@@ -6,9 +6,22 @@ import { fetchDrivingRoute, reverseAddress } from '@/utils/bookingMap';
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 let mockSearchParams = new URLSearchParams();
 const mockMaps = {};
+let lastAdminCalendarProps = null;
 
 jest.mock('axios');
 jest.mock('@/config', () => 'http://api.test', { virtual: true });
+jest.mock('date-fns', () => ({
+  format: (date) => {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${day}/${month}/${date.getFullYear()}`;
+  },
+  parse: (value) => {
+    const [day, month, year] = String(value).split('/').map(Number);
+    return new Date(year || 1970, (month || 1) - 1, day || 1);
+  },
+}), { virtual: true });
+jest.mock('date-fns/locale', () => ({ fr: {} }), { virtual: true });
 jest.mock('@/components/BookingComments', () => () => null, { virtual: true });
 jest.mock('@/components/InteractiveMap', () => () => <div />);
 jest.mock('@/components/ReservationLocationFields', () => (props) => {
@@ -48,6 +61,17 @@ jest.mock('@/components/ui/input', () => {
 }, { virtual: true });
 jest.mock('@/components/ui/textarea', () => ({
   Textarea: (props) => <textarea {...props} />,
+}), { virtual: true });
+jest.mock('@/components/ui/calendar', () => ({
+  Calendar: (props) => {
+    lastAdminCalendarProps = props;
+    return <div data-testid="admin-calendar" />;
+  },
+}), { virtual: true });
+jest.mock('@/components/ui/popover', () => ({
+  Popover: ({ children }) => <div>{children}</div>,
+  PopoverTrigger: ({ children }) => <div>{children}</div>,
+  PopoverContent: ({ children }) => <div>{children}</div>,
 }), { virtual: true });
 jest.mock('@/components/ui/select', () => {
   const React = require('react');
@@ -187,7 +211,7 @@ describe('AdminBookings', () => {
     await act(async () => {
       setInput('Nom du client *', 'Client Test');
       setInput('Email du client *', 'client@example.com');
-      setInput('Date de prise en charge *', '10/11/2026');
+      setInput('Date de prise en charge *', '2026-11-10');
       setInput('Prix estimé (€)', '75');
       for (const [id, value] of [['admin-passengers-children', '1'], ['admin-passengers-infants', '1'], ['admin-passengers-boosters', '1']]) {
         const input = container.querySelector(`#${id}`);

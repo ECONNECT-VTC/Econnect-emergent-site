@@ -34,7 +34,7 @@ export default function PassengerDetails({ prefix, total, childrenCount, infants
           <SelectValue placeholder="Choisir le nombre de sièges bébé" />
         </SelectTrigger>
         <SelectContent className="bg-[#1E1E1E] border-white/10">
-          {Array.from({ length: Number(total) + 1 }, (_, count) => (
+          {Array.from({ length: 8 }, (_, count) => (
             <SelectItem key={count} value={String(count)}>{count}</SelectItem>
           ))}
         </SelectContent>

@@ -21,9 +21,13 @@ export default function WaitingRulesEditor() {
   const save = async (event) => {
     event.preventDefault(); setBusy(true); setError(''); setNotice('');
     try {
-      const { data } = await axios.put(`${API_URL}/api/admin/waiting-rules`, {
-        ...rules, free_minutes: Number(rules.free_minutes),
-      }, { withCredentials: true });
+      const payload = {
+        enabled: Boolean(rules.enabled),
+        free_minutes: Number(rules.free_minutes),
+        price_per_minute: String(rules.price_per_minute),
+      };
+      const { data } = await axios.put(`${API_URL}/api/admin/waiting-rules`, payload,
+        { withCredentials: true, timeout: 15000 });
       setRules(data); setNotice('Barème enregistré pour les prochaines attentes uniquement.');
     } catch (err) { setError(parseApiError(err, 'Sauvegarde du barème impossible.')); }
     finally { setBusy(false); }
