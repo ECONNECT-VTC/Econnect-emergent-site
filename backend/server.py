@@ -62,6 +62,7 @@ from email_service import (
     TEMPLATE_KEY_BOOKING_CREATED,
     TEMPLATE_KEY_BOOKING_COMPLETED,
     TEMPLATE_KEY_CANCELLATION,
+    TEMPLATE_KEY_CANCELLATION_DRIVER,
     TEMPLATE_KEY_DRIVER_ASSIGNED,
     TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT,
     TEMPLATE_KEY_DRIVER_DOCUMENTS,
@@ -1285,6 +1286,31 @@ def compute_financial_breakdown(
         "tva_commission": round_amount(tva_commission),
         "driver_earning": round_amount(driver_earning),
     }
+
+
+def resolve_financial_breakdown(booking: dict, settings: dict) -> dict:
+    snapshot = booking.get("financial_snapshot")
+    if isinstance(snapshot, dict) and snapshot:
+        return snapshot
+    price = booking.get("estimated_price")
+    if price is None:
+        return {
+            "price_ttc": 0.0,
+            "price_ht": 0.0,
+            "tva_client": 0.0,
+            "commission_ttc": 0.0,
+            "commission_ht": 0.0,
+            "tva_commission": 0.0,
+            "driver_earning": 0.0,
+        }
+    return compute_financial_breakdown(
+        price,
+        settings["commission_rate"],
+        get_client_tva_rate_for_booking(booking),
+        settings["tva_commission_rate"],
+        booking.get("commission_override"),
+        bool(booking.get("fulfilled_by_admin")),
+    )
 
 async def get_next_sequential_number() -> str:
     """Get the next sequential 6-digit invoice number (000001 to 999999)."""
@@ -4395,12 +4421,17 @@ async def send_cancellation_confirmation_to_driver(booking: dict, reason: str = 
         cta_label="Voir mon espace chauffeur",
         cta_url=f"{FRONTEND_URL}/fr/driver",
     )
+    cancellation_template = (
+        TEMPLATE_KEY_CANCELLATION_DRIVER
+        if os.environ.get("BREVO_TEMPLATE_CANCELLATION_DRIVER", "").strip()
+        else TEMPLATE_KEY_CANCELLATION
+    )
     return await send_notification_email(
         driver["email"],
         f"Course annulée - Réservation #{reference}",
         html_content,
         sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
-        template_key=TEMPLATE_KEY_CANCELLATION,
+        template_key=cancellation_template,
         template_params={
             "CLIENT_NAME": booking.get("driver_name") or driver.get("name") or "Chauffeur",
             "BOOKING_ID": reference,
@@ -7162,14 +7193,7 @@ async def get_financial_stats(request: Request, driver_id: Optional[str] = None)
 
     for booking in completed_bookings:
         resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
-        breakdown = booking.get("financial_snapshot") or compute_financial_breakdown(
-            booking["estimated_price"],
-            settings["commission_rate"],
-            resolved_client_tva_rate,
-            settings["tva_commission_rate"],
-            booking.get("commission_override"),
-            bool(booking.get("fulfilled_by_admin"))
-        )
+        breakdown = resolve_financial_breakdown(booking, settings)
         totals["total_revenue_ttc"] += breakdown["price_ttc"]
         totals["total_revenue_ht"] += breakdown["price_ht"]
         totals["total_tva_client"] += breakdown["tva_client"]
@@ -7241,14 +7265,7 @@ async def get_completed_bookings_financial(request: Request):
     result = []
     for b in bookings:
         resolved_client_tva_rate = get_client_tva_rate_for_booking(b)
-        breakdown = b.get("financial_snapshot") or compute_financial_breakdown(
-            b["estimated_price"],
-            settings["commission_rate"],
-            resolved_client_tva_rate,
-            settings["tva_commission_rate"],
-            b.get("commission_override"),
-            bool(b.get("fulfilled_by_admin"))
-        )
+        breakdown = resolve_financial_breakdown(b, settings)
         client_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "invoice"}, {"_id": 0, "pdf_snapshot": 0})
         driver_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "driver"}, {"_id": 0})
         commission_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "commission"}, {"_id": 0})
@@ -7298,15 +7315,7 @@ async def get_driver_earnings(request: Request):
 
     earnings = []
     for booking in bookings:
-        resolved_client_tva_rate = get_client_tva_rate_for_booking(booking)
-        breakdown = booking.get("financial_snapshot") or compute_financial_breakdown(
-            booking["estimated_price"],
-            settings["commission_rate"],
-            resolved_client_tva_rate,
-            settings["tva_commission_rate"],
-            booking.get("commission_override"),
-            bool(booking.get("fulfilled_by_admin"))
-        )
+        breakdown = resolve_financial_breakdown(booking, settings)
         earnings.append(DriverEarning(
             booking_id=booking["id"],
             pickup_address=booking.get("pickup_address", ""),
@@ -7445,15 +7454,7 @@ async def get_driver_invoices(request: Request):
 
     result = []
     for b in bookings:
-        resolved_client_tva_rate = get_client_tva_rate_for_booking(b)
-        breakdown = b.get("financial_snapshot") or compute_financial_breakdown(
-            b["estimated_price"],
-            settings["commission_rate"],
-            resolved_client_tva_rate,
-            settings["tva_commission_rate"],
-            b.get("commission_override"),
-            bool(b.get("fulfilled_by_admin"))
-        )
+        breakdown = resolve_financial_breakdown(b, settings)
         driver_inv = await db.invoices.find_one({"booking_id": b["id"], "type": "driver"}, {"_id": 0})
 
         result.append({
