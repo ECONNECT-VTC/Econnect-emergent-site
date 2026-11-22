@@ -232,6 +232,50 @@ class TestBookingOperations(unittest.IsolatedAsyncioTestCase):
         self.bookings.update_one.assert_not_awaited()
 
 
+class TestDispositionPricing(unittest.IsolatedAsyncioTestCase):
+    class Cursor:
+        def __init__(self, docs):
+            self.docs = docs
+        def sort(self, *args):
+            return self
+        async def to_list(self, limit):
+            return deepcopy(self.docs)[:limit]
+
+    async def test_distance_and_hourly_package_both_feed_disposition_estimate(self):
+        database = SimpleNamespace(
+            vehicle_categories=SimpleNamespace(find=lambda *args: self.Cursor([{
+                "id": "berline", "name": "Berline", "description": "Test",
+                "price_per_km": 2.5, "min_fare": 40, "is_active": True, "order": 1,
+            }])),
+            disposition_rates=SimpleNamespace(find=lambda *args: self.Cursor([{
+                "vehicle_category_name": "Berline", "duration_hours": 5,
+                "price": 35, "is_active": True,
+            }])),
+        )
+        with patch.object(server, "db", database), patch.object(server, "ensure_default_vehicle_categories", AsyncMock()):
+            estimates = await server.estimate_price(distance_km=28.5, duration_minutes=36,
+                                                     transfer_type="disposition", disposition_hours=5)
+        self.assertEqual(len(estimates), 1)
+        self.assertEqual(estimates[0].distance_km, 28.5)
+        self.assertEqual(estimates[0].pricing_basis, "hourly")
+        self.assertEqual(estimates[0].final_price, 175)
+        self.assertIn("28.5 km", estimates[0].rate_label)
+
+    async def test_missing_disposition_package_falls_back_to_distance_and_minimum(self):
+        database = SimpleNamespace(
+            vehicle_categories=SimpleNamespace(find=lambda *args: self.Cursor([{
+                "id": "berline", "name": "Berline", "description": "Test",
+                "price_per_km": 2.5, "min_fare": 40, "is_active": True, "order": 1,
+            }])),
+            disposition_rates=SimpleNamespace(find=lambda *args: self.Cursor([])),
+        )
+        with patch.object(server, "db", database), patch.object(server, "ensure_default_vehicle_categories", AsyncMock()):
+            estimates = await server.estimate_price(distance_km=28.5, duration_minutes=36,
+                                                     transfer_type="disposition", disposition_hours=5)
+        self.assertEqual(estimates[0].final_price, 71.25)
+        self.assertIn("distance estimée", estimates[0].rate_label)
+
+
 class TestOperationsAuthorization(unittest.TestCase):
     def test_api_only_assigned_driver_can_arrive_and_only_admin_can_manage_pricing(self):
         booking = {"id": "b", "driver_id": "driver-1", "client_id": "client-1", "status": "ASSIGNED"}

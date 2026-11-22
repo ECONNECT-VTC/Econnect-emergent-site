@@ -43,7 +43,7 @@ describe('BookingPaymentCancel', () => {
     expect(container.textContent).toContain('Paiement annulé');
     expect(mockLink).toHaveBeenCalledWith(expect.objectContaining({
       'data-testid': 'booking-cancel-back-to-form',
-      to: { pathname: '/fr', hash: '#reserver' },
+      to: { pathname: '/fr/client/new-booking' },
       state: { fromBookingCancel: true },
     }));
   });

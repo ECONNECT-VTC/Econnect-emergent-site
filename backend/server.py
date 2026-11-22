@@ -4294,6 +4294,116 @@ async def send_refund_confirmation_to_client(booking: dict, refund_trace: dict):
         },
     )
 
+
+async def send_cancellation_confirmation_to_client(booking: dict, reason: str = None, refund_trace: dict = None) -> bool:
+    client_email = booking.get("client_email")
+    if not client_email:
+        return False
+    reference = booking_short_reference(booking.get("id"))
+    refund_status = (refund_trace or {}).get("refund_status") or "not_required"
+    refund_amount = (refund_trace or {}).get("refund_amount")
+    amount_label = (
+        f"{float(refund_amount):.2f} {(refund_trace or {}).get('refund_currency', 'EUR').upper()}"
+        if refund_amount is not None
+        else "Sans remboursement Stripe"
+    )
+    body_html = f"""
+<p style="margin:0 0 12px 0;">Votre course <strong>#{html_escape(reference)}</strong> a été annulée.</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;margin-bottom:16px;">
+  <tr><td style="padding:6px 0;color:#A1A1AA;width:40%;">Date</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('pickup_date', '')))} à {html_escape(str(booking.get('pickup_time', '')))}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Départ</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('pickup_address', '')))}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Arrivée</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('dropoff_address', '')))}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Remboursement</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(amount_label)} ({html_escape(str(refund_status))})</td></tr>
+</table>
+{f"<p style='margin:0 0 12px 0;'>Motif : {html_escape(reason)}</p>" if reason else ""}
+"""
+    html_content = build_email_html(
+        title="Course annulée",
+        body_html=body_html,
+        cta_label="Voir mes réservations",
+        cta_url=f"{FRONTEND_URL}/fr/client/bookings",
+    )
+    return await send_notification_email(
+        client_email,
+        f"Course annulée - Réservation #{reference} - Econnect VTC",
+        html_content,
+        template_key=TEMPLATE_KEY_CANCELLATION,
+        template_params={
+            "CLIENT_NAME": booking.get("client_name", "Client"),
+            "BOOKING_ID": reference,
+            "BOOKING_REFERENCE": reference,
+            "PICKUP_DATE": booking.get("pickup_date"),
+            "PICKUP_TIME": booking.get("pickup_time"),
+            "PICKUP_ADDRESS": booking.get("pickup_address"),
+            "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+            "AMOUNT": amount_label,
+            "REFUND_STATUS": str(refund_status),
+            "REFUND_CURRENCY": (refund_trace or {}).get("refund_currency") or "EUR",
+            "STRIPE_REFUND_ID": (refund_trace or {}).get("stripe_refund_id"),
+            "BOOKING_URL": f"{FRONTEND_URL}/fr/client/bookings",
+        },
+    )
+
+
+async def send_cancellation_confirmation_to_driver(booking: dict, reason: str = None) -> bool:
+    driver_id = booking.get("driver_id")
+    if not driver_id:
+        return False
+    driver = await db.users.find_one({"id": driver_id, "role": {"$in": ["driver", "chauffeur"]}})
+    if not driver or not driver.get("email"):
+        return False
+    reference = booking_short_reference(booking.get("id"))
+    body_html = f"""
+<p style="margin:0 0 12px 0;">La course <strong>#{html_escape(reference)}</strong> qui vous était assignée vient d'être annulée.</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;margin-bottom:16px;">
+  <tr><td style="padding:6px 0;color:#A1A1AA;width:40%;">Date</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('pickup_date', '')))} à {html_escape(str(booking.get('pickup_time', '')))}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Départ</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('pickup_address', '')))}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Arrivée</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('dropoff_address', '')))}</td></tr>
+</table>
+{f"<p style='margin:0 0 12px 0;'>Motif : {html_escape(reason)}</p>" if reason else ""}
+"""
+    html_content = build_email_html(
+        title="Course annulée",
+        body_html=body_html,
+        cta_label="Voir mon espace chauffeur",
+        cta_url=f"{FRONTEND_URL}/fr/driver",
+    )
+    return await send_notification_email(
+        driver["email"],
+        f"Course annulée - Réservation #{reference}",
+        html_content,
+        sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
+    )
+
+
+async def send_reassignment_notice_to_client(booking: dict, reason: str = None) -> bool:
+    client_email = booking.get("client_email")
+    if not client_email:
+        return False
+    reference = booking_short_reference(booking.get("id"))
+    body_html = f"""
+<p style="margin:0 0 12px 0;">Le chauffeur précédemment affecté à la course <strong>#{html_escape(reference)}</strong> ne peut plus assurer cette course.</p>
+<p style="margin:0 0 12px 0;">Notre équipe va affecter un nouveau chauffeur. Votre réservation reste confirmée.</p>
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;margin-bottom:16px;">
+  <tr><td style="padding:6px 0;color:#A1A1AA;width:40%;">Date</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('pickup_date', '')))} à {html_escape(str(booking.get('pickup_time', '')))}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Départ</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('pickup_address', '')))}</td></tr>
+  <tr><td style="padding:6px 0;color:#A1A1AA;">Arrivée</td><td style="padding:6px 0;color:#FAFAFA;">{html_escape(str(booking.get('dropoff_address', '')))}</td></tr>
+</table>
+{f"<p style='margin:0 0 12px 0;'>Motif chauffeur : {html_escape(reason)}</p>" if reason else ""}
+"""
+    html_content = build_email_html(
+        title="Chauffeur à remplacer",
+        body_html=body_html,
+        cta_label="Suivre ma réservation",
+        cta_url=f"{FRONTEND_URL}/fr/client/bookings",
+    )
+    return await send_notification_email(
+        client_email,
+        f"Chauffeur indisponible - Réservation #{reference}",
+        html_content,
+        sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
+    )
+
 # ==================== AUTH ROUTES ====================
 
 from fastapi import HTTPException
@@ -5582,6 +5692,10 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
         await send_driver_cancellation_to_admins(booking, driver, payload.cancellation_reason)
     except Exception as exc:
         logger.error("Failed to notify admins about driver cancellation for booking %s: %s", booking_id, exc)
+    try:
+        await send_reassignment_notice_to_client(booking, payload.cancellation_reason)
+    except Exception as exc:
+        logger.error("Failed to notify client about driver reassignment for booking %s: %s", booking_id, exc)
     return {
         "message": "Vous vous êtes retiré de cette course. Elle sera réassignée.",
         "status": update_data["status"],
@@ -6413,6 +6527,16 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
                 await send_refund_confirmation_to_client(booking, refund_trace)
             except Exception as exc:
                 logger.error(f"Failed to send refund email for booking {booking_id}: {exc}")
+        else:
+            try:
+                await send_cancellation_confirmation_to_client(booking, payload.cancellation_reason if hasattr(payload, "cancellation_reason") else None, refund_trace)
+            except Exception as exc:
+                logger.error(f"Failed to send cancellation email for booking {booking_id}: {exc}")
+        if booking.get("driver_id"):
+            try:
+                await send_cancellation_confirmation_to_driver(booking, payload.cancellation_reason if hasattr(payload, "cancellation_reason") else None)
+            except Exception as exc:
+                logger.error(f"Failed to send driver cancellation email for booking {booking_id}: {exc}")
         return {"message": "Annulation approuvée", "status": "cancelled", "refund": refund_trace, "processed_by": admin.get("id")}
 
     fallback_status = normalize_booking_status(booking.get("cancellation_previous_status"))
@@ -6484,6 +6608,16 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
             await send_refund_confirmation_to_client(booking, refund_trace)
         except Exception as exc:
             logger.error(f"Failed to send refund email for booking {booking_id}: {exc}")
+    else:
+        try:
+            await send_cancellation_confirmation_to_client(booking, payload.cancellation_reason, refund_trace)
+        except Exception as exc:
+            logger.error(f"Failed to send cancellation email for booking {booking_id}: {exc}")
+    if booking.get("driver_id"):
+        try:
+            await send_cancellation_confirmation_to_driver(booking, payload.cancellation_reason)
+        except Exception as exc:
+            logger.error(f"Failed to send driver cancellation email for booking {booking_id}: {exc}")
 
     return {"message": "Course annulée par l'administration", "status": "cancelled", "refund": refund_trace}
 
@@ -6872,16 +7006,22 @@ async def estimate_price(
         for cat in categories:
             normalized_category_name = normalize_category_name(cat["name"]) or cat["name"]
             selected_rate = select_disposition_rate(rates_by_category.get(normalized_category_name, []), disposition_hours)
-            if not selected_rate:
-                continue
-
-            hourly_amount = float(selected_rate["price"])
-            total_amount = hourly_amount * float(disposition_hours)
+            hourly_amount = float(selected_rate["price"]) if selected_rate else None
+            hourly_total = hourly_amount * float(disposition_hours) if hourly_amount is not None else 0.0
+            distance_total = distance_km * float(cat["price_per_km"]) if distance_km > 0 else 0.0
+            # The disposition package is duration-led; the route distance prevents an
+            # unavailable or missing package rate from producing a false zero estimate.
+            total_amount = max(hourly_total, distance_total, float(cat["min_fare"]))
             final_price = round(total_amount * multiplier, 2)
+            distance_label = f" · {distance_km:.1f} km" if distance_km > 0 else ""
+            if hourly_amount is not None:
+                rate_label = f"{hourly_amount:.2f}€/h × {round(disposition_hours, 2)}h" + distance_label
+            else:
+                rate_label = f"{float(cat['price_per_km']):.2f}€/km · distance estimée" + distance_label
             estimates.append(PriceEstimate(
                 category_id=cat["id"],
                 category_name=cat["name"],
-                distance_km=0,
+                distance_km=round(distance_km, 2),
                 duration_minutes=round(disposition_hours * 60, 0),
                 base_price=final_price,
                 final_price=final_price,
@@ -6889,7 +7029,7 @@ async def estimate_price(
                 price_per_km=cat["price_per_km"],
                 pricing_basis="hourly",
                 disposition_hours=round(disposition_hours, 2),
-                rate_label=f"{hourly_amount:.2f}€/h × {round(disposition_hours, 2)}h" + (" · aller-retour" if transfer_type == "retour" else ""),
+                rate_label=rate_label + (" · aller-retour" if transfer_type == "retour" else ""),
             ))
 
         return estimates

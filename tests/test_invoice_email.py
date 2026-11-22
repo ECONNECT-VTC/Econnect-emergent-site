@@ -527,6 +527,49 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
         self.assertIn("ABCDEF", send_email.await_args.args[2])
         self.assertNotIn(booking["id"], send_email.await_args.args[2])
 
+    async def test_cancellation_confirmation_reaches_client_and_assigned_driver(self):
+        booking = {
+            "id": "abcdef123456",
+            "driver_id": "driver-1",
+            "client_email": "client@example.com",
+            "client_name": "Client",
+            "pickup_date": "03/03/2026",
+            "pickup_time": "11:00",
+            "pickup_address": "Paris",
+            "dropoff_address": "Orly",
+        }
+        users = SimpleNamespace(find_one=AsyncMock(return_value={
+            "id": "driver-1", "email": "driver@example.com", "name": "Chauffeur",
+        }))
+        with patch.object(server, "db", SimpleNamespace(users=users)), patch.object(
+            server, "send_notification_email", AsyncMock(return_value=True)
+        ) as send_email:
+            await server.send_cancellation_confirmation_to_client(booking, "Indisponibilité", {
+                "refund_status": "not_required",
+            })
+            await server.send_cancellation_confirmation_to_driver(booking, "Indisponibilité")
+        self.assertEqual(send_email.await_count, 2)
+        client_call, driver_call = send_email.await_args_list
+        self.assertEqual(client_call.args[0], "client@example.com")
+        self.assertIn("Course annulée", client_call.args[1])
+        self.assertEqual(driver_call.args[0], "driver@example.com")
+        self.assertIn("Course annulée", driver_call.args[1])
+
+    async def test_driver_withdrawal_notifies_client_about_reassignment(self):
+        booking = {
+            "id": "abcdef123456",
+            "client_email": "client@example.com",
+            "client_name": "Client",
+            "pickup_date": "03/03/2026",
+            "pickup_time": "11:00",
+            "pickup_address": "Paris",
+            "dropoff_address": "Orly",
+        }
+        with patch.object(server, "send_notification_email", AsyncMock(return_value=True)) as send_email:
+            sent = await server.send_reassignment_notice_to_client(booking, "Indisponible")
+        self.assertTrue(sent)
+        self.assertIn("nouveau chauffeur", send_email.await_args.args[2])
+
     async def test_driver_assignment_uses_driver_template(self):
         booking = {
             "id": "abcdef123456",
