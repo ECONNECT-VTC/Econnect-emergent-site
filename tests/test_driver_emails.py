@@ -46,6 +46,7 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
             patch.dict(os.environ, {
                 "BREVO_API_KEY": "brevo-test-key",
                 "BREVO_TEMPLATE_DRIVER_ASSIGNED_CLIENT": "4001",
+                "BREVO_TEMPLATE_DRIVER_ASSIGNED": "4003",
                 "BREVO_TEMPLATE_DRIVER_DOCUMENTS": "4002",
             }),
             patch.object(email_service, "sib_api_v3_sdk", _make_brevo_sdk(self.payloads)),
@@ -92,7 +93,8 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.payloads[0]["template_id"], 4001)
         self.assertEqual(self.payloads[0]["params"]["DRIVER_NAME"], "Chauffeur")
         self.assertEqual(self.payloads[1]["to"], [{"email": self.driver["email"]}])
-        self.assertIn("Nouvelle course assignée", self.payloads[1]["html_content"])
+        self.assertEqual(self.payloads[1]["template_id"], 4003)
+        self.assertEqual(self.payloads[1]["params"]["ORDER_DOWNLOAD_URL"], "https://example.com/api/driver/bookings/abcdef123456/order-pdf")
 
     async def test_admin_replaces_partner_without_changing_booking_or_payment_status(self):
         self.booking.update(

@@ -62,6 +62,7 @@ from email_service import (
     TEMPLATE_KEY_BOOKING_CREATED,
     TEMPLATE_KEY_BOOKING_COMPLETED,
     TEMPLATE_KEY_CANCELLATION,
+    TEMPLATE_KEY_DRIVER_ASSIGNED,
     TEMPLATE_KEY_DRIVER_ASSIGNED_CLIENT,
     TEMPLATE_KEY_DRIVER_DOCUMENTS,
     TEMPLATE_KEY_INVOICE,
@@ -3556,6 +3557,8 @@ async def send_admin_booking_alert(
         "new_booking": "Nouvelle demande de course",
         "client_cancellation": "Demande d'annulation client",
         "driver_cancellation": "Retrait chauffeur — course à réaffecter",
+        "admin_cancellation": "Annulation administrative de course",
+        "cancellation_approved": "Annulation de course approuvée",
     }
     title = event_labels.get(event, "Alerte course")
     rows = [
@@ -3792,11 +3795,27 @@ async def send_booking_notification_to_driver(driver: dict, booking: dict, clien
         cta_label=cta_label,
         cta_url=order_download_url,
     )
+    params = {
+        "CLIENT_NAME": client.get("name") or "-",
+        "CLIENT_PHONE": client.get("phone") or "-",
+        "CLIENT_EMAIL": client.get("email") or "-",
+        "BOOKING_ID": reference,
+        "BOOKING_REFERENCE": reference,
+        "PICKUP_DATE": booking.get("pickup_date") or "-",
+        "PICKUP_TIME": booking.get("pickup_time") or "-",
+        "PICKUP_ADDRESS": booking.get("pickup_address") or "-",
+        "DROPOFF_ADDRESS": booking.get("dropoff_address") or "-",
+        "TRANSFER_TYPE": booking.get("transfer_type") or "-",
+        "NOTES": booking.get("notes") or "-",
+        "ORDER_DOWNLOAD_URL": order_download_url or "",
+    }
     return await send_notification_email(
         driver["email"],
         subject,
         html_content,
         sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
+        template_key=TEMPLATE_KEY_DRIVER_ASSIGNED,
+        template_params=params,
     )
 
 
@@ -4381,6 +4400,21 @@ async def send_cancellation_confirmation_to_driver(booking: dict, reason: str = 
         f"Course annulée - Réservation #{reference}",
         html_content,
         sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
+        template_key=TEMPLATE_KEY_CANCELLATION,
+        template_params={
+            "CLIENT_NAME": booking.get("driver_name") or driver.get("name") or "Chauffeur",
+            "BOOKING_ID": reference,
+            "BOOKING_REFERENCE": reference,
+            "PICKUP_DATE": booking.get("pickup_date"),
+            "PICKUP_TIME": booking.get("pickup_time"),
+            "PICKUP_ADDRESS": booking.get("pickup_address"),
+            "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+            "AMOUNT": "Course annulée",
+            "REFUND_STATUS": "cancelled",
+            "REFUND_CURRENCY": "EUR",
+            "STRIPE_REFUND_ID": None,
+            "BOOKING_URL": f"{FRONTEND_URL}/fr/driver",
+        },
     )
 
 
@@ -5703,6 +5737,10 @@ async def cancel_booking_driver(booking_id: str, payload: DriverCancellationRequ
     except Exception as exc:
         logger.error("Failed to notify admins about driver cancellation for booking %s: %s", booking_id, exc)
     try:
+        await send_cancellation_confirmation_to_driver(booking, payload.cancellation_reason)
+    except Exception as exc:
+        logger.error("Failed to notify withdrawn driver about cancellation for booking %s: %s", booking_id, exc)
+    try:
         await send_reassignment_notice_to_client(booking, payload.cancellation_reason)
     except Exception as exc:
         logger.error("Failed to notify client about driver reassignment for booking %s: %s", booking_id, exc)
@@ -6547,6 +6585,14 @@ async def handle_booking_cancellation(booking_id: str, payload: BookingCancellat
                 await send_cancellation_confirmation_to_driver(booking, payload.cancellation_reason if hasattr(payload, "cancellation_reason") else None)
             except Exception as exc:
                 logger.error(f"Failed to send driver cancellation email for booking {booking_id}: {exc}")
+        asyncio.create_task(
+            _notify_admin_booking_alert(
+                {**booking, "status": "cancelled"},
+                "cancellation_approved",
+                reason=payload.cancellation_reason if hasattr(payload, "cancellation_reason") else None,
+                actor_name=admin.get("name") or admin.get("email"),
+            )
+        )
         return {"message": "Annulation approuvée", "status": "cancelled", "refund": refund_trace, "processed_by": admin.get("id")}
 
     fallback_status = normalize_booking_status(booking.get("cancellation_previous_status"))
@@ -6628,6 +6674,14 @@ async def cancel_booking_admin(booking_id: str, payload: AdminCancellationReques
             await send_cancellation_confirmation_to_driver(booking, payload.cancellation_reason)
         except Exception as exc:
             logger.error(f"Failed to send driver cancellation email for booking {booking_id}: {exc}")
+    asyncio.create_task(
+        _notify_admin_booking_alert(
+            {**booking, "status": "cancelled", **update_data},
+            "admin_cancellation",
+            reason=payload.cancellation_reason,
+            actor_name=admin.get("name") or admin.get("email"),
+        )
+    )
 
     return {"message": "Course annulée par l'administration", "status": "cancelled", "refund": refund_trace}
 
@@ -7079,7 +7133,6 @@ def financial_booking_query():
             {"status": {"$regex": "^(COMPLETED|INVOICED|PAID)$", "$options": "i"}},
             {"financial_snapshot": {"$exists": True}},
         ],
-        "estimated_price": {"$ne": None},
     }
 
 

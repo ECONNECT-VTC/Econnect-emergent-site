@@ -6,6 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import LogoDisplay from '@/components/LogoDisplay';
 import LanguageDropdown from '@/components/LanguageDropdown';
 import DashboardThemeToggle from '@/components/DashboardThemeToggle';
+import { translateDashboard } from '@/utils/dashboardTranslations';
 import {
   House, CalendarCheck, Car, Users, SignOut, List, X, ChartBar, CarSimple, UserCircle, CurrencyEur, ChartLineUp, Percent, FileText, Money
 } from '@phosphor-icons/react';
@@ -14,6 +15,7 @@ import { Button } from '@/components/ui/button';
 const DashboardLayout = ({ children, title }) => {
   const { user, logout } = useAuth();
   const { language } = useLanguage();
+  const dt = (key) => translateDashboard(language, key);
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -28,8 +30,8 @@ const DashboardLayout = ({ children, title }) => {
     switch (user?.role) {
       case 'admin':
         return [
-          { name: 'Dashboard', path: `${p}/admin`, icon: ChartBar },
-          { name: 'Réservations', path: `${p}/admin/bookings`, icon: CalendarCheck },
+          { name: dt('dashboard'), path: `${p}/admin`, icon: ChartBar },
+          { name: dt('bookings'), path: `${p}/admin/bookings`, icon: CalendarCheck },
           { name: 'Chauffeurs', path: `${p}/admin/drivers`, icon: CarSimple },
           { name: 'Clients', path: `${p}/admin/clients`, icon: Users },
           { name: 'Flotte Admin', path: `${p}/admin/fleet`, icon: Car },
@@ -41,9 +43,9 @@ const DashboardLayout = ({ children, title }) => {
         ];
       case 'driver':
         return [
-          { name: 'Mes Courses', path: `${p}/driver`, icon: Car },
-          { name: 'Mes Gains', path: `${p}/driver/earnings`, icon: Money },
-          { name: 'Mes Factures', path: `${p}/driver/invoices`, icon: FileText },
+          { name: dt('courses'), path: `${p}/driver`, icon: Car },
+          { name: dt('earnings'), path: `${p}/driver/earnings`, icon: Money },
+          { name: dt('invoices'), path: `${p}/driver/invoices`, icon: FileText },
         ];
       case 'client':
       default:

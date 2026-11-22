@@ -18,6 +18,9 @@ jest.mock('@/utils/invoiceGenerator', () => ({
 jest.mock('@/utils/invoiceUtils', () => jest.requireActual('../../utils/invoiceUtils'), { virtual: true });
 jest.mock('@/config', () => 'http://api.test', { virtual: true });
 jest.mock('@/components/LogoDisplay', () => () => <div />, { virtual: true });
+jest.mock('@/contexts/LanguageContext', () => ({
+  useLanguage: () => ({ language: 'fr' }),
+}), { virtual: true });
 
 describe('Booking references in document views', () => {
   let container;
