@@ -15,6 +15,7 @@ jest.mock('date-fns', () => ({ format: () => '10/11/2026' }));
 jest.mock('date-fns/locale', () => ({ fr: {} }), { virtual: true });
 jest.mock('react-router-dom', () => ({
   useParams: () => ({ lang: 'fr' }),
+  useLocation: () => ({ state: null }),
 }), { virtual: true });
 jest.mock('@/components/ui/button', () => ({
   Button: ({ children, ...props }) => <button {...props}>{children}</button>,
@@ -67,6 +68,7 @@ jest.mock('@/utils/vehicleCategories', () => {
 jest.mock('@/utils/bookingCheckout', () => ({
   createCheckoutSession: jest.fn(),
   saveBookingCheckoutDraft: jest.fn(),
+  readBookingCheckoutDraft: () => null,
 }), { virtual: true });
 jest.mock('@phosphor-icons/react', () => ({
   ArrowRight: () => null,
@@ -139,6 +141,51 @@ describe('NewBooking form rendering', () => {
       expect(fields[index].compareDocumentPosition(field) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
     expect(lastCalendarProps?.disabled).toBeUndefined();
+  });
+
+  it('uses route distance for disposition and supports bank/cash payment modes', async () => {
+    jest.useFakeTimers();
+    const pickup = { label: 'Gagny, France', position: [48.87, 2.55] };
+    const dropoff = { label: 'Paris, France', position: [48.85, 2.35] };
+    fetchDrivingRoute.mockResolvedValue({ distanceKm: 28.5, durationMinutes: 36, positions: [pickup.position, dropoff.position] });
+    reverseAddress.mockResolvedValueOnce(pickup).mockResolvedValueOnce(dropoff);
+    axios.post.mockResolvedValue({ data: [{
+      category_id: 'berline-id', category_name: 'Berline', final_price: 175,
+      distance_km: 28.5, duration_minutes: 300, pricing_basis: 'hourly',
+      disposition_hours: 5, rate_label: '35.00€/h × 5h · 28.5 km',
+    }] });
+    await act(async () => root.render(<NewBooking />));
+    await act(async () => {
+      lastCalendarProps.onSelect(new Date('2026-11-10'));
+      container.querySelector('[data-value="10:30"]').click();
+      container.querySelector('[data-value="disposition"]').click();
+      mockMapProps.onSelectPosition(pickup.position);
+      mockMapProps.onSelectPosition(dropoff.position);
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(500);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const hours = container.querySelector('[data-testid="disposition-hours-input"]');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(hours, '5');
+      hours.dispatchEvent(new Event('input', { bubbles: true }));
+      jest.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+    const dispositionCall = axios.post.mock.calls.find(([url]) => url.includes('transfer_type=disposition'));
+    expect(dispositionCall).toBeDefined();
+    const query = new URL(dispositionCall[0]).searchParams;
+    expect(query.get('transfer_type')).toBe('disposition');
+    expect(query.get('disposition_hours')).toBe('5');
+
+    await act(async () => {
+      const virement = [...container.querySelectorAll('[data-value="virement"]')].at(-1);
+      virement.click();
+    });
+    expect(container.textContent).toContain('20 % du montant');
+    jest.useRealTimers();
   });
 
   it('uses map-selected addresses, distance and duration for client estimates and checkout', async () => {

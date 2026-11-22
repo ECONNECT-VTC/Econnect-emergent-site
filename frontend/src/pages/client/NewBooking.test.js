@@ -32,7 +32,7 @@ describe('NewBooking parseBookingError', () => {
         duration: '40',
         dispositionHours: '4.5',
       })
-    ).toBe('transfer_type=disposition&disposition_hours=4.5');
+    ).toBe('transfer_type=disposition&disposition_hours=4.5&distance_km=22&duration_minutes=40');
   });
 
   it('builds distance estimate params for non-disposition bookings', () => {

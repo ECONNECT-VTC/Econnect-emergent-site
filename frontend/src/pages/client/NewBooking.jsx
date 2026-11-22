@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -20,7 +20,11 @@ import {
   getVehicleCategoryPresentation,
 } from '@/utils/vehicleCategories';
 import { buildEstimatePriceQuery, parseBookingError } from './newBookingUtils';
-import { createCheckoutSession, saveBookingCheckoutDraft } from '@/utils/bookingCheckout';
+import {
+  createCheckoutSession,
+  readBookingCheckoutDraft,
+  saveBookingCheckoutDraft,
+} from '@/utils/bookingCheckout';
 import AddressAutocomplete from '@/components/AddressAutocomplete';
 import InteractiveMap from '@/components/InteractiveMap';
 import useBookingRoute from '@/hooks/useBookingRoute';
@@ -32,6 +36,7 @@ import PassengerDetails, { passengerDetailsError } from '@/components/PassengerD
 const NewBooking = () => {
   const enableDebugLogging = process.env.NODE_ENV !== 'production';
   const { lang = 'fr' } = useParams();
+  const location = useLocation();
   const consent = useBookingTerms();
   const [date, setDate] = useState();
   const [time, setTime] = useState('');
@@ -53,6 +58,9 @@ const NewBooking = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [distance, setDistance] = useState('');
   const [duration, setDuration] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('cb');
+  const [bookingNotice, setBookingNotice] = useState('');
+  const DEPOSIT_PAYMENT_METHODS = new Set(['virement', 'cash']);
   const [priceEstimates, setPriceEstimates] = useState([]);
   const [estimatingPrice, setEstimatingPrice] = useState(false);
   const onRouteChange = useCallback((route) => {
@@ -61,6 +69,32 @@ const NewBooking = () => {
     setPriceEstimates([]);
   }, []);
   const bookingRoute = useBookingRoute({ pickup, dropoff, setPickup, setDropoff, onRouteChange });
+  useEffect(() => {
+    const draft = readBookingCheckoutDraft();
+    if (!draft) return;
+    if (draft.date) setDate(new Date(draft.date));
+    if (draft.pickup) setPickup(draft.pickup);
+    if (draft.dropoff) setDropoff(draft.dropoff);
+    if (draft.time) setTime(draft.time);
+    if (draft.transferType) setTransferType(draft.transferType);
+    if (draft.selectedCategory) setSelectedCategory(draft.selectedCategory);
+    if (draft.passengerCount) setPassengerCount(String(draft.passengerCount));
+    if (draft.babySeatCount != null) setBabySeatCount(String(draft.babySeatCount));
+    if (draft.childCount != null) setChildCount(String(draft.childCount));
+    if (draft.infantCount != null) setInfantCount(String(draft.infantCount));
+    if (draft.boosterCount != null) setBoosterCount(String(draft.boosterCount));
+    if (draft.paymentMethod) setPaymentMethod(draft.paymentMethod);
+    if (draft.dispositionHours) setDispositionHours(String(draft.dispositionHours));
+    if (draft.distanceKm) setDistance(String(draft.distanceKm));
+    if (draft.durationMinutes) setDuration(String(draft.durationMinutes));
+    if (draft.mapAddresses) bookingRoute.restoreAddresses(draft.mapAddresses);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (location.state?.fromBookingCancel) {
+      setBookingNotice('Paiement annulé. Votre réservation est conservée ci-dessous ; vous pouvez modifier les informations puis recommencer.');
+    }
+  }, [location.state]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -271,6 +305,7 @@ const NewBooking = () => {
         distance_km: transferType === 'disposition' ? null : (distance ? parseFloat(distance) : null),
         duration_minutes: transferType === 'disposition' ? null : (duration ? parseFloat(duration) : null),
         estimated_price: selectedPrice?.final_price || null,
+        payment_method: paymentMethod,
         notes: notes,
         disposition_hours: dispositionHours ? parseFloat(dispositionHours) : null,
         passenger_count: Number(passengerCount),
@@ -296,6 +331,7 @@ const NewBooking = () => {
         infantCount,
         boosterCount,
         dispositionHours,
+        paymentMethod,
         distanceKm: distance,
         durationMinutes: duration,
         mapAddresses: bookingRoute.addresses,
@@ -324,6 +360,9 @@ const NewBooking = () => {
         <div className="glass rounded-xl p-5 sm:p-6 md:p-8 lg:col-span-2" data-testid="new-booking-form">
           {error && (
             <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6">{error}</div>
+          )}
+          {bookingNotice && (
+            <div className="bg-yellow-500/10 border border-yellow-500/50 text-yellow-300 px-4 py-3 rounded-lg mb-6" role="status">{bookingNotice}</div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -483,6 +522,27 @@ const NewBooking = () => {
                 onInfantsChange={setInfantCount} onBabySeatsChange={setBabySeatCount} onBoostersChange={setBoosterCount} />
             </div>
 
+            <div className="space-y-3 rounded-xl border border-white/10 bg-[#111111] p-4">
+              <div className="space-y-2">
+                <Label className="text-[#A1A1AA]">Moyen de paiement</Label>
+                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                  <SelectTrigger className="bg-[#1E1E1E] border-white/10" data-testid="payment-method-select">
+                    <SelectValue placeholder="Choisir un moyen de paiement" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#1E1E1E] border-white/10">
+                    <SelectItem value="cb">Paiement immédiat par carte (Stripe)</SelectItem>
+                    <SelectItem value="virement">Virement bancaire</SelectItem>
+                    <SelectItem value="cash">Espèces</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {DEPOSIT_PAYMENT_METHODS.has(paymentMethod) && (
+                <p className="text-sm text-[#F3D67A]" data-testid="deposit-payment-notice">
+                  20 % du montant de la course seront payés maintenant pour confirmer la réservation. Le solde sera réglé par virement ou en espèces.
+                </p>
+              )}
+            </div>
+
             {/* Vehicle Category Selection */}
             {sortedCategories.length > 0 && (
               <div className="space-y-3">
@@ -620,6 +680,11 @@ const NewBooking = () => {
                   <div className="mt-2 pt-2 border-t border-[#D4AF37]/30">
                     <p className="text-sm text-[#A1A1AA]">{transferType === 'disposition' ? 'Tarif mise à disposition' : 'Prix estime'}</p>
                     <p className="text-3xl font-bold text-[#D4AF37]">{getSelectedPrice().final_price.toFixed(2)}€</p>
+                    {DEPOSIT_PAYMENT_METHODS.has(paymentMethod) && (
+                      <p className="mt-2 text-sm text-[#F3D67A]">
+                        Acompte Stripe : {(getSelectedPrice().final_price * 0.2).toFixed(2)} € · Solde : {(getSelectedPrice().final_price * 0.8).toFixed(2)} €
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

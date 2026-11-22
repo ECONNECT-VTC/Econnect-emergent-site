@@ -128,7 +128,7 @@ const BookingSection = () => {
     setLoadingDispositionPrices(true);
     try {
       const response = await axios.post(
-        `${API_URL}/api/estimate-price?transfer_type=disposition&disposition_hours=${parseFloat(hours)}`,
+        `${API_URL}/api/estimate-price?transfer_type=disposition&disposition_hours=${parseFloat(hours)}&distance_km=${parseFloat(distanceKm) || 0}&duration_minutes=${parseFloat(durationMinutes) || 0}`,
         {},
         { withCredentials: true }
       );
@@ -139,7 +139,7 @@ const BookingSection = () => {
     } finally {
       setLoadingDispositionPrices(false);
     }
-  }, []);
+  }, [distanceKm, durationMinutes]);
 
   useEffect(() => {
     fetchPricingCategories();
@@ -152,7 +152,7 @@ const BookingSection = () => {
     } else {
       setDispositionPrices([]);
     }
-  }, [dispositionHours, transferType, fetchDispositionPrices]);
+  }, [dispositionHours, transferType, distanceKm, durationMinutes, fetchDispositionPrices]);
 
   // Fetch distance-based price estimates from backend whenever relevant inputs change (Bug 3a)
   useEffect(() => {

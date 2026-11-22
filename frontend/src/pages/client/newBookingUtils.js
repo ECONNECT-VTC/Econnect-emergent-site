@@ -26,6 +26,12 @@ export const buildEstimatePriceQuery = ({
     const parsedHours = Number(dispositionHours);
     if (!(parsedHours > 0)) return null;
     params.set('disposition_hours', String(parsedHours));
+    const parsedDistance = Number(distance);
+    if (parsedDistance > 0) params.set('distance_km', String(parsedDistance));
+    const parsedDuration = Number(duration);
+    if (Number.isFinite(parsedDuration) && parsedDuration >= 0) {
+      params.set('duration_minutes', String(parsedDuration));
+    }
     return params.toString();
   }
 

@@ -18,6 +18,10 @@ export const buildAdminEstimatePriceQuery = ({
     const parsedHours = toOptionalNumber(dispositionHours);
     if (!(parsedHours > 0)) return null;
     params.set('disposition_hours', String(parsedHours));
+    const parsedDistance = toOptionalNumber(distanceKm);
+    if (parsedDistance > 0) params.set('distance_km', String(parsedDistance));
+    const parsedDuration = toOptionalNumber(durationMinutes);
+    if (parsedDuration !== null && parsedDuration >= 0) params.set('duration_minutes', String(parsedDuration));
     return params.toString();
   }
 
