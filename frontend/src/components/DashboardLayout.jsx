@@ -30,29 +30,29 @@ const DashboardLayout = ({ children, title }) => {
     switch (user?.role) {
       case 'admin':
         return [
-          { name: dt('dashboard'), path: `${p}/admin`, icon: ChartBar },
-          { name: dt('bookings'), path: `${p}/admin/bookings`, icon: CalendarCheck },
-          { name: 'Chauffeurs', path: `${p}/admin/drivers`, icon: CarSimple },
-          { name: 'Clients', path: `${p}/admin/clients`, icon: Users },
-          { name: 'Flotte Admin', path: `${p}/admin/fleet`, icon: Car },
-          { name: 'Tarifs', path: `${p}/admin/pricing`, icon: CurrencyEur },
-          { name: 'Finance', path: `${p}/admin/financial`, icon: ChartLineUp },
-          { name: 'Commissions', path: `${p}/admin/commissions`, icon: Percent },
-          { name: 'Documents', path: `${p}/admin/documents`, icon: FileText },
-          { name: 'Documents légaux', path: `${p}/admin/legal-documents`, icon: FileText },
+          { name: dt('dashboard'), testId: 'dashboard', path: `${p}/admin`, icon: ChartBar },
+          { name: dt('bookings'), testId: 'reservations', path: `${p}/admin/bookings`, icon: CalendarCheck },
+          { name: dt('drivers'), testId: 'chauffeurs', path: `${p}/admin/drivers`, icon: CarSimple },
+          { name: dt('clients'), testId: 'clients', path: `${p}/admin/clients`, icon: Users },
+          { name: dt('admins'), testId: 'flotte', path: `${p}/admin/fleet`, icon: Car },
+          { name: dt('tariffs'), testId: 'tarifs', path: `${p}/admin/pricing`, icon: CurrencyEur },
+          { name: dt('finance'), testId: 'finance', path: `${p}/admin/financial`, icon: ChartLineUp },
+          { name: dt('commissions'), testId: 'commissions', path: `${p}/admin/commissions`, icon: Percent },
+          { name: dt('documents'), testId: 'documents', path: `${p}/admin/documents`, icon: FileText },
+          { name: dt('legalDocuments'), testId: 'documents-légaux', path: `${p}/admin/legal-documents`, icon: FileText },
         ];
       case 'driver':
         return [
-          { name: dt('courses'), path: `${p}/driver`, icon: Car },
-          { name: dt('earnings'), path: `${p}/driver/earnings`, icon: Money },
-          { name: dt('invoices'), path: `${p}/driver/invoices`, icon: FileText },
+          { name: dt('courses'), testId: 'courses', path: `${p}/driver`, icon: Car },
+          { name: dt('earnings'), testId: 'gains', path: `${p}/driver/earnings`, icon: Money },
+          { name: dt('invoices'), testId: 'factures', path: `${p}/driver/invoices`, icon: FileText },
         ];
       case 'client':
       default:
         return [
-          { name: 'Dashboard', path: `${p}/client`, icon: House },
-          { name: 'Mes Réservations', path: `${p}/client/bookings`, icon: CalendarCheck },
-          { name: 'Nouvelle Course', path: `${p}/client/new-booking`, icon: Car },
+          { name: dt('dashboard'), testId: 'dashboard', path: `${p}/client`, icon: House },
+          { name: dt('bookings'), testId: 'reservations', path: `${p}/client/bookings`, icon: CalendarCheck },
+          { name: dt('newBooking'), testId: 'nouvelle-course', path: `${p}/client/new-booking`, icon: Car },
         ];
     }
   };
@@ -94,7 +94,7 @@ const DashboardLayout = ({ children, title }) => {
                       ? 'bg-[#D4AF37] text-[#0A0A0A]'
                       : 'text-[#A1A1AA] hover:bg-white/5 hover:text-white'
                   }`}
-                  data-testid={`nav-${link.name.toLowerCase().replace(' ', '-')}`}
+                  data-testid={`nav-${link.testId || link.name.toLowerCase().replace(' ', '-')}`}
                 >
                   <link.icon size={22} weight={isActive ? 'fill' : 'regular'} />
                   <span className="font-medium">{link.name}</span>
