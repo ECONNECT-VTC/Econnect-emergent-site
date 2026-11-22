@@ -12,6 +12,8 @@ import BookingComments from '@/components/BookingComments';
 import { ArriveButton, WaitingTimer, RouteChangeNotice } from '@/components/BookingOperations';
 import { downloadDriverDocPdf } from '@/utils/invoiceGenerator';
 import { COURSE_STATUS_LABELS, COURSE_STATUS_STYLES, normalizeCourseStatus, statusEquals } from '../../utils/courseWorkflow';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { translateDashboard } from '@/utils/dashboardTranslations';
 
 const parseError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -25,6 +27,8 @@ const parseError = (error) => {
 
 const DriverDashboard = () => {
   const { lang = 'fr' } = useParams();
+  const { language } = useLanguage();
+  const dt = (key) => translateDashboard(language, key);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isAvailable, setIsAvailable] = useState(true);
@@ -125,8 +129,8 @@ const DriverDashboard = () => {
         <div className="flex items-center gap-3">
           <CarSimple size={24} className={isAvailable ? 'text-green-400' : 'text-red-400'} />
           <div>
-            <p className="font-medium">Disponibilité</p>
-            <p className="text-sm text-[#A1A1AA]">{isAvailable ? 'Disponible' : 'Indisponible'}</p>
+            <p className="font-medium">{dt('availability')}</p>
+            <p className="text-sm text-[#A1A1AA]">{isAvailable ? dt('available') : dt('unavailable')}</p>
           </div>
         </div>
         <Switch
@@ -141,19 +145,19 @@ const DriverDashboard = () => {
           <p className="text-2xl font-bold text-blue-400">
             {bookings.filter((b) => statusEquals(b.status, 'ASSIGNED')).length}
           </p>
-          <p className="text-sm text-[#A1A1AA]">Assignées</p>
+          <p className="text-sm text-[#A1A1AA]">{dt('assigned')}</p>
         </div>
         <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('IN_PROGRESS')}>
           <p className="text-2xl font-bold text-purple-400">
             {bookings.filter((b) => statusEquals(b.status, 'IN_PROGRESS')).length}
           </p>
-          <p className="text-sm text-[#A1A1AA]">En cours</p>
+          <p className="text-sm text-[#A1A1AA]">{dt('inProgress')}</p>
         </div>
         <div className="glass rounded-xl p-4 text-center cursor-pointer hover:border-[#D4AF37]/50 transition-all" onClick={() => setFilter('COMPLETED')}>
           <p className="text-2xl font-bold text-green-400">
             {bookings.filter((b) => statusEquals(b.status, 'COMPLETED')).length}
           </p>
-          <p className="text-sm text-[#A1A1AA]">Terminées</p>
+          <p className="text-sm text-[#A1A1AA]">{dt('completed')}</p>
         </div>
       </div>
 
@@ -166,9 +170,9 @@ const DriverDashboard = () => {
               filter === s ? 'bg-[#D4AF37] text-[#0A0A0A]' : 'bg-[#1E1E1E] text-[#A1A1AA]'
             }`}
           >
-            {s === 'all' ? 'Toutes' :
-              s === 'ASSIGNED' ? 'Assignées' :
-              s === 'IN_PROGRESS' ? 'En cours' : 'Terminées'}
+            {s === 'all' ? dt('all') :
+              s === 'ASSIGNED' ? dt('assigned') :
+              s === 'IN_PROGRESS' ? dt('inProgress') : dt('completed')}
           </button>
         ))}
       </div>

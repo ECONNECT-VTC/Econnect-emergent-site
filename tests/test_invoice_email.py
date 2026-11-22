@@ -554,6 +554,8 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Course annulée", client_call.args[1])
         self.assertEqual(driver_call.args[0], "driver@example.com")
         self.assertIn("Course annulée", driver_call.args[1])
+        self.assertEqual(client_call.kwargs["template_key"], email_service.TEMPLATE_KEY_CANCELLATION)
+        self.assertEqual(driver_call.kwargs["template_key"], email_service.TEMPLATE_KEY_CANCELLATION)
 
     async def test_driver_withdrawal_notifies_client_about_reassignment(self):
         booking = {

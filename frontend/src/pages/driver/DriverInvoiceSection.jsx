@@ -6,6 +6,8 @@ import { downloadDriverDocPdf } from '@/utils/invoiceGenerator';
 import API_URL from '@/config';
 import LogoDisplay from '@/components/LogoDisplay';
 import BillingAccountPanel from '@/components/BillingAccountPanel';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { translateDashboard } from '@/utils/dashboardTranslations';
 
 const DRIVER_DOCS = [
   { type: 'order', label: 'Bon de commande', icon: '📋', color: 'text-purple-300' },
@@ -15,6 +17,8 @@ const DRIVER_DOCS = [
 
 const DriverInvoiceSection = () => {
   const { invoices, loading, error, totalEarned } = useDriverInvoices();
+  const { language } = useLanguage();
+  const dt = (key) => translateDashboard(language, key);
   const [search, setSearch] = useState('');
   const [openId, setOpenId] = useState(null);
 
@@ -46,15 +50,15 @@ const DriverInvoiceSection = () => {
       {/* Summary cards */}
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="bg-[#141414] rounded-xl border border-[#D4AF37]/20 p-5">
-          <p className="text-[#A1A1AA] text-sm">Total cumulé</p>
+          <p className="text-[#A1A1AA] text-sm">{dt('totalCumulative')}</p>
           <p className="text-2xl font-bold text-[#D4AF37] mt-2">{formatCurrency(totalEarned)}</p>
         </div>
         <div className="bg-[#141414] rounded-xl border border-white/10 p-5">
-          <p className="text-[#A1A1AA] text-sm">Nombre de courses</p>
+          <p className="text-[#A1A1AA] text-sm">{dt('courseCount')}</p>
           <p className="text-2xl font-bold mt-2">{invoices.length}</p>
         </div>
         <div className="bg-[#141414] rounded-xl border border-white/10 p-5">
-          <p className="text-[#A1A1AA] text-sm">Gain moyen / course</p>
+          <p className="text-[#A1A1AA] text-sm">{dt('average')}</p>
           <p className="text-2xl font-bold mt-2 text-green-400">{formatCurrency(avgEarning)}</p>
         </div>
       </div>
@@ -65,7 +69,7 @@ const DriverInvoiceSection = () => {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Rechercher par numéro, client, adresse…"
+          placeholder={dt('invoiceSearch')}
           className="w-full rounded border border-white/10 bg-[#141414] px-3 py-2 text-sm text-white placeholder-[#A1A1AA] sm:w-72"
         />
       </div>
@@ -114,10 +118,10 @@ const DriverInvoiceSection = () => {
         <table className="w-full min-w-[800px] text-sm">
           <thead>
             <tr className="text-left text-[#A1A1AA] border-b border-white/10">
-              <th className="py-3">N° Course</th>
-              <th>Client</th>
-              <th>Trajet</th>
-              <th>Date</th>
+              <th className="py-3">{dt('courseNumber')}</th>
+              <th>{dt('client')}</th>
+              <th>{dt('trip')}</th>
+              <th>{dt('date')}</th>
               <th>Montant course TTC</th>
               <th>Mon gain (HT)</th>
               <th>Documents</th>

@@ -2,10 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import API_URL from '@/config';
 import BillingAccountPanel from '@/components/BillingAccountPanel';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { translateDashboard } from '@/utils/dashboardTranslations';
 
 const DriverEarnings = () => {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { language } = useLanguage();
+  const dt = (key) => translateDashboard(language, key);
 
   useEffect(() => {
     const fetchEarnings = async () => {
@@ -36,15 +40,15 @@ const DriverEarnings = () => {
       <BillingAccountPanel role="driver" />
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
         <div className="bg-[#141414] rounded-xl border border-white/10 p-5">
-          <p className="text-[#A1A1AA] text-sm">Total gagné</p>
+          <p className="text-[#A1A1AA] text-sm">{dt('totalEarned')}</p>
           <p className="text-2xl font-bold text-green-400 mt-2">{formatAmount(totals.total)}</p>
         </div>
         <div className="bg-[#141414] rounded-xl border border-white/10 p-5">
-          <p className="text-[#A1A1AA] text-sm">Nombre de courses</p>
+          <p className="text-[#A1A1AA] text-sm">{dt('courseCount')}</p>
           <p className="text-2xl font-bold mt-2">{totals.count}</p>
         </div>
         <div className="bg-[#141414] rounded-xl border border-white/10 p-5">
-          <p className="text-[#A1A1AA] text-sm">Moyenne par course</p>
+          <p className="text-[#A1A1AA] text-sm">{dt('average')}</p>
           <p className="text-2xl font-bold mt-2">{formatAmount(totals.average)}</p>
         </div>
       </div>
@@ -62,7 +66,7 @@ const DriverEarnings = () => {
           </div>
         ))}
         {!loading && rows.length === 0 && (
-          <div className="rounded-xl border border-white/10 bg-[#141414] px-4 py-8 text-center text-[#A1A1AA]">Aucun gain disponible</div>
+          <div className="rounded-xl border border-white/10 bg-[#141414] px-4 py-8 text-center text-[#A1A1AA]">{dt('noEarnings')}</div>
         )}
         {loading && (
           <div className="rounded-xl border border-white/10 bg-[#141414] px-4 py-8 text-center text-[#A1A1AA]">Chargement...</div>
@@ -73,11 +77,11 @@ const DriverEarnings = () => {
         <table className="w-full min-w-[860px] text-sm">
           <thead>
             <tr className="text-left text-[#A1A1AA] border-b border-white/10">
-              <th className="py-3">Trajet</th>
-              <th>Date</th>
-              <th>Prix TTC course</th>
-              <th>Commission déduite</th>
-              <th>Mon gain</th>
+              <th className="py-3">{dt('trip')}</th>
+              <th>{dt('date')}</th>
+              <th>{dt('totalTtc')}</th>
+              <th>{dt('commission')}</th>
+              <th>{dt('gain')}</th>
             </tr>
           </thead>
           <tbody>
