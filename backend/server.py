@@ -3512,9 +3512,10 @@ def _smtp_bool(value: Optional[str], default: bool = True) -> bool:
 
 
 def _send_smtp_message(message: EmailMessage, host: str, port: int, username: str, password: str, use_tls: bool):
-    with smtplib.SMTP(host, port, timeout=20) as smtp:
+    smtp_factory = smtplib.SMTP_SSL if port == 465 else smtplib.SMTP
+    with smtp_factory(host, port, timeout=20) as smtp:
         smtp.ehlo()
-        if use_tls:
+        if use_tls and port != 465:
             smtp.starttls()
             smtp.ehlo()
         if username:
@@ -3524,15 +3525,15 @@ def _send_smtp_message(message: EmailMessage, host: str, port: int, username: st
 
 async def send_booking_alert_email(subject: str, html_content: str) -> bool:
     """Send administrator alerts through the configured SMTP server."""
+    if not _smtp_enabled():
+        logger.warning("Booking alert SMTP is not configured; alert was not sent")
+        return False
     settings = await get_commission_settings()
     recipient = (
         str(settings.get("booking_alert_email") or "").strip()
         or os.environ.get("ADMIN_BOOKING_ALERT_EMAIL", "").strip()
         or DEFAULT_BOOKING_ALERT_EMAIL
     )
-    if not _smtp_enabled():
-        logger.warning("Booking alert SMTP is not configured; alert was not sent")
-        return False
 
     host = os.environ["SMTP_HOST"].strip()
     username = os.environ.get("SMTP_USERNAME", "").strip()

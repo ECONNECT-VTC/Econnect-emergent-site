@@ -3,7 +3,7 @@ import sys
 import unittest
 from email.message import EmailMessage
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 os.environ.setdefault("MONGO_URL", "mongodb://localhost:27017")
 os.environ.setdefault("DB_NAME", "test_db")
@@ -55,6 +55,29 @@ class TestAdminBookingAlerts(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertFalse(await server.send_booking_alert_email("Sujet", "<p>Test</p>"))
         send_brevo.assert_not_awaited()
+
+    def test_port_465_uses_implicit_ssl_without_starttls(self):
+        class Connection:
+            def __init__(self):
+                self.ehlo = Mock()
+                self.starttls = Mock()
+                self.login = Mock()
+                self.send_message = Mock()
+            def __enter__(self):
+                return self
+            def __exit__(self, exc_type, exc, tb):
+                return None
+
+        connection = Connection()
+        with patch.object(server.smtplib, "SMTP_SSL", return_value=connection) as smtp_ssl, \
+                patch.object(server.smtplib, "SMTP") as smtp:
+            server._send_smtp_message(
+                EmailMessage(), "smtp.hostinger.com", 465, "reservation@econnect-vtc.com", "secret", True,
+            )
+        smtp_ssl.assert_called_once_with("smtp.hostinger.com", 465, timeout=20)
+        smtp.assert_not_called()
+        connection.starttls.assert_not_called()
+        connection.login.assert_called_once_with("reservation@econnect-vtc.com", "secret")
 
     async def test_alert_does_not_fall_back_to_brevo_when_smtp_fails(self):
         with (
