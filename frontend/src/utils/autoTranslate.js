@@ -28,13 +28,26 @@ const translateValue = (value, dictionary) => {
   const trailing = value.match(/\s*$/)?.[0] || '';
   const content = value.trim();
   if (!content) return value;
-  return dictionary.has(content) ? `${leading}${dictionary.get(content)}${trailing}` : value;
+  if (dictionary.has(content)) return `${leading}${dictionary.get(content)}${trailing}`;
+  let translated = content;
+  [...dictionary.entries()]
+    .filter(([source]) => source.length >= 2)
+    .sort(([left], [right]) => right.length - left.length)
+    .forEach(([source, target]) => {
+      translated = translated.split(source).join(target);
+    });
+  return `${leading}${translated}${trailing}`;
 };
 
 const translateNode = (node, dictionary) => {
   if (node.nodeType === Node.TEXT_NODE) {
-    if (!originalText.has(node)) originalText.set(node, node.nodeValue);
-    const translated = translateValue(originalText.get(node), dictionary);
+    const previous = originalText.get(node);
+    const state = !previous || node.nodeValue !== previous.rendered
+      ? { source: node.nodeValue, rendered: node.nodeValue }
+      : previous;
+    const translated = translateValue(state.source, dictionary);
+    state.rendered = translated;
+    originalText.set(node, state);
     if (node.nodeValue !== translated) node.nodeValue = translated;
     return;
   }
@@ -44,8 +57,14 @@ const translateNode = (node, dictionary) => {
     const saved = originalAttributes.get(node);
     ['placeholder', 'title', 'aria-label'].forEach((attribute) => {
       if (!node.hasAttribute(attribute)) return;
-      if (!saved.has(attribute)) saved.set(attribute, node.getAttribute(attribute));
-      const translated = translateValue(saved.get(attribute), dictionary);
+      const current = node.getAttribute(attribute);
+      const previous = saved.get(attribute);
+      const state = !previous || current !== previous.rendered
+        ? { source: current, rendered: current }
+        : previous;
+      const translated = translateValue(state.source, dictionary);
+      state.rendered = translated;
+      saved.set(attribute, state);
       if (node.getAttribute(attribute) !== translated) node.setAttribute(attribute, translated);
     });
   } else {
@@ -53,8 +72,14 @@ const translateNode = (node, dictionary) => {
     const saved = originalAttributes.get(node);
     ['title', 'aria-label'].forEach((attribute) => {
       if (!node.hasAttribute(attribute)) return;
-      if (!saved.has(attribute)) saved.set(attribute, node.getAttribute(attribute));
-      const translated = translateValue(saved.get(attribute), dictionary);
+      const current = node.getAttribute(attribute);
+      const previous = saved.get(attribute);
+      const state = !previous || current !== previous.rendered
+        ? { source: current, rendered: current }
+        : previous;
+      const translated = translateValue(state.source, dictionary);
+      state.rendered = translated;
+      saved.set(attribute, state);
       if (node.getAttribute(attribute) !== translated) node.setAttribute(attribute, translated);
     });
   }
