@@ -37,6 +37,7 @@ const LanguageDropdown = ({ buttonClassName = '', menuClassName = '' }) => {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         className={cn(
           'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-all duration-200',
@@ -50,6 +51,8 @@ const LanguageDropdown = ({ buttonClassName = '', menuClassName = '' }) => {
         }}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        aria-label={`${currentLang.name}`}
+        key={language}
         data-testid="lang-dropdown-toggle"
       >
         <span className="text-base leading-none">{currentLang.flag}</span>
@@ -82,6 +85,7 @@ const LanguageDropdown = ({ buttonClassName = '', menuClassName = '' }) => {
               return (
                 <li key={lang.code} role="option" aria-selected={isActive}>
                   <button
+                    type="button"
                     onClick={() => handleSelect(lang.code)}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors duration-150"
                     style={{

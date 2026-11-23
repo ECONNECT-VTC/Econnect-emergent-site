@@ -31,4 +31,11 @@ describe('automatic page translation', () => {
     expect(dialog.textContent).toBe('Cancel trip');
     stop();
   });
+
+  it('translates phrases inside mixed dynamic text', () => {
+    document.body.innerHTML = '<p>Passagers : 3 · Mode de paiement : virement</p>';
+    const stop = startPageTranslation('en');
+    expect(document.body.textContent).toContain('Passengers : 3 · Payment method : virement');
+    stop();
+  });
 });

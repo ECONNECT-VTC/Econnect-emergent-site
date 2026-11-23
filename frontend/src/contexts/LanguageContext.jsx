@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import translations from '@/translations';
 import { startPageTranslation } from '@/utils/autoTranslate';
@@ -28,20 +28,31 @@ export const LanguageProvider = ({ children }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const language = VALID_LANG_CODES.includes(lang) ? lang : 'fr';
+  const routeLanguage = VALID_LANG_CODES.includes(lang) ? lang : 'fr';
+  const [language, setActiveLanguage] = useState(routeLanguage);
+  const previousRouteLanguage = useRef(routeLanguage);
   const isRTL = language === 'ar';
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
     document.documentElement.lang = language;
     localStorage.setItem('preferred-lang', language);
     return startPageTranslation(language);
   }, [language, isRTL]);
 
+  useEffect(() => {
+    if (routeLanguage !== previousRouteLanguage.current) {
+      previousRouteLanguage.current = routeLanguage;
+      setActiveLanguage(routeLanguage);
+    }
+  }, [routeLanguage]);
+
   const setLanguage = (code) => {
     if (!VALID_LANG_CODES.includes(code)) return;
+    setActiveLanguage(code);
+    localStorage.setItem('preferred-lang', code);
     const pathWithoutLang = location.pathname.replace(/^\/[^/]+/, '') || '/';
-    navigate('/' + code + pathWithoutLang, { replace: true });
+    navigate(`/${code}${pathWithoutLang}${location.search}${location.hash}`, { replace: true, state: location.state });
   };
 
   const t = (key) => {
