@@ -3523,17 +3523,17 @@ def _send_smtp_message(message: EmailMessage, host: str, port: int, username: st
 
 
 async def send_booking_alert_email(subject: str, html_content: str) -> bool:
-    """Send an administrator booking alert through the configured SMTP server."""
-    if not _smtp_enabled():
-        logger.warning("Booking alert SMTP is not configured; alert was not sent")
-        return False
-
+    """Send administrator alerts through the configured SMTP server."""
     settings = await get_commission_settings()
     recipient = (
         str(settings.get("booking_alert_email") or "").strip()
         or os.environ.get("ADMIN_BOOKING_ALERT_EMAIL", "").strip()
         or DEFAULT_BOOKING_ALERT_EMAIL
     )
+    if not _smtp_enabled():
+        logger.warning("Booking alert SMTP is not configured; alert was not sent")
+        return False
+
     host = os.environ["SMTP_HOST"].strip()
     username = os.environ.get("SMTP_USERNAME", "").strip()
     password = os.environ.get("SMTP_PASSWORD", "")
@@ -3581,10 +3581,12 @@ async def send_admin_booking_alert(
     reference = booking_short_reference(booking.get("id"))
     event_labels = {
         "new_booking": "Nouvelle demande de course",
+        "booking_modified": "Modification d'une course",
         "client_cancellation": "Demande d'annulation client",
         "driver_cancellation": "Retrait chauffeur — course à réaffecter",
         "admin_cancellation": "Annulation administrative de course",
         "cancellation_approved": "Annulation de course approuvée",
+        "booking_completed": "Course terminée",
     }
     title = event_labels.get(event, "Alerte course")
     rows = [
@@ -5430,7 +5432,17 @@ async def update_booking(booking_id: str, payload: dict, request: Request):
     result = await db.bookings.update_one(query, update)
     if result.matched_count != 1:
         raise HTTPException(409, "La course a changé. Rechargez avant de réessayer.")
-    return await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+    if update_data:
+        asyncio.create_task(
+            _notify_admin_booking_alert(
+                updated_booking or {**booking, **update_data},
+                "booking_modified",
+                reason=", ".join(key for key in update_data if key not in {"route_change"}),
+                actor_name=user.get("name") or user.get("email"),
+            )
+        )
+    return updated_booking
 
 
 @api_router.get("/admin/waiting-rules")
@@ -5517,6 +5529,10 @@ async def update_course_status(course_id: str, payload: BookingStatusUpdate, req
                 await notify_booking_completed(updated_booking)
             except Exception as exc:
                 logger.error("Failed to notify client for completed booking %s: %s", course_id, exc)
+            asyncio.create_task(_notify_admin_booking_alert(
+                updated_booking, "booking_completed",
+                actor_name=user.get("name") or user.get("email"),
+            ))
 
     return CourseStatusUpdateResponse(message="Statut mis à jour", status=next_status)
 
@@ -5720,6 +5736,10 @@ async def update_booking_status_driver(booking_id: str, status_update: BookingSt
                 await notify_booking_completed(updated_booking)
             except Exception as exc:
                 logger.error("Failed to notify client for completed booking %s: %s", booking_id, exc)
+            asyncio.create_task(_notify_admin_booking_alert(
+                updated_booking, "booking_completed",
+                actor_name=user.get("name") or user.get("email"),
+            ))
 
     return {"message": "Statut mis à jour", "status": next_status}
 
@@ -5925,6 +5945,10 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
                 await notify_booking_completed(updated_booking)
             except Exception as exc:
                 logger.error("Failed to notify client for completed booking %s: %s", booking_id, exc)
+            asyncio.create_task(_notify_admin_booking_alert(
+                updated_booking, "booking_completed",
+                actor_name=admin.get("name") or admin.get("email"),
+            ))
 
     return {"message": "Statut mis à jour", "status": next_status}
 
@@ -6760,7 +6784,7 @@ async def update_booking_status_admin(booking_id: str, status_update: BookingSta
 
 @api_router.put("/admin/bookings/{booking_id}")
 async def admin_update_booking(booking_id: str, payload: dict, request: Request):
-    await require_admin(request)
+    admin = await require_admin(request)
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
@@ -6815,6 +6839,12 @@ async def admin_update_booking(booking_id: str, payload: dict, request: Request)
     await db.bookings.update_one({"id": booking_id}, {"$set": update_data})
     updated_booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     enrich_booking_payment_tracking(updated_booking)
+    if update_data:
+        asyncio.create_task(_notify_admin_booking_alert(
+            updated_booking, "booking_modified",
+            reason=", ".join(key for key in update_data),
+            actor_name=admin.get("name") or admin.get("email"),
+        ))
     return updated_booking
 
 @api_router.get("/admin/disposition-rates")

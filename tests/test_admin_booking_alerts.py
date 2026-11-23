@@ -49,10 +49,22 @@ class TestAdminBookingAlerts(unittest.IsolatedAsyncioTestCase):
 
     async def test_alert_is_skipped_when_smtp_is_not_configured(self):
         with (
-            patch.object(server, "get_commission_settings", AsyncMock()),
+            patch.object(server, "get_commission_settings", AsyncMock(return_value={})),
+            patch.object(server, "send_notification_email", AsyncMock(return_value=True)) as send_brevo,
             patch.dict(os.environ, {"SMTP_HOST": ""}, clear=False),
         ):
             self.assertFalse(await server.send_booking_alert_email("Sujet", "<p>Test</p>"))
+        send_brevo.assert_not_awaited()
+
+    async def test_alert_does_not_fall_back_to_brevo_when_smtp_fails(self):
+        with (
+            patch.object(server, "get_commission_settings", AsyncMock(return_value={})),
+            patch.object(server.asyncio, "to_thread", AsyncMock(side_effect=OSError("SMTP down"))),
+            patch.object(server, "send_notification_email", AsyncMock(return_value=True)) as send_brevo,
+            patch.dict(os.environ, {"SMTP_HOST": "smtp.example.com", "SMTP_PORT": "587"}, clear=False),
+        ):
+            self.assertFalse(await server.send_booking_alert_email("Sujet", "<p>Test</p>"))
+        send_brevo.assert_not_awaited()
 
     async def test_driver_cancellation_alert_uses_smtp_transport(self):
         with patch.object(server, "send_admin_booking_alert", AsyncMock(return_value=True)) as send_alert:
