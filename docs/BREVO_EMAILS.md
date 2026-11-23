@@ -40,11 +40,11 @@ consomment pas de courriels Brevo. Configurer dans l'environnement du backend
 (jamais dans Git) :
 
 - `SMTP_HOST`
-- `SMTP_PORT` (défaut : `587`)
+- `SMTP_PORT` (`465` pour SSL implicite Hostinger ; `587` pour STARTTLS)
 - `SMTP_USERNAME`
 - `SMTP_PASSWORD`
 - `SMTP_FROM_EMAIL` (optionnel, repli sur `SMTP_USERNAME`)
-- `SMTP_USE_TLS` (défaut : `true`)
+- `SMTP_USE_TLS` (défaut : `true` ; ignoré sur le port `465`)
 
 L'adresse destinataire par défaut est `reservation@econnect-vtc.com`. Elle est
 modifiable dans **Administration → Commissions** et peut être remplacée par une
