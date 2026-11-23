@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import translations from '@/translations';
+import { startPageTranslation } from '@/utils/autoTranslate';
 
 export const LANGUAGES = [
   { code: 'fr', name: 'Français', flag: '🇫🇷', dir: 'ltr' },
@@ -34,6 +35,7 @@ export const LanguageProvider = ({ children }) => {
     document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
     document.documentElement.lang = language;
     localStorage.setItem('preferred-lang', language);
+    return startPageTranslation(language);
   }, [language, isRTL]);
 
   const setLanguage = (code) => {
