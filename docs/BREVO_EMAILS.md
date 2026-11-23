@@ -35,9 +35,9 @@ Configurer dans l’hébergeur (jamais dans Git) :
 
 Les alertes destinées à l'administration couvrent les nouvelles demandes, les
 modifications de course, les annulations client/chauffeur/admin et les courses
-terminées. Le backend utilise le SMTP configuré ci-dessous en priorité, puis se
-replie automatiquement sur Brevo si SMTP est absent ou en erreur. Configurer
-dans l'environnement du backend (jamais dans Git) :
+terminées. Elles utilisent uniquement le SMTP configuré ci-dessous et ne
+consomment pas de courriels Brevo. Configurer dans l'environnement du backend
+(jamais dans Git) :
 
 - `SMTP_HOST`
 - `SMTP_PORT` (défaut : `587`)
@@ -48,8 +48,8 @@ dans l'environnement du backend (jamais dans Git) :
 
 L'adresse destinataire par défaut est `reservation@econnect-vtc.com`. Elle est
 modifiable dans **Administration → Commissions** et peut être remplacée par une
-adresse Gmail. L'absence de configuration SMTP ne désactive donc plus les alertes si Brevo est
-configuré.
+adresse Gmail. Si SMTP est absent ou en erreur, l'alerte admin est journalisée comme non
+envoyée sans tenter d'envoi Brevo.
 
 Pour envoyer les emails de réservation depuis une adresse dédiée tout en conservant l’expéditeur par défaut pour les comptes :
 

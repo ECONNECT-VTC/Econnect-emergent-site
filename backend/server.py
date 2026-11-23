@@ -3523,26 +3523,16 @@ def _send_smtp_message(message: EmailMessage, host: str, port: int, username: st
 
 
 async def send_booking_alert_email(subject: str, html_content: str) -> bool:
-    """Send administrator alerts through SMTP, falling back to Brevo."""
+    """Send administrator alerts through the configured SMTP server."""
     settings = await get_commission_settings()
     recipient = (
         str(settings.get("booking_alert_email") or "").strip()
         or os.environ.get("ADMIN_BOOKING_ALERT_EMAIL", "").strip()
         or DEFAULT_BOOKING_ALERT_EMAIL
     )
-    async def send_by_brevo():
-        return await send_notification_email(
-            recipient, subject, html_content,
-            sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL")
-                         or os.environ.get("BREVO_SENDER_EMAIL")
-                         or DEFAULT_BOOKING_ALERT_EMAIL,
-        )
-
     if not _smtp_enabled():
-        sent = await send_by_brevo()
-        if not sent:
-            logger.warning("Neither SMTP nor Brevo is available for booking alert to %s", recipient)
-        return sent
+        logger.warning("Booking alert SMTP is not configured; alert was not sent")
+        return False
 
     host = os.environ["SMTP_HOST"].strip()
     username = os.environ.get("SMTP_USERNAME", "").strip()
@@ -3578,8 +3568,7 @@ async def send_booking_alert_email(subject: str, html_content: str) -> bool:
         )
     except (OSError, smtplib.SMTPException) as exc:
         logger.error("Failed to send booking alert by SMTP to %s: %s", recipient, exc)
-        logger.warning("Retrying booking alert to %s through Brevo", recipient)
-        return await send_by_brevo()
+        return False
     return True
 
 
