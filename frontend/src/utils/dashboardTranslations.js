@@ -64,6 +64,90 @@ PRIVATE_TRANSLATIONS.en = {
   settings:'Settings', company:'Company', email:'Email', phone:'Phone',
 };
 
+const COMPLETE_EXTRA_TRANSLATIONS = {
+  es: {
+    recentBookings:'Reservas recientes', allCourses:'Ver todo', latestCourses:'Viajes recientes',
+    totalCourses:'Viajes totales', pending:'Pendiente', inProgressShort:'En curso', completedShort:'Terminada',
+    assignedShort:'Asignada', cancelledShort:'Cancelada', clientLabel:'Cliente', paymentPending:'Pago pendiente',
+    driverLabel:'Chauffeur', total:'Total', bookNew:'Nueva reserva', currentStatus:'Estado actual',
+    filters:'Filtros', newBookingNotice:'Solicitud creada correctamente',
+  },
+  de: {
+    recentBookings:'Letzte Buchungen', allCourses:'Alle anzeigen', latestCourses:'Letzte Fahrten',
+    totalCourses:'Fahrten insgesamt', pending:'Ausstehend', inProgressShort:'In Bearbeitung', completedShort:'Abgeschlossen',
+    assignedShort:'Zugewiesen', cancelledShort:'Storniert', clientLabel:'Kunde', paymentPending:'Zahlung ausstehend',
+    driverLabel:'Fahrer', total:'Gesamt', bookNew:'Neue Buchung', currentStatus:'Aktueller Status',
+    filters:'Filter', newBookingNotice:'Anfrage erfolgreich erstellt',
+  },
+  it: {
+    recentBookings:'Prenotazioni recenti', allCourses:'Vedi tutto', latestCourses:'Corse recenti',
+    totalCourses:'Corse totali', pending:'In attesa', inProgressShort:'In corso', completedShort:'Completata',
+    assignedShort:'Assegnata', cancelledShort:'Annullata', clientLabel:'Cliente', paymentPending:'Pagamento in attesa',
+    driverLabel:'Autista', total:'Totale', bookNew:'Nuova prenotazione', currentStatus:'Stato attuale',
+    filters:'Filtri', newBookingNotice:'Richiesta creata correttamente',
+  },
+  pt: {
+    recentBookings:'Reservas recentes', allCourses:'Ver tudo', latestCourses:'Viagens recentes',
+    totalCourses:'Total de viagens', pending:'Pendente', inProgressShort:'Em curso', completedShort:'Concluída',
+    assignedShort:'Atribuída', cancelledShort:'Cancelada', clientLabel:'Cliente', paymentPending:'Pagamento pendente',
+    driverLabel:'Motorista', total:'Total', bookNew:'Nova reserva', currentStatus:'Estado atual',
+    filters:'Filtros', newBookingNotice:'Pedido criado com sucesso',
+  },
+  nl: {
+    recentBookings:'Recente boekingen', allCourses:'Alles bekijken', latestCourses:'Recente ritten',
+    totalCourses:'Totaal ritten', pending:'In afwachting', inProgressShort:'Bezig', completedShort:'Voltooid',
+    assignedShort:'Toegewezen', cancelledShort:'Geannuleerd', clientLabel:'Klant', paymentPending:'Betaling in afwachting',
+    driverLabel:'Chauffeur', total:'Totaal', bookNew:'Nieuwe boeking', currentStatus:'Huidige status',
+    filters:'Filters', newBookingNotice:'Aanvraag succesvol aangemaakt',
+  },
+  ru: {
+    recentBookings:'Последние бронирования', allCourses:'Показать все', latestCourses:'Последние поездки',
+    totalCourses:'Всего поездок', pending:'Ожидает', inProgressShort:'В процессе', completedShort:'Завершена',
+    assignedShort:'Назначена', cancelledShort:'Отменена', clientLabel:'Клиент', paymentPending:'Ожидание оплаты',
+    driverLabel:'Водитель', total:'Итого', bookNew:'Новая поездка', currentStatus:'Текущий статус',
+    filters:'Фильтры', newBookingNotice:'Запрос успешно создан',
+  },
+  pl: {
+    recentBookings:'Ostatnie rezerwacje', allCourses:'Zobacz wszystko', latestCourses:'Ostatnie kursy',
+    totalCourses:'Łączna liczba kursów', pending:'Oczekująca', inProgressShort:'W toku', completedShort:'Zakończona',
+    assignedShort:'Przypisana', cancelledShort:'Anulowana', clientLabel:'Klient', paymentPending:'Płatność oczekująca',
+    driverLabel:'Kierowca', total:'Razem', bookNew:'Nowa rezerwacja', currentStatus:'Aktualny status',
+    filters:'Filtry', newBookingNotice:'Żądanie utworzone pomyślnie',
+  },
+  ja: {
+    recentBookings:'最近の予約', allCourses:'すべて表示', latestCourses:'最近の便',
+    totalCourses:'総便数', pending:'保留中', inProgressShort:'進行中', completedShort:'完了',
+    assignedShort:'割り当て済み', cancelledShort:'キャンセル', clientLabel:'顧客', paymentPending:'支払い待ち',
+    driverLabel:'運転手', total:'合計', bookNew:'新しい予約', currentStatus:'現在の状態',
+    filters:'フィルター', newBookingNotice:'予約依頼を作成しました',
+  },
+  ko: {
+    recentBookings:'최근 예약', allCourses:'모두 보기', latestCourses:'최근 운행',
+    totalCourses:'총 운행 수', pending:'대기 중', inProgressShort:'진행 중', completedShort:'완료',
+    assignedShort:'배정됨', cancelledShort:'취소됨', clientLabel:'고객', paymentPending:'결제 대기',
+    driverLabel:'운전기사', total:'합계', bookNew:'새 예약', currentStatus:'현재 상태',
+    filters:'필터', newBookingNotice:'예약 요청이 생성되었습니다',
+  },
+  zh: {
+    recentBookings:'最近预订', allCourses:'查看全部', latestCourses:'最近行程',
+    totalCourses:'总行程', pending:'待处理', inProgressShort:'进行中', completedShort:'已完成',
+    assignedShort:'已分配', cancelledShort:'已取消', clientLabel:'客户', paymentPending:'待付款',
+    driverLabel:'司机', total:'总计', bookNew:'新建预订', currentStatus:'当前状态',
+    filters:'筛选', newBookingNotice:'预订请求已创建',
+  },
+  ar: {
+    recentBookings:'الحجوزات الأخيرة', allCourses:'عرض الكل', latestCourses:'الرحلات الأخيرة',
+    totalCourses:'إجمالي الرحلات', pending:'قيد الانتظار', inProgressShort:'قيد التنفيذ', completedShort:'مكتملة',
+    assignedShort:'مُسندة', cancelledShort:'ملغاة', clientLabel:'العميل', paymentPending:'الدفع معلق',
+    driverLabel:'السائق', total:'الإجمالي', bookNew:'حجز جديد', currentStatus:'الحالة الحالية',
+    filters:'عوامل التصفية', newBookingNotice:'تم إنشاء الطلب بنجاح',
+  },
+};
+
+Object.entries(COMPLETE_EXTRA_TRANSLATIONS).forEach(([language, values]) => {
+  PRIVATE_TRANSLATIONS[language] = { ...PRIVATE_TRANSLATIONS[language], ...values };
+});
+
 export const translateDashboard = (language, key) =>
   (PRIVATE_TRANSLATIONS[language] || PRIVATE_TRANSLATIONS.fr)[key]
   || PRIVATE_TRANSLATIONS.en[key]
