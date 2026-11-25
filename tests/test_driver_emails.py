@@ -4,6 +4,7 @@ import unittest
 from base64 import b64decode
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
+from urllib.parse import parse_qs, urlsplit
 
 from tests.test_invoice_email import _make_brevo_sdk, email_service, server
 
@@ -70,6 +71,26 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
             {"$set": {"client_driver_notified_driver_id": "driver-1"}},
         )
 
+    async def test_signed_order_link_downloads_pdf_without_driver_cookie(self):
+        booking = {**self.booking, "id": "abcdef123456", "driver_id": "driver-1"}
+        token = server.create_driver_order_token(booking["id"], booking["driver_id"])
+        self.bookings.find_one.return_value = booking
+        with patch.object(server, "get_commission_settings", AsyncMock(return_value=self.settings)), \
+                patch.object(server, "generate_and_store_document", AsyncMock(return_value=(b"%PDF-test", {}))):
+            response = await server.download_driver_booking_order_pdf(booking["id"], SimpleNamespace(), token)
+        self.assertEqual(response.body, b"%PDF-test")
+        self.assertIn("attachment", response.headers["content-disposition"])
+
+    async def test_signed_order_link_rejects_other_driver_and_booking(self):
+        booking = {**self.booking, "id": "abcdef123456", "driver_id": "driver-1"}
+        self.bookings.find_one.return_value = booking
+        wrong_driver = server.create_driver_order_token(booking["id"], "driver-2")
+        wrong_booking = server.create_driver_order_token("other", "driver-1")
+        for token in (wrong_driver, wrong_booking):
+            with self.subTest(token=token), self.assertRaises(server.HTTPException) as exc:
+                await server.download_driver_booking_order_pdf(booking["id"], SimpleNamespace(), token)
+            self.assertIn(exc.exception.status_code, (401, 403))
+
     async def test_assignment_uses_client_account_email_when_booking_email_is_missing(self):
         self.booking.pop("client_email")
         self.booking["client_id"] = "client-1"
@@ -94,7 +115,13 @@ class TestDriverEmails(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.payloads[0]["params"]["DRIVER_NAME"], "Chauffeur")
         self.assertEqual(self.payloads[1]["to"], [{"email": self.driver["email"]}])
         self.assertEqual(self.payloads[1]["template_id"], 4003)
-        self.assertEqual(self.payloads[1]["params"]["ORDER_DOWNLOAD_URL"], "https://example.com/api/driver/bookings/abcdef123456/order-pdf")
+        url = urlsplit(self.payloads[1]["params"]["ORDER_DOWNLOAD_URL"])
+        self.assertEqual(f"{url.scheme}://{url.netloc}{url.path}", "https://example.com/api/driver/bookings/abcdef123456/order-pdf")
+        token = parse_qs(url.query)["token"][0]
+        payload = server.jwt.decode(token, server.JWT_SECRET, algorithms=[server.JWT_ALGORITHM])
+        self.assertEqual(payload["booking_id"], self.booking["id"])
+        self.assertEqual(payload["driver_id"], self.driver["id"])
+        self.assertEqual(payload["type"], "driver_order_download")
 
     async def test_admin_replaces_partner_without_changing_booking_or_payment_status(self):
         self.booking.update(

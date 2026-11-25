@@ -997,6 +997,23 @@ def create_refresh_token(user_id: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+
+def create_driver_order_token(booking_id: str, driver_id: str) -> str:
+    now = datetime.now(timezone.utc)
+    return jwt.encode({
+        "type": "driver_order_download",
+        "booking_id": booking_id,
+        "driver_id": driver_id,
+        "iat": now,
+        "exp": now + timedelta(days=30),
+    }, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def driver_order_download_url(booking_id: str, driver_id: str, base_url: str) -> str:
+    token = create_driver_order_token(booking_id, driver_id)
+    public_base = os.environ.get("BACKEND_URL", str(base_url)).rstrip("/")
+    return f"{public_base}/api/driver/bookings/{booking_id}/order-pdf?{urlencode({'token': token})}"
+
 async def get_current_user(request: Request) -> dict:
     token = request.cookies.get("access_token")
     if not token:
@@ -5693,12 +5710,22 @@ async def get_driver_booking_detail(booking_id: str, request: Request):
     return BookingResponse(**booking)
 
 @api_router.get("/driver/bookings/{booking_id}/order-pdf")
-async def download_driver_order_pdf(booking_id: str, request: Request):
-    driver = await require_driver(request)
+async def download_driver_booking_order_pdf(booking_id: str, request: Request, token: Optional[str] = None):
+    driver = None
+    if token:
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        except jwt.PyJWTError:
+            raise HTTPException(status_code=401, detail="Lien du bon de commande expiré ou invalide")
+        if payload.get("type") != "driver_order_download" or payload.get("booking_id") != booking_id:
+            raise HTTPException(status_code=403, detail="Lien de bon de commande invalide")
+        driver = {"id": payload.get("driver_id")}
+    else:
+        driver = await require_driver(request)
     booking = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
     if not booking:
         raise HTTPException(status_code=404, detail="Réservation non trouvée")
-    if booking.get("driver_id") != driver["id"]:
+    if not driver.get("id") or booking.get("driver_id") != driver["id"]:
         raise HTTPException(status_code=403, detail="Accès refusé à ce bon de commande")
 
     settings = await get_commission_settings()
@@ -6208,7 +6235,7 @@ async def assign_booking_to_driver(booking_id: str, assign_data: AssignBooking, 
         "phone": client.get("phone") or booking.get("client_phone"),
         "email": client.get("email") or booking.get("client_email"),
     }
-    order_download_url = f"{str(request.base_url).rstrip('/')}/api/driver/bookings/{booking_id}/order-pdf"
+    order_download_url = driver_order_download_url(booking_id, driver["id"], str(request.base_url))
 
     # Send email notification to driver
     client_email_sent = await send_driver_assigned_to_client(updated_booking, driver)
