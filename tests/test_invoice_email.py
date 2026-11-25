@@ -345,7 +345,7 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
             "estimated_price": 120.0,
         }
 
-    async def test_quote_uses_template_but_completion_uses_backend_html(self):
+    async def test_quote_and_completion_use_their_configured_brevo_templates(self):
         sent_payloads = []
         sdk = _make_brevo_sdk(sent_payloads)
         bookings = SimpleNamespace(find_one=AsyncMock(return_value={}), update_one=AsyncMock())
@@ -386,9 +386,9 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(quote_payload["subject"], "📄 Votre devis Econnect VTC #QUOTE1")
         self.assertEqual(quote_payload["attachment"][0]["name"], "devis-QUOTE1.pdf")
-        self.assertNotIn("template_id", completed_payload)
-        self.assertIn("Votre course est terminée", completed_payload["html_content"])
-        self.assertNotIn("Remboursement", completed_payload["html_content"])
+        self.assertEqual(completed_payload["template_id"], 3002)
+        self.assertEqual(completed_payload["params"]["BOOKING_ID"], "QUOTE1")
+        self.assertEqual(completed_payload["params"]["BOOKING_URL"], f"{server.FRONTEND_URL}/fr/client/bookings")
         self.assertEqual(
             completed_payload["subject"],
             "Merci d'avoir voyagé avec Econnect VTC – course #QUOTE1",
@@ -555,7 +555,7 @@ class TestTemplateSelectionForBusinessFlows(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(driver_call.args[0], "driver@example.com")
         self.assertIn("Course annulée", driver_call.args[1])
         self.assertEqual(client_call.kwargs["template_key"], email_service.TEMPLATE_KEY_CANCELLATION)
-        self.assertEqual(driver_call.kwargs["template_key"], email_service.TEMPLATE_KEY_CANCELLATION)
+        self.assertEqual(driver_call.kwargs["template_key"], email_service.TEMPLATE_KEY_CANCELLATION_DRIVER)
 
     async def test_driver_withdrawal_notifies_client_about_reassignment(self):
         booking = {

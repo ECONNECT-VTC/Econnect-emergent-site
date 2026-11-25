@@ -28,7 +28,8 @@ export default function WaitingRulesEditor() {
       };
       const { data } = await axios.put(`${API_URL}/api/admin/waiting-rules`, payload,
         { withCredentials: true, timeout: 15000 });
-      setRules(data); setNotice('Barème enregistré pour les prochaines attentes uniquement.');
+      setRules(data);
+      setNotice(`Barème enregistré : ${data.free_minutes} minute(s) incluses, ${Number(data.price_per_minute).toFixed(2)} € TTC par minute${data.enabled ? ' ; estimations activées.' : ' ; estimations désactivées.'}`);
     } catch (err) { setError(parseApiError(err, 'Sauvegarde du barème impossible.')); }
     finally { setBusy(false); }
   };
@@ -36,7 +37,7 @@ export default function WaitingRulesEditor() {
     <h2 className="text-xl">Barème d’attente chauffeur</h2>
     <p className="text-sm">Le compteur commence au clic « Arrivé / En attente » et s’arrête au départ. Chaque minute entamée après la franchise est proposée à l’admin, jamais facturée automatiquement.</p>
     {error && <p role="alert" className="text-red-400">{error}</p>}
-    {notice && <p role="status">{notice}</p>}
+    {notice && <p role="status" className="rounded border border-green-500/40 bg-green-500/10 p-3 text-green-200">{notice}</p>}
     {!rules ? <Button type="button" onClick={load}>Charger le barème</Button> : <form onSubmit={save} className="space-y-3">
       <label className="flex items-center gap-2"><input type="checkbox" checked={rules.enabled} onChange={(event) => setRules({ ...rules, enabled: event.target.checked })} />Activer les estimations de frais d’attente</label>
       <label className="block">Minutes incluses<Input type="number" min="0" max="1440" step="1" required value={rules.free_minutes}

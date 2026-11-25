@@ -4106,6 +4106,17 @@ async def send_booking_completed_to_client(booking: dict):
             f"Merci d'avoir voyagé avec Econnect VTC – course #{booking_short_reference(booking_id)}",
             html_content,
             sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
+            template_key=TEMPLATE_KEY_BOOKING_COMPLETED,
+            template_params={
+                "CLIENT_NAME": booking.get("client_name", "Client"),
+                "BOOKING_ID": booking_short_reference(booking_id),
+                "BOOKING_REFERENCE": booking_short_reference(booking_id),
+                "PICKUP_DATE": booking.get("pickup_date"),
+                "PICKUP_TIME": booking.get("pickup_time"),
+                "PICKUP_ADDRESS": booking.get("pickup_address"),
+                "DROPOFF_ADDRESS": booking.get("dropoff_address"),
+                "BOOKING_URL": booking_url,
+            },
         )
         if sent:
             await db.bookings.update_one(
@@ -4441,17 +4452,12 @@ async def send_cancellation_confirmation_to_driver(booking: dict, reason: str = 
         cta_label="Voir mon espace chauffeur",
         cta_url=f"{FRONTEND_URL}/fr/driver",
     )
-    cancellation_template = (
-        TEMPLATE_KEY_CANCELLATION_DRIVER
-        if os.environ.get("BREVO_TEMPLATE_CANCELLATION_DRIVER", "").strip()
-        else TEMPLATE_KEY_CANCELLATION
-    )
     return await send_notification_email(
         driver["email"],
         f"Course annulée - Réservation #{reference}",
         html_content,
         sender_email=os.environ.get("BREVO_RESERVATION_SENDER_EMAIL") or None,
-        template_key=cancellation_template,
+        template_key=TEMPLATE_KEY_CANCELLATION_DRIVER,
         template_params={
             "CLIENT_NAME": booking.get("driver_name") or driver.get("name") or "Chauffeur",
             "BOOKING_ID": reference,

@@ -207,7 +207,8 @@ class TestBookingOperations(unittest.IsolatedAsyncioTestCase):
 
         with patch("booking_operations.billing_transaction", transaction):
             body = OperationReview(decision="approve", line=LINE)
-            await BookingOperations(self.db).review("booking-1", "wait-1", body, "admin-1")
+            response = await BookingOperations(self.db).review("booking-1", "wait-1", body, "admin-1")
+            self.assertEqual(response["draft_revision"], 1)
             self.assertEqual(len(self.db.charge_drafts.docs["booking-1"]["lines"]), 1)
             self.assertIs(self.bookings.update_one.await_args.kwargs["session"], session)
             self.assertEqual(self.bookings.update_one.await_args.args[1]["$set"]["waiting.review"]["reviewed_by"], "admin-1")

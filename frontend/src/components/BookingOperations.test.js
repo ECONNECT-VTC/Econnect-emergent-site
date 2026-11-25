@@ -55,7 +55,7 @@ describe('recorded booking operations', () => {
     await act(async () => container.querySelector('button').click());
     expect(container.textContent).toContain('Course réaffectée');
     expect(onChanged).not.toHaveBeenCalled();
-    axios.post.mockResolvedValue({});
+    axios.post.mockResolvedValue({ data: { draft_revision: 2 } });
     await act(async () => container.querySelector('button').click());
     expect(axios.post).toHaveBeenLastCalledWith('http://api.test/api/bookings/b/arrive', {}, expect.objectContaining({ withCredentials: true }));
     expect(onChanged).toHaveBeenCalledTimes(1);
@@ -93,6 +93,36 @@ describe('recorded booking operations', () => {
     expect(axios.post).toHaveBeenCalledWith('http://api.test/api/admin/bookings/b/operations/wait-1/review', { decision: 'reject' }, expect.any(Object));
   });
 
+  it('can approve, issue and email a waiting fee in one admin action', async () => {
+    const onChanged = jest.fn();
+    axios.post
+      .mockResolvedValueOnce({ data: { draft_revision: 3 } })
+      .mockResolvedValueOnce({ data: { id: 'supp-1', invoice_number: '000123' } })
+      .mockResolvedValueOnce({ data: { status: 'sent' } });
+    await act(async () => root.render(<AdminOperationReviews booking={{
+      id: 'b', client_name: 'Client', has_issued_invoice: true,
+      waiting: { ...waiting, ended_at: '2026-11-17T10:06:01Z' },
+    }} onChanged={onChanged} />));
+    const checkbox = container.querySelector('input[type="checkbox"]');
+    await act(async () => checkbox.click());
+    const inputs = container.querySelectorAll('input');
+    const numberInputs = container.querySelectorAll('input[type="number"]');
+    await act(async () => {
+      change(numberInputs[0], '2.50');
+      change(numberInputs[1], '10');
+    });
+    const address = [...inputs].find((input) => input.maxLength === 600);
+    await act(async () => change(address, '10 rue Exemple, Paris'));
+    await act(async () => container.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
+    expect(axios.post.mock.calls[1][0]).toBe('http://api.test/api/admin/bookings/b/supplementary-invoices');
+    expect(axios.post.mock.calls[1][1]).toEqual(expect.objectContaining({
+      revision: 3, client: { name: 'Client', address: '10 rue Exemple, Paris' },
+    }));
+    expect(axios.post.mock.calls[2][0]).toBe('http://api.test/api/admin/bookings/b/supplementary-invoices/supp-1/email/invoice');
+    expect(container.textContent).toContain('facture n° 000123');
+    expect(onChanged).toHaveBeenCalledTimes(1);
+  });
+
   it('loads and saves the waiting allowance and rate only on admin action', async () => {
     axios.get.mockResolvedValue({ data: waiting.rules });
     axios.put.mockResolvedValue({ data: waiting.rules });
@@ -105,6 +135,6 @@ describe('recorded booking operations', () => {
     expect(axios.put).toHaveBeenCalledWith('http://api.test/api/admin/waiting-rules', {
       enabled: true, free_minutes: 10, price_per_minute: '2.50',
     }, expect.any(Object));
-    expect(container.textContent).toContain('prochaines attentes uniquement');
+    expect(container.textContent).toContain('Barème enregistré');
   });
 });

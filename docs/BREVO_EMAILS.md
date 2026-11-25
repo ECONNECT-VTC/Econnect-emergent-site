@@ -99,6 +99,22 @@ Syntaxe Brevo dans le template : `{{ params.CLIENT_NAME }}`.
 - **Paiement confirmé**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `CURRENCY`, `BOOKING_URL`
 - **Facture**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `BOOKING_URL`
 - **Annulation / remboursement**: `CLIENT_NAME`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `AMOUNT`, `REFUND_STATUS`, `REFUND_CURRENCY`, `STRIPE_REFUND_ID`, `BOOKING_URL`
+- **Annulation chauffeur** (`BREVO_TEMPLATE_CANCELLATION_DRIVER`): mêmes paramètres, avec `CLIENT_NAME` renseigné au nom du chauffeur, `BOOKING_URL` vers son espace et un HTML chauffeur spécifique en secours.
+
+Suggestion de contenu pour le modèle chauffeur :
+
+Objet : `Course annulée Econnect VTC — référence {{ params.BOOKING_REFERENCE }}`
+
+```html
+<p>Bonjour {{ params.CLIENT_NAME }},</p>
+<p>La course <strong>#{{ params.BOOKING_REFERENCE }}</strong> qui vous était affectée a été annulée.</p>
+<p><strong>Date :</strong> {{ params.PICKUP_DATE }} à {{ params.PICKUP_TIME }}<br>
+<strong>Départ :</strong> {{ params.PICKUP_ADDRESS }}<br>
+<strong>Arrivée :</strong> {{ params.DROPOFF_ADDRESS }}</p>
+<p>Consultez votre espace chauffeur pour vérifier votre planning.</p>
+<p><a href="{{ params.BOOKING_URL }}">Ouvrir mon espace chauffeur</a></p>
+<p>L’équipe Econnect VTC</p>
+```
 - **Message administratif**: `CLIENT_NAME`, `CLIENT_EMAIL`, `BOOKING_ID`, `BOOKING_REFERENCE`, `PICKUP_DATE`, `PICKUP_TIME`, `PICKUP_ADDRESS`, `DROPOFF_ADDRESS`, `DISTANCE_KM`, `AMOUNT`, `REGISTER_URL`
 
 Dans tous les emails de réservation, `BOOKING_ID` et `BOOKING_REFERENCE` sont deux noms pour le même numéro : les six premiers caractères de l'identifiant de réservation, en majuscules (par exemple `ABCDEF`). Les templates existants utilisant `{{ params.BOOKING_ID }}` n'ont besoin d'aucune modification ; `{{ params.BOOKING_REFERENCE }}` reste un alias identique, utilisable dans le texte et l'objet. L'identifiant complet reste inchangé en base de données et dans les liens, notamment `ORDER_DOWNLOAD_URL`.

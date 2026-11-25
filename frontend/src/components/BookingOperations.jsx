@@ -66,10 +66,20 @@ function OperationReview({ booking, operation, label, suggestion, onChanged }) {
   const [taxReason, setTaxReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [billingName, setBillingName] = useState(booking.client_name || '');
+  const [billingAddress, setBillingAddress] = useState('');
+  const [dueDate, setDueDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 7);
+    return date.toISOString().slice(0, 10);
+  });
+  const [issueAndSend, setIssueAndSend] = useState(false);
+  let reviewApproved = false;
   const review = async (decision) => {
-    setBusy(true); setError('');
+    setBusy(true); setError(''); setNotice('');
     try {
-      await axios.post(`${API_URL}/api/admin/bookings/${booking.id}/operations/${operation.id}/review`, {
+      const reviewResponse = await axios.post(`${API_URL}/api/admin/bookings/${booking.id}/operations/${operation.id}/review`, {
         decision,
         ...(decision === 'approve' ? { line: {
           description: label, quantity: '1', unit_price_ttc: amount,
@@ -77,11 +87,38 @@ function OperationReview({ booking, operation, label, suggestion, onChanged }) {
           tax_reason: taxReason.trim() || null,
         } } : {}),
       }, { withCredentials: true });
+      reviewApproved = decision === 'approve';
+      if (decision === 'approve' && issueAndSend && label === 'Attente du chauffeur') {
+        if (!billingName.trim() || !billingAddress.trim() || !dueDate) {
+          throw new Error('Renseignez le nom, l’adresse de facturation et l’échéance.');
+        }
+        const requestPayload = {
+          revision: reviewResponse.data.draft_revision,
+          request_id: window.crypto?.randomUUID?.()
+            || `waiting-${operation.id}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          due_date: dueDate,
+          client: { name: billingName.trim(), address: billingAddress.trim() },
+        };
+        const target = booking.has_issued_invoice
+          ? `/api/admin/bookings/${booking.id}/supplementary-invoices`
+          : `/api/admin/bookings/${booking.id}/initial-invoice-with-charges`;
+        const issued = await axios.post(`${API_URL}${target}`, requestPayload, { withCredentials: true });
+        await axios.post(
+          `${API_URL}/api/admin/bookings/${booking.id}/supplementary-invoices/${issued.data.id}/email/invoice`,
+          {}, { withCredentials: true },
+        );
+        setNotice(`Frais d’attente validés et facture n° ${issued.data.invoice_number} envoyée au client. La part chauffeur est intégrée au registre.`);
+      } else if (decision === 'approve') {
+        setNotice('Frais validés. Ouvrez « Préparer des frais » pour les émettre et les envoyer.');
+      }
       await onChanged();
-    } catch (err) { setError(parseApiError(err, 'Validation impossible.')); }
+    } catch (err) {
+      if (reviewApproved) await onChanged();
+      setError(parseApiError(err, 'Validation enregistrée mais facturation non confirmée. Ouvrez « Préparer des frais » pour terminer.'));
+    }
     finally { setBusy(false); }
   };
-  if (operation.review) return <p className="my-2 text-sm">{label} : {operation.review.decision === 'approve' ? 'ajouté au brouillon de frais' : 'refusé'}.</p>;
+  if (operation.review) return <p className="my-2 text-sm">{label} : {operation.review.decision === 'approve' ? 'validé' : 'refusé'}.</p>;
   return <form className="my-3 space-y-3 rounded border border-[#D4AF37]/40 p-3" onSubmit={(event) => { event.preventDefault(); review('approve'); }}>
     <h3>{label} · Validation admin</h3>
     <p className="text-sm">Prix initial conservé. Validez un supplément rentable et son taux de TVA. Aucun encaissement automatique.</p>
@@ -99,11 +136,29 @@ function OperationReview({ booking, operation, label, suggestion, onChanged }) {
     <label className="block text-sm">Motif de TVA
       <Input required={taxTreatment !== 'vat' || (vat !== '' && Number(vat) === 0)} maxLength={300} value={taxReason} onChange={(event) => setTaxReason(event.target.value)} />
     </label>
+    {label === 'Attente du chauffeur' && <>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" checked={issueAndSend} onChange={(event) => setIssueAndSend(event.target.checked)} />
+        Émettre immédiatement la facture contenant ce frais et l’envoyer au client
+      </label>
+      {issueAndSend && <>
+        <label className="block text-sm">Nom de facturation
+          <Input required maxLength={160} value={billingName} onChange={(event) => setBillingName(event.target.value)} />
+        </label>
+        <label className="block text-sm">Adresse de facturation du client
+          <Input required maxLength={600} value={billingAddress} onChange={(event) => setBillingAddress(event.target.value)} />
+        </label>
+        <label className="block text-sm">Échéance
+          <Input required type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} />
+        </label>
+      </>}
+    </>}
     <div className="flex flex-wrap gap-2">
-      <Button type="submit" disabled={busy}>Valider et préparer le supplément</Button>
+      <Button type="submit" disabled={busy}>{issueAndSend ? 'Valider, facturer et envoyer' : 'Valider et préparer le supplément'}</Button>
       <Button type="button" variant="outline" disabled={busy} onClick={() => review('reject')}>Conserver le prix initial sans supplément</Button>
     </div>
     {error && <p role="alert" className="text-red-400">{error}</p>}
+    {notice && <p role="status" className="rounded bg-green-500/10 p-2 text-green-200">{notice}</p>}
   </form>;
 }
 

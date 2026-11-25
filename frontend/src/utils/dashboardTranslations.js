@@ -17,6 +17,11 @@ export const PRIVATE_TRANSLATIONS = {
 PRIVATE_TRANSLATIONS.fr = {
   ...PRIVATE_TRANSLATIONS.fr,
   search:'Rechercher', save:'Enregistrer', edit:'Modifier', cancel:'Annuler', create:'Créer',
+  recentBookings:'Dernières réservations', allCourses:'Voir tout', latestCourses:'Dernières courses',
+  totalCourses:'Total courses', pending:'En attente', inProgressShort:'En cours', completedShort:'Terminée',
+  assignedShort:'Assignée', cancelledShort:'Annulée', clientLabel:'Client', paymentPending:'Paiement en attente',
+  driverLabel:'Chauffeur', total:'Total', bookNew:'Nouvelle réservation', currentStatus:'Statut actuel',
+  filters:'Filtres', newBookingNotice:'Demande créée avec succès',
   refresh:'Recharger', back:'Retour', close:'Fermer', confirm:'Confirmer', send:'Envoyer',
   newCourse:'Nouvelle course', addCourse:'Créer la course', select:'Choisir', allBookings:'Toutes les réservations',
   pickupDate:'Date de prise en charge', pickupTime:'Heure de prise en charge',
@@ -38,6 +43,11 @@ PRIVATE_TRANSLATIONS.fr = {
 PRIVATE_TRANSLATIONS.en = {
   ...PRIVATE_TRANSLATIONS.en,
   search:'Search', save:'Save', edit:'Edit', cancel:'Cancel', create:'Create',
+  recentBookings:'Recent bookings', allCourses:'View all', latestCourses:'Recent trips',
+  totalCourses:'Total trips', pending:'Pending', inProgressShort:'In progress', completedShort:'Completed',
+  assignedShort:'Assigned', cancelledShort:'Cancelled', clientLabel:'Client', paymentPending:'Payment pending',
+  driverLabel:'Driver', total:'Total', bookNew:'New booking', currentStatus:'Current status',
+  filters:'Filters', newBookingNotice:'Booking request created successfully',
   refresh:'Refresh', back:'Back', close:'Close', confirm:'Confirm', send:'Send',
   newCourse:'New booking', addCourse:'Create booking', select:'Select', allBookings:'All bookings',
   pickupDate:'Pickup date', pickupTime:'Pickup time', pickupAddress:'Pickup address',

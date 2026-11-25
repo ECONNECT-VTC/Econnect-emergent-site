@@ -107,9 +107,11 @@ class BookingOperations:
                 draft = await drafts.get(booking_id)
                 if len(draft["lines"]) >= 40:
                     raise HTTPException(409, "Le brouillon contient déjà 40 lignes. Traitez-le avant cet ajout.")
-                await drafts.save(booking_id, ChargeDraftUpdate(
+                saved = await drafts.save(booking_id, ChargeDraftUpdate(
                     revision=draft["revision"], lines=[*draft["lines"], payload.line],
                 ), actor_id)
+            else:
+                saved = None
             result = await self.db.bookings.update_one(
                 {"id": booking_id, target: None, target.rsplit(".", 1)[0] + ".id": operation_id},
                 {"$set": {target: {
@@ -119,8 +121,11 @@ class BookingOperations:
             )
             if result.matched_count != 1:
                 raise HTTPException(409, "Proposition modifiée entre-temps.")
-            return {"message": "Supplément ajouté au brouillon de frais, non facturé." if payload.decision == "approve"
-                    else "Proposition refusée. Le prix initial reste inchangé."}
+            return {
+                "message": "Supplément approuvé. Il peut maintenant être facturé." if payload.decision == "approve"
+                    else "Proposition refusée. Le prix initial reste inchangé.",
+                "draft_revision": saved["revision"] if saved else None,
+            }
         return await billing_transaction(self.db, execute, require_enabled=False)
 
 
