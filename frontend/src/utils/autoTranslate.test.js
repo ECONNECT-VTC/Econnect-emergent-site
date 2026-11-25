@@ -38,4 +38,17 @@ describe('automatic page translation', () => {
     expect(document.body.textContent).toContain('Passengers : 3 · Payment method : virement');
     stop();
   });
+
+  it.each([
+    ['es', 'Reservas recientes', 'Ver todo', 'Viajes totales'],
+    ['de', 'Letzte Buchungen', 'Alle anzeigen', 'Fahrten insgesamt'],
+    ['ar', 'الحجوزات الأخيرة', 'عرض الكل', 'إجمالي الرحلات'],
+  ])('does not leave mixed French dashboard labels in %s', (language, recent, all, total) => {
+    document.body.innerHTML = '<div><h2>Dernières réservations</h2><a>Voir tout</a><span>Total courses</span></div>';
+    const stop = startPageTranslation(language);
+    expect(document.querySelector('h2').textContent).toBe(recent);
+    expect(document.querySelector('a').textContent).toBe(all);
+    expect(document.querySelector('span').textContent).toBe(total);
+    stop();
+  });
 });
